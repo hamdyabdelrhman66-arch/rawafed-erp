@@ -1,0 +1,56 @@
+<section class="upload-panel">
+
+  <div class="upload-info">
+    <h3>{{ label }}</h3>
+
+    <p>
+      Accepted:
+      PDF • JPG • PNG
+    </p>
+  </div>
+
+  <input
+    #fileInput
+    type="file"
+    hidden
+    [accept]="accept"
+    capture="environment"
+    (change)="selectFile($event)"
+  />
+
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    (click)="fileInput.click()">
+
+    <mat-icon>
+      {{ document ? 'check_circle' : 'document_scanner' }}
+    </mat-icon>
+
+    {{ document ? 'Scanned' : 'Scan Document' }}
+
+  </button>
+
+</section>
+
+<article class="document-card" *ngIf="document">
+  <div class="preview" *ngIf="document.mimeType.startsWith('image/'); else fileIcon">
+    <img [src]="document.dataUrl" [alt]="document.label" />
+  </div>
+  <ng-template #fileIcon>
+    <div class="preview file"><mat-icon>description</mat-icon></div>
+  </ng-template>
+  <div>
+    <strong>{{ document.fileName }}</strong>
+    <span>{{ (document.size / 1024) | number:'1.0-0' }} KB</span>
+    <mat-chip [class.verified]="document.verified">
+
+    {{ document.verified ? 'Verified' : 'Pending Verification' }}
+
+</mat-chip>
+  </div>
+  <button mat-icon-button type="button" aria-label="Delete document" (click)="delete.emit()">
+    <mat-icon>delete</mat-icon>
+  </button>
+</article>

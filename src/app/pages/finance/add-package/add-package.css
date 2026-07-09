@@ -1,0 +1,158 @@
+.page{
+    max-width:1200px;
+    margin:auto;
+}
+
+.page-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:30px;
+}
+
+.page-title{
+    font-size:32px;
+    font-weight:700;
+}
+
+.card{
+    background:white;
+    border-radius:16px;
+    padding:25px;
+    box-shadow:0 4px 20px rgba(0,0,0,.05);
+    margin-bottom:20px;
+}
+
+.form-group{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+}
+
+label{
+    font-weight:600;
+    color:#555;
+}
+
+select,
+input{
+    height:45px;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:0 12px;
+    font-size:15px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+}
+
+th{
+    text-align:left;
+    background:#fafafa;
+    padding:15px;
+    border-bottom:1px solid #eee;
+}
+
+td{
+    padding:12px;
+    border-bottom:1px solid #eee;
+}
+
+.btn-primary{
+    background:var(--raw-brand-primary);
+    color:white;
+    border:none;
+    padding:12px 20px;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+.btn-primary:hover{
+    background:#7e3f73;
+}
+
+.summary{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:20px;
+}
+
+.summary-card{
+    background:#fafafa;
+    border-radius:12px;
+    padding:20px;
+}
+
+.summary-card h3{
+    font-size:14px;
+    color:#666;
+}
+
+.summary-card h2{
+    margin-top:10px;
+}
+.info-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:20px;
+}
+
+.page-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:25px;
+}
+
+.page-header p{
+    color:#777;
+    margin-top:5px;
+}
+.add-service-btn{
+    background:var(--raw-brand-primary);
+    color:white;
+    border:none;
+    padding:12px 20px;
+    border-radius:10px;
+    font-weight:600;
+    cursor:pointer;
+    transition:.3s;
+    margin-bottom:20px;
+}
+
+.add-service-btn:hover{
+    opacity:.9;
+    transform:translateY(-2px);
+}
+.services-table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+.services-table th{
+    background:#f8f8f8;
+    padding:15px;
+    text-align:left;
+}
+
+.services-table td{
+    padding:12px;
+    border-bottom:1px solid #eee;
+}
+.delete-btn{
+    background:#ffe5e5;
+    color:#d62828;
+    border:none;
+    padding:10px 15px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+    transition:.3s;
+}
+
+.delete-btn:hover{
+    background:#ffd6d6;
+}

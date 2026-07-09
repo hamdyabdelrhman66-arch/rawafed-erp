@@ -1,0 +1,12 @@
+.summary-card {
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid rgba(10, 87, 164, .1);
+  padding: 18px;
+  box-shadow: 0 12px 30px rgba(23, 32, 51, .07);
+}
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+h3 { margin: 0; color: #0a57a4; }
+dl { display: grid; grid-template-columns: minmax(130px, .65fr) 1fr; gap: 10px 14px; margin: 0; }
+dt { color: #697386; font-weight: 600; }
+dd { margin: 0; color: #172033; overflow-wrap: anywhere; }

@@ -1,0 +1,21 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title">
+    <span>Step 02</span>
+    <h2>Parents & Guardian Address</h2>
+    <p>Primary contact, legal guardian, and residence information for school communication.</p>
+  </header>
+  <h3>Father</h3>
+  <raw-parent-person-fields [group]="parentGroup('father')"></raw-parent-person-fields>
+  <h3>Mother</h3>
+  <raw-parent-person-fields [group]="parentGroup('mother')"></raw-parent-person-fields>
+  <h3>Guardian Address</h3>
+  <div class="grid" formGroupName="address">
+    <mat-form-field><mat-label>Country</mat-label><input matInput formControlName="country" /></mat-form-field>
+    <mat-form-field><mat-label>City</mat-label><input matInput formControlName="city" /></mat-form-field>
+    <mat-form-field><mat-label>District</mat-label><input matInput formControlName="district" /></mat-form-field>
+    <mat-form-field><mat-label>Street</mat-label><input matInput formControlName="street" /></mat-form-field>
+    <mat-form-field><mat-label>Building</mat-label><input matInput formControlName="building" /></mat-form-field>
+    <mat-form-field><mat-label>Zip Code</mat-label><input matInput formControlName="zipCode" /></mat-form-field>
+    <mat-form-field class="wide"><mat-label>Google Maps Location</mat-label><input matInput formControlName="mapLocation" /></mat-form-field>
+  </div>
+</section>

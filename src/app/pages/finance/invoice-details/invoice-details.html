@@ -1,0 +1,14 @@
+<app-invoice-template
+  *ngIf="invoice"
+  [invoice]="invoice"
+  [qrData]="qrData">
+</app-invoice-template>
+
+<div class="preview-actions">
+  <button
+    class="generate-action"
+    [disabled]="!invoice"
+    (click)="downloadPdf()">
+    Download PDF
+  </button>
+</div>

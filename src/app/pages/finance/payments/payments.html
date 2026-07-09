@@ -1,0 +1,112 @@
+<div class="page-header">
+
+    <div>
+        <h1>Payments</h1>
+        <p>Manage all patient payments</p>
+    </div>
+
+    <button
+        class="add-btn"
+        routerLink="/finance/add-payment">
+
+        + Add Payment
+
+    </button>
+
+</div>
+
+
+<div class="stats">
+
+    <div class="stat-card">
+        <h3>Today's Collection</h3>
+        <h2>{{todayCollection}} SAR</h2>
+    </div>
+
+    <div class="stat-card">
+        <h3>Monthly Collection</h3>
+        <h2>{{monthlyCollection}} SAR</h2>
+    </div>
+
+    <div class="stat-card">
+        <h3>Cash Payments</h3>
+        <h2>{{cashPayments}} SAR</h2>
+    </div>
+
+    <div class="stat-card">
+        <h3>Bank Transfers</h3>
+        <h2>{{bankTransfers}} SAR</h2>
+    </div>
+
+</div>
+
+<div class="table-card">
+
+    <input
+      class="search-box"
+      placeholder="Search Student...">
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th>Receipt</th>
+                <th>Student</th>
+                <th>Package</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            <tr *ngFor="let payment of payments">
+
+                <td>{{ payment.receipt }}</td>
+                <td>{{ payment.patient }}</td>
+                <td>{{ payment.package }}</td>
+                <td>{{ payment.amount }} SAR</td>
+                <td>{{ payment.method }}</td>
+                <td>{{ payment.date }}</td>
+
+                <td>
+                    <span class="completed">
+                        {{ payment.status }}
+                    </span>
+                </td>
+
+                <td class="actions">
+
+                    <button
+  class="view-btn"
+  [routerLink]="[
+    '/finance/payment-details',
+    payment.id
+  ]">
+
+  View
+
+</button>
+
+                    <button
+    class="print-btn"
+    (click)="printReceipt()">
+
+    Print
+
+</button>
+
+                </td>
+
+            </tr>
+
+        </tbody>
+
+    </table>
+
+</div>

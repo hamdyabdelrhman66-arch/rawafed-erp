@@ -1,0 +1,66 @@
+<div class="details-header">
+
+<h1>Staff Details</h1>
+  <button
+    class="edit-btn"
+    [routerLink]="['/finance/edit-doctor', staff.id]">
+
+    Edit staff member
+  
+
+  </button>
+
+</div>
+
+<div class="details-card">
+
+  <div class="detail-item">
+    <span>Name</span>
+    <h3>{{staff.name}}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Position</span>
+    <h3>{{staff.position}}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Phone</span>
+    <h3>{{staff.phone}}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Email</span>
+    <h3>{{staff.email}}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Status</span>
+    <h3>{{staff.status}}</h3>
+  </div>
+<div class="detail-item">
+  <span>Department</span>
+  <h3>{{staff.department}}</h3>
+</div>
+
+<div class="detail-item">
+  <span>Salary</span>
+  <h3>{{staff.salary}} SAR</h3>
+</div>
+
+<div class="detail-item">
+  <span>Start Date</span>
+  <h3>{{staff.startDate}}</h3>
+</div>
+
+<div class="detail-item">
+  <span>Nationality</span>
+  <h3>{{staff.nationality}}</h3>
+</div>
+
+<div class="detail-item">
+  <span>ID Number</span>
+  <h3>{{staff.idNumber}}</h3>
+</div>
+
+</div>

@@ -1,0 +1,76 @@
+<router-outlet *ngIf="shellHidden()" />
+
+<div class="app-shell" [class.dark-mode]="darkMode()" *ngIf="!shellHidden()">
+  <aside class="sidebar">
+    <a class="brand" routerLink="/admin" aria-label="Go to dashboard">
+      <img class="logo brand-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
+      <span><strong>Rawafed</strong><small>International School</small></span>
+    </a>
+    <nav aria-label="Main navigation">
+     <a
+  routerLink="/admin"
+  routerLinkActive="active"
+  [routerLinkActiveOptions]="{ exact: true }"><mat-icon aria-hidden="false" [matBadge]="storage.pendingCount()" matBadgeColor="warn">dashboard</mat-icon><span>Dashboard</span></a>
+      <a routerLink="/register" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar'])"><mat-icon>app_registration</mat-icon><span>New Registration</span></a>
+      <a routerLink="/students" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Principal'])"><mat-icon>school</mat-icon><span>Students</span></a>
+      <a routerLink="/applications" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar', 'Principal'])"><mat-icon>folder_open</mat-icon><span>Applications</span></a>
+      <a routerLink="/reports" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Principal'])"><mat-icon>bar_chart</mat-icon><span>Reports</span></a>
+      <a routerLink="/finance" routerLinkActive="active" *ngIf="canAccess(['Super Admin', 'Finance'])"><mat-icon>payments</mat-icon><span>Finance</span></a>
+      <div class="finance-shortcuts" *ngIf="canAccess(['Super Admin', 'Finance'])">
+        <a routerLink="/finance/patient-packages" routerLinkActive="active"><mat-icon>account_balance_wallet</mat-icon><span>Accounts</span></a>
+        <a routerLink="/finance/add-payment" routerLinkActive="active"><mat-icon>add_card</mat-icon><span>Add Payment</span></a>
+        <a routerLink="/finance/generate-invoice" routerLinkActive="active"><mat-icon>receipt_long</mat-icon><span>Invoice</span></a>
+        <a routerLink="/finance/expenses" routerLinkActive="active"><mat-icon>payments</mat-icon><span>Expenses</span></a>
+        <a routerLink="/finance/reports" routerLinkActive="active"><mat-icon>monitoring</mat-icon><span>Reports</span></a>
+      </div>
+      <a routerLink="/admission-letter" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions'])"><mat-icon>description</mat-icon><span>Admission Letter</span></a>
+      <a routerLink="/settings" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin'])"><mat-icon>settings</mat-icon><span>Settings</span></a>
+    </nav>
+  </aside>
+  <section class="workspace">
+    <header class="topbar">
+      <div class="school-meta">
+        <img class="mini-logo school-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
+        <div>
+          <strong>{{ storage.settings().schoolName }}</strong>
+          <small>{{ storage.settings().schoolNameAr }}</small>
+        </div>
+      </div>
+      <div class="topbar-meta">
+        <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
+        <span class="pill"><mat-icon>calendar_month</mat-icon>{{ storage.settings().academicYear }}</span>
+        <span class="pill"><mat-icon>account_circle</mat-icon>{{ auth.session()?.displayName || 'User' }} · {{ auth.session()?.role || '' }}</span>
+        <div class="notification-center">
+          <button mat-stroked-button type="button" aria-label="Notifications" (click)="toggleNotifications()">
+            <mat-icon aria-hidden="false" [matBadge]="unreadNotifications()" [matBadgeHidden]="!unreadNotifications()" matBadgeColor="warn">notifications</mat-icon>
+            Alerts
+          </button>
+          <div class="notification-panel" *ngIf="notificationsOpen()">
+            <header>
+              <strong>Notification Center</strong>
+              <button type="button" (click)="storage.clearNotifications()">Clear</button>
+            </header>
+            <a *ngFor="let note of visibleNotifications()" [routerLink]="note.link || currentUrl()" (click)="notificationsOpen.set(false)">
+              <mat-icon>{{ note.category === 'finance' ? 'payments' : note.category === 'registration' ? 'app_registration' : 'campaign' }}</mat-icon>
+              <span>{{ note.message }}</span>
+              <small>{{ note.createdAt | date:'short' }}</small>
+            </a>
+            <p *ngIf="!visibleNotifications().length">No notifications for your role.</p>
+          </div>
+        </div>
+        <button mat-stroked-button type="button" aria-label="Switch language direction" (click)="toggleDirection()">
+          <mat-icon>translate</mat-icon>
+          {{ direction() === 'ltr' ? 'العربية' : 'English' }}
+        </button>
+        <mat-slide-toggle [checked]="darkMode()" (change)="toggleDarkMode()" aria-label="Toggle dark mode">Dark</mat-slide-toggle>
+        <button mat-stroked-button type="button" aria-label="Logout" (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          Logout
+        </button>
+      </div>
+    </header>
+    <main>
+      <router-outlet />
+    </main>
+  </section>
+</div>

@@ -1,0 +1,100 @@
+<div class="page-header">
+
+  <div>
+    <h1>Edit Expense</h1>
+    <p>Update expense information</p>
+  </div>
+
+  <button
+    class="save-btn"
+    (click)="saveExpense()">
+    Update Expense
+  </button>
+
+</div>
+
+<div class="card">
+
+  <h2>Expense Information</h2>
+
+  <div class="form-grid">
+
+    <div class="form-group">
+      <label>Expense Number</label>
+      <input
+        type="text"
+        [(ngModel)]="expense.no">
+    </div>
+
+    <div class="form-group">
+      <label>Category</label>
+      <select [(ngModel)]="expense.category">
+
+        <option
+          *ngFor="let category of categories"
+          [value]="category">
+
+          {{ category }}
+
+        </option>
+
+      </select>
+    </div>
+
+    <div class="form-group full-width">
+      <label>Description</label>
+      <input
+        type="text"
+        [(ngModel)]="expense.description">
+    </div>
+
+    <div class="form-group">
+      <label>Amount</label>
+      <input
+        type="number"
+        [(ngModel)]="expense.amount">
+    </div>
+
+    <div class="form-group">
+      <label>Expense Date</label>
+      <input
+        type="date"
+        [(ngModel)]="expense.date">
+    </div>
+
+    <div class="form-group">
+      <label>Payment Method</label>
+      <select [(ngModel)]="expense.method">
+
+        <option
+          *ngFor="let method of methods"
+          [value]="method">
+
+          {{ method }}
+
+        </option>
+
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Status</label>
+      <select [(ngModel)]="expense.status">
+
+        <option>Paid</option>
+        <option>Pending</option>
+
+      </select>
+    </div>
+
+    <div class="form-group full-width">
+      <label>Notes</label>
+      <textarea
+        rows="5"
+        [(ngModel)]="expense.notes">
+      </textarea>
+    </div>
+
+  </div>
+
+</div>

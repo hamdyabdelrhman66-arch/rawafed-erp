@@ -1,0 +1,21 @@
+<section class="signature-shell">
+  <header>
+    <div>
+      <h3>{{ label }}</h3>
+      <p>Sign naturally with Apple Pencil, stylus, or touch.</p>
+    </div>
+    <div class="signature-actions">
+      <button mat-icon-button type="button" aria-label="Undo signature stroke" (click)="undo()" [disabled]="!canUndo">
+        <mat-icon>undo</mat-icon>
+      </button>
+      <button mat-icon-button type="button" aria-label="Redo signature stroke" (click)="redo()" [disabled]="!canRedo">
+        <mat-icon>redo</mat-icon>
+      </button>
+      <button mat-stroked-button type="button" (click)="clear()">
+        <mat-icon>backspace</mat-icon>
+        Clear
+      </button>
+    </div>
+  </header>
+  <canvas #canvas></canvas>
+</section>

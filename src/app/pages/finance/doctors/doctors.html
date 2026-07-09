@@ -1,0 +1,76 @@
+<div class="page-header">
+
+  <div>
+    <h1>Staff</h1>
+    <p>Manage all staff members</p>
+  </div>
+
+ <button
+  class="add-btn"
+  routerLink="/finance/add-staff">
+
+  + Add Staff
+
+</button>
+
+</div>
+
+<div class="table-card">
+
+  <table>
+
+    <thead>
+
+      <tr>
+       <th>Name</th>
+<th>Position</th>
+<th>Department</th>
+<th>Salary</th>
+<th>Start Date</th>
+<th>Status</th>
+<th>Action</th>
+      </tr>
+
+    </thead>
+
+    <tbody>
+<tr *ngFor="let staff of staffList">
+
+  <ng-container *ngIf="staff.id">
+
+    <td>{{staff.name}}</td>
+    <td>{{staff.position}}</td>
+    <td>{{staff.department}}</td>
+    <td>{{staff.salary}} SAR</td>
+    <td>{{staff.startDate}}</td>
+    <td>{{staff.status}}</td>
+
+    <td>
+
+      <button
+        class="view-btn"
+        [routerLink]="['/finance/doctor-details', staff.id]">
+
+        View
+
+      </button>
+
+      <button
+        class="edit-btn"
+        [routerLink]="['/finance/edit-doctor', staff.id]">
+
+        Edit
+
+      </button>
+<button
+  class="delete-btn"
+  (click)="deleteStaff(staff.id)">
+
+  Delete
+
+</button>
+    </td>
+
+  </ng-container>
+
+</tr>

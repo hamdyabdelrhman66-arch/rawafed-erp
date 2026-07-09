@@ -1,0 +1,11 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title"><span>Step 07</span><h2>School Agreement</h2><p>The parent must review the full contract, school rules, tuition policy, refund policy, responsibilities, and consent.</p></header>
+  <section class="agreement" (scroll)="handleScroll($event)">
+    <article *ngFor="let section of sections">
+      <h3>{{ section.title }}</h3>
+      <p *ngFor="let paragraph of section.body">{{ paragraph }}</p>
+    </article>
+  </section>
+  <mat-checkbox formControlName="accepted" [disabled]="!scrolledToEnd">I have read and agree to the school admission agreement.</mat-checkbox>
+  <p class="helper" *ngIf="!scrolledToEnd">Please scroll to the end of the agreement to enable acceptance.</p>
+</section>

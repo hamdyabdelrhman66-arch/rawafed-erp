@@ -1,0 +1,170 @@
+<header class="page-header">
+  <div>
+    <span>Payments & Receipts</span>
+    <h1>Add Student Payment</h1>
+    <p>Select a student, review the grade fees, then record one or more paid items in the same receipt.</p>
+  </div>
+
+  <button class="save-btn" type="button" (click)="savePayment()">Save Payment</button>
+</header>
+
+<section class="info-card">
+  <h2>Student Account</h2>
+
+  <div class="info-grid">
+    <div class="form-group wide">
+      <label>Student</label>
+      <select [(ngModel)]="selectedAccount" (change)="onAccountChange()">
+        <option [ngValue]="null">Select student account</option>
+        <option *ngFor="let account of accounts" [ngValue]="account">
+          {{ account.patient }} - Grade {{ account.grade || '-' }} - Remaining {{ account.remaining | number }} SAR
+        </option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Payment Date</label>
+      <input type="date" [(ngModel)]="paymentDate" />
+    </div>
+
+    <div class="form-group">
+      <label>Payment Method</label>
+      <select [(ngModel)]="paymentMethod">
+        <option>Cash</option>
+        <option>Card</option>
+        <option>Bank Transfer</option>
+      </select>
+    </div>
+  </div>
+</section>
+
+<section class="stats" *ngIf="selectedAccount">
+  <article class="stat-card">
+    <h3>Student Grade</h3>
+    <h2>{{ selectedAccount.grade || '-' }}</h2>
+  </article>
+
+  <article class="stat-card">
+    <h3>Expected Total</h3>
+    <h2>{{ selectedAccount.total | number }} SAR</h2>
+  </article>
+
+  <article class="stat-card">
+    <h3>Paid Before</h3>
+    <h2>{{ selectedAccount.paid | number }} SAR</h2>
+  </article>
+
+  <article class="stat-card">
+    <h3>Remaining</h3>
+    <h2>{{ outstanding | number }} SAR</h2>
+  </article>
+ </section>
+
+<section class="info-card" *ngIf="selectedAccount">
+  <div class="section-title">
+    <div>
+      <h2>Fee Items</h2>
+      <p>Enter amounts beside each item. You can pay tuition, bus, books, uniform, or multiple items together.</p>
+    </div>
+
+    <div class="quick-actions">
+      <button type="button" (click)="payHalf()">Pay 50%</button>
+      <button type="button" (click)="payRemaining()">Pay Remaining</button>
+      <button type="button" (click)="clearPaymentLines()">Clear</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Fee Item</th>
+        <th>Grade Fee</th>
+        <th>Pay Now</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let line of paymentLines">
+        <td>{{ line.feeItem }}</td>
+        <td>{{ line.expected | number }} SAR</td>
+        <td>
+          <input class="amount-input" type="number" min="0" [(ngModel)]="line.amount" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="info-card">
+  <h2>Payment Details</h2>
+
+  <div class="info-grid">
+    <div class="form-group">
+      <label>Total Payment Amount</label>
+      <input [value]="(totalPaymentAmount | number) + ' SAR'" readonly />
+    </div>
+
+    <div class="form-group">
+      <label>Receipt Number</label>
+      <input value="Auto generated after save" readonly />
+    </div>
+
+    <div class="form-group">
+      <label>Collected By</label>
+      <input [(ngModel)]="collectedBy" />
+    </div>
+
+    <div class="form-group">
+      <label>Reference Number</label>
+      <input [(ngModel)]="referenceNumber" placeholder="Optional" />
+    </div>
+
+    <div class="form-group wide">
+      <label>Notes</label>
+      <textarea rows="4" [(ngModel)]="notes"></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="stats" *ngIf="selectedAccount">
+  <article class="stat-card">
+    <h3>Outstanding Before</h3>
+    <h2>{{ outstanding | number }} SAR</h2>
+  </article>
+
+  <article class="stat-card">
+    <h3>Payment Amount</h3>
+    <h2>{{ totalPaymentAmount | number }} SAR</h2>
+  </article>
+
+  <article class="stat-card">
+    <h3>Outstanding After</h3>
+    <h2>{{ outstandingAfterPayment | number }} SAR</h2>
+  </article>
+</section>
+
+<section class="info-card">
+  <h2>Previous Payments</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Receipt</th>
+        <th>Payment Item</th>
+        <th>Method</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let payment of previousPayments">
+        <td>{{ payment.date }}</td>
+        <td>{{ payment.receipt }}</td>
+        <td>{{ payment.feeItem || payment.package }}</td>
+        <td>{{ payment.method }}</td>
+        <td>{{ payment.amount | number }} SAR</td>
+      </tr>
+      <tr *ngIf="!previousPayments.length">
+        <td colspan="5" class="empty-cell">No previous payments for this student.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

@@ -1,0 +1,85 @@
+.reports-page {
+  display: grid;
+  gap: 18px;
+}
+
+.page-header,
+.stats article,
+.report-table {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(10, 87, 164, .1);
+  box-shadow: 0 14px 34px rgba(23, 32, 51, .07);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 26px;
+}
+
+.eyebrow {
+  color: #c49226;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  color: #0a57a4;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stats article,
+.report-table {
+  padding: 20px;
+}
+
+.stats span,
+.report-row span,
+.empty {
+  color: #697386;
+}
+
+.stats strong {
+  display: block;
+  margin-top: 8px;
+  color: #172033;
+  font-size: 26px;
+}
+
+.report-table {
+  display: grid;
+  gap: 10px;
+}
+
+.report-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(10, 87, 164, .1);
+}
+
+@media (max-width: 900px) {
+  .page-header,
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    display: grid;
+  }
+}

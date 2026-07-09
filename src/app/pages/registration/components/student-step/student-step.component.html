@@ -1,0 +1,71 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title">
+    <span>Step 01</span>
+    <h2>Student Information</h2>
+    <p>Capture the core identity and admission details exactly as they should appear in school records.</p>
+  </header>
+
+  <div class="grid">
+    <mat-form-field>
+      <mat-label>Student English Name</mat-label>
+      <input matInput formControlName="englishName" required />
+      <mat-error>Student English name is required.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Student Arabic Name</mat-label>
+      <input matInput formControlName="arabicName" dir="rtl" required />
+      <mat-error>Student Arabic name is required.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Applying Grade</mat-label>
+      <mat-select formControlName="applyingGrade" required>
+        <mat-option *ngFor="let grade of grades" [value]="grade">
+          {{ grade }}
+        </mat-option>
+      </mat-select>
+      <mat-error>Please choose the applying grade.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Nationality</mat-label>
+      <input matInput formControlName="nationality" required />
+      <mat-error>Nationality is required.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Religion</mat-label>
+      <input matInput formControlName="religion" />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>National ID / Iqama</mat-label>
+      <input matInput formControlName="nationalId" required />
+      <mat-error>Enter a unique National ID or Iqama.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Passport Number</mat-label>
+      <input matInput formControlName="passportNumber" />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Date of Birth</mat-label>
+      <input matInput type="date" formControlName="dateOfBirth" required />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Gender</mat-label>
+      <mat-select formControlName="gender" required>
+        <mat-option value="Male">Male</mat-option>
+        <mat-option value="Female">Female</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Previous School</mat-label>
+      <input matInput formControlName="previousSchool" />
+    </mat-form-field>
+  </div>
+</section>

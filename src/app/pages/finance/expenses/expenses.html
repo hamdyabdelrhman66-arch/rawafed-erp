@@ -1,0 +1,109 @@
+<div class="page-header">
+
+  <div>
+    <h1>Expenses</h1>
+    <p>Manage all school expenses</p>
+  </div>
+
+  <button
+  class="add-btn"
+  routerLink="/finance/add-expense">
+
+  + Add Expense
+
+</button>
+
+</div>
+
+<div class="stats-grid">
+
+  <div class="stat-card">
+    <h3>Total Expenses</h3>
+    <h2>{{totalExpenses}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>This Month</h3>
+    <h2>{{approvedExpenses}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Paid</h3>
+    <h2>{{totalExpenses - pendingExpenses}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Pending</h3>
+    <h2>{{pendingExpenses}} SAR</h2>
+  </div>
+
+</div>
+
+<div class="table-card">
+
+  <input
+    class="search-box"
+    placeholder="Search Expense..."
+  >
+
+  <table>
+
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Category</th>
+        <th>Description</th>
+        <th>Amount</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+
+    <tbody>
+
+      <tr *ngFor="let expense of expenses">
+
+        <td>{{ expense.no }}</td>
+        <td>{{ expense.category }}</td>
+<td>{{expense.title}}</td>
+        <td>{{ expense.amount }} SAR</td>
+        <td>{{ expense.date }}</td>
+
+        <td>
+          <span
+            class="status"
+            [class.paid]="expense.status === 'Paid'"
+            [class.pending]="expense.status === 'Pending'">
+
+            {{ expense.status }}
+
+          </span>
+        </td>
+
+        <td>
+
+  <button
+  class="action-btn view-btn"
+  [routerLink]="['/finance/expense-details', expense.id]">
+
+  View
+
+</button>
+          <button
+  class="action-btn edit-btn"
+  [routerLink]="['/finance/edit-expense', expense.id]">
+
+  Edit
+
+</button>
+
+        </td>
+
+      </tr>
+
+    </tbody>
+
+  </table>
+
+</div>

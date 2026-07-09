@@ -1,0 +1,176 @@
+<section class="finance-dashboard">
+  <header class="page-header">
+    <div>
+      <span>School Finance</span>
+      <h1>Finance Dashboard</h1>
+      <p>Track student balances, payments, school invoices, expenses, and staff finance operations.</p>
+    </div>
+    <div class="header-actions">
+      <button routerLink="/finance/add-payment">Add Payment</button>
+      <button routerLink="/finance/generate-invoice">Generate School Invoice</button>
+    </div>
+  </header>
+
+  <div class="dashboard-grid">
+    <article class="dashboard-card revenue" routerLink="/finance/payments">
+      <span>Total Revenue</span>
+      <strong>{{ totalRevenue | number }} SAR</strong>
+      <small>All collected payments</small>
+    </article>
+
+    <article class="dashboard-card collection-card" routerLink="/finance/payments">
+      <span>Today's Collection</span>
+      <strong>{{ todayCollection | number }} SAR</strong>
+      <small>Payments recorded today</small>
+    </article>
+
+    <article class="dashboard-card outstanding-card" routerLink="/finance/patient-packages">
+      <span>Outstanding</span>
+      <strong>{{ outstanding | number }} SAR</strong>
+      <small>Remaining student balances</small>
+    </article>
+
+    <article class="dashboard-card packages-card" routerLink="/finance/patient-packages">
+      <span>Student Accounts</span>
+      <strong>{{ activePackages }}</strong>
+      <small>Active finance accounts</small>
+    </article>
+
+    <article class="dashboard-card unpaid-card" routerLink="/finance/patient-packages">
+      <span>Unpaid Accounts</span>
+      <strong>{{ unpaidPackages }}</strong>
+      <small>Need follow up</small>
+    </article>
+
+    <article class="dashboard-card invoice-card" routerLink="/finance/invoices">
+      <span>School Invoices</span>
+      <strong>{{ invoices.length }}</strong>
+      <small>Generated invoices</small>
+    </article>
+  </div>
+
+  <section class="finance-modules">
+    <a class="module-card" routerLink="/finance/patient-packages">
+      <span class="module-icon">SA</span>
+      <strong>Student Accounts</strong>
+      <small>Balances, expected fees, paid, remaining, and account status.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/payments">
+      <span class="module-icon">PM</span>
+      <strong>Payments & Receipts</strong>
+      <small>Add payments, view receipts, and track collections.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/invoices">
+      <span class="module-icon">SI</span>
+      <strong>School Invoices</strong>
+      <small>View invoices and open printable ZATCA-ready invoice pages.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/generate-invoice">
+      <span class="module-icon">GI</span>
+      <strong>Generate Invoice</strong>
+      <small>Create a printable school invoice with VAT and QR preserved.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/expenses">
+      <span class="module-icon">EX</span>
+      <strong>Expenses</strong>
+      <small>Record and review school expenses.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/doctors">
+      <span class="module-icon">ST</span>
+      <strong>Staff</strong>
+      <small>Manage finance-related staff records.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/payroll">
+      <span class="module-icon">PR</span>
+      <strong>Payroll</strong>
+      <small>Payroll and salary processing pages.</small>
+    </a>
+
+    <a class="module-card" routerLink="/finance/reports">
+      <span class="module-icon">RP</span>
+      <strong>Finance Reports</strong>
+      <small>Revenue, expenses, payments, and student finance summaries.</small>
+    </a>
+  </section>
+
+  <div class="dashboard-sections">
+    <article class="info-card">
+      <h2>Recent Payments</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Amount</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of recentPayments">
+            <td>{{ item.patient }}</td>
+            <td>{{ item.amount | number }} SAR</td>
+            <td>{{ item.date }}</td>
+          </tr>
+          <tr *ngIf="!recentPayments.length">
+            <td colspan="3" class="empty-cell">No payments yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="info-card">
+      <h2>Recent School Invoices</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Student</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of recentInvoices">
+            <td>{{ item.invoiceNumber }}</td>
+            <td>{{ item.patient }}</td>
+            <td>{{ item.amount | number }} SAR</td>
+          </tr>
+          <tr *ngIf="!recentInvoices.length">
+            <td colspan="3" class="empty-cell">No invoices yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </article>
+  </div>
+
+  <article class="info-card">
+    <h2>Top Outstanding Balances</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Remaining</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of topOutstanding">
+          <td>{{ item.patient }}</td>
+          <td>{{ item.total | number }} SAR</td>
+          <td>{{ item.paid | number }} SAR</td>
+          <td>{{ item.remaining | number }} SAR</td>
+          <td><span class="status" [class.unpaid]="item.status === 'Unpaid'" [class.paid]="item.status === 'Paid'">{{ item.status }}</span></td>
+        </tr>
+        <tr *ngIf="!topOutstanding.length">
+          <td colspan="5" class="empty-cell">No outstanding balances yet. Submitted registrations will appear here automatically.</td>
+        </tr>
+      </tbody>
+    </table>
+  </article>
+</section>

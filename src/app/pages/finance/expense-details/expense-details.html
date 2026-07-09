@@ -1,0 +1,80 @@
+<div class="page-header">
+
+    <h1>Expense Details</h1>
+
+</div>
+
+<div class="action-buttons">
+
+   <button
+  class="edit-btn"
+  [routerLink]="['/finance/edit-expense', expense.no]">
+
+  Edit Expense
+
+</button>
+
+    <button class="print-btn">
+        Print
+    </button>
+
+</div>
+
+<div class="stats">
+
+    <div class="stat-card">
+        <h3>Amount</h3>
+        <h2>{{ expense.amount }} SAR</h2>
+    </div>
+
+    <div class="stat-card">
+        <h3>Status</h3>
+        <h2>{{ expense.status }}</h2>
+    </div>
+
+    <div class="stat-card">
+        <h3>Method</h3>
+        <h2>{{ expense.method }}</h2>
+    </div>
+
+</div>
+
+<div class="info-card">
+
+    <h2>Expense Information</h2>
+
+    <div class="info-grid">
+
+        <div>
+            <label>Expense No</label>
+            <p>{{ expense.no }}</p>
+        </div>
+
+        <div>
+            <label>Category</label>
+            <p>{{ expense.category }}</p>
+        </div>
+
+        <div>
+            <label>Date</label>
+            <p>{{ expense.date }}</p>
+        </div>
+
+        <div>
+            <label>Payment Method</label>
+            <p>{{ expense.method }}</p>
+        </div>
+
+        <div>
+            <label>Description</label>
+            <p>{{ expense.description }}</p>
+        </div>
+
+        <div>
+            <label>Notes</label>
+            <p>{{ expense.notes }}</p>
+        </div>
+
+    </div>
+
+</div>

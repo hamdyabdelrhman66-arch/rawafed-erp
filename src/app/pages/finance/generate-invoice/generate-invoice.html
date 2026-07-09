@@ -1,0 +1,199 @@
+﻿<section class="generate-invoice-page">
+  <div class="entry-panel" *ngIf="!previewVisible">
+    <div class="page-title">
+      <h1>Generate School Invoice</h1>
+      <p>Select from the finance data, then generate the printable invoice preview.</p>
+    </div>
+
+    <form class="invoice-form" (ngSubmit)="showInvoice()">
+      <label class="wide">
+        <span>Student Account</span>
+        <select class="form-control" name="studentAccount" [(ngModel)]="selectedAccountId" (change)="onAccountChange()">
+          <option [ngValue]="null">Select student account</option>
+          <option *ngFor="let account of accounts" [ngValue]="account.id">
+            {{ account.patient }} - Grade {{ account.grade || '-' }} - Remaining {{ account.remaining | number }} SAR
+          </option>
+        </select>
+      </label>
+
+      <label>
+        <span>School Invoice Number</span>
+        <input class="form-control" name="invoiceNumber" [(ngModel)]="form.invoiceNumber" />
+      </label>
+
+      <label>
+        <span>Student Name</span>
+        <input class="form-control" name="patientName" [(ngModel)]="form.patientName" />
+      </label>
+
+      <label>
+        <span>Staff Name</span>
+        <input class="form-control" name="doctorName" [(ngModel)]="form.doctorName" />
+      </label>
+
+      <label>
+        <span>File Number</span>
+        <input class="form-control" name="fileNumber" [(ngModel)]="form.fileNumber" />
+      </label>
+
+      <label>
+        <span>Student ID</span>
+        <input class="form-control" name="patientId" [(ngModel)]="form.patientId" />
+      </label>
+
+      <label>
+        <span>School</span>
+        <select class="form-control" name="school" [(ngModel)]="form.clinic">
+          <option *ngFor="let school of schoolOptions" [value]="school">{{ school }}</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Billing Entity</span>
+        <select class="form-control" name="insuranceCompany" [(ngModel)]="form.insuranceCompany">
+          <option *ngFor="let entity of billingEntities" [value]="entity">{{ entity }}</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Fee Item Name</span>
+        <select class="form-control" name="serviceName" [(ngModel)]="selectedFeeItem" (change)="onFeeItemChange()">
+          <option value="">Select fee item</option>
+          <option *ngFor="let item of selectedAccountFeeItems" [value]="item.service">
+            {{ item.service }} - {{ item.price * item.sessions | number }} SAR
+          </option>
+          <option value="School Fees">School Fees</option>
+          <option value="Tuition">Tuition</option>
+          <option value="Registration Fee">Registration Fee</option>
+          <option value="Uniform">Uniform</option>
+          <option value="Bus Transportation">Bus Transportation</option>
+          <option value="Books">Books</option>
+          <option value="Activities">Activities</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Amount Before VAT</span>
+        <input class="form-control" type="number" min="0" step="0.01" name="amountBeforeVat" [(ngModel)]="form.amountBeforeVat" />
+      </label>
+
+      <label>
+        <span>Discount</span>
+        <input class="form-control" type="number" min="0" step="0.01" name="discount" [(ngModel)]="form.discount" />
+      </label>
+
+      <label>
+        <span>Date</span>
+        <input class="form-control" type="date" name="date" [(ngModel)]="form.date" />
+      </label>
+
+      <label>
+        <span>Payment Method</span>
+        <select class="form-control" name="paymentMethod" [(ngModel)]="form.paymentMethod">
+          <option *ngFor="let method of paymentMethods" [value]="method">{{ method }}</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Paid Amount</span>
+        <input class="form-control" type="number" min="0" step="0.01" name="paidAmount" [(ngModel)]="form.paidAmount" />
+      </label>
+
+      <label>
+        <span>Remaining Amount</span>
+        <input class="form-control" [value]="formatMoney(remainingAmount)" readonly />
+      </label>
+
+      <label>
+        <span>Tax Number</span>
+        <input class="form-control" name="taxNumber" [(ngModel)]="form.taxNumber" />
+      </label>
+
+      <label class="wide">
+        <span>Notes</span>
+        <textarea class="form-control" rows="4" name="notes" [(ngModel)]="form.notes"></textarea>
+      </label>
+
+      <div class="calculation-strip wide">
+        <div>
+          <span>VAT 15%</span>
+          <strong>{{ formatMoney(vatAmount) }}</strong>
+        </div>
+        <div>
+          <span>Total Amount</span>
+          <strong>{{ formatMoney(totalAmount) }}</strong>
+        </div>
+        <div>
+          <span>Remaining Amount</span>
+          <strong>{{ formatMoney(remainingAmount) }}</strong>
+        </div>
+      </div>
+
+      <button class="generate-action wide" type="submit">Generate School Invoice</button>
+    </form>
+  </div>
+
+  <div class="preview-panel" *ngIf="previewVisible">
+    <div class="preview-actions">
+      <button type="button" class="secondary-action" (click)="previewVisible = false">Edit Details</button>
+      <button type="button" class="generate-action compact" (click)="downloadPdf()" [disabled]="isExporting">
+        {{ isExporting ? 'Preparing PDF...' : 'Download PDF' }}
+      </button>
+    </div>
+
+    <div class="invoice-scroll">
+      <article class="invoice-sheet clean-invoice" #invoiceSheet>
+        <header class="invoice-header">
+          <img src="/assets/rawafed-logo.png" alt="Rawafed International School" />
+          <div>
+            <h2>Tax Invoice</h2>
+            <p>Rawafed International School</p>
+          </div>
+          <img *ngIf="qrImageDataUrl" [src]="qrImageDataUrl" alt="School invoice QR code" />
+        </header>
+
+        <section class="invoice-summary">
+          <div><span>Invoice No.</span><strong>{{ form.invoiceNumber }}</strong></div>
+          <div><span>Date</span><strong>{{ form.date }}</strong></div>
+          <div><span>Payment Method</span><strong>{{ form.paymentMethod }}</strong></div>
+          <div><span>Tax Number</span><strong>{{ form.taxNumber || '-' }}</strong></div>
+        </section>
+
+        <section class="invoice-summary">
+          <div><span>Student</span><strong>{{ form.patientName }}</strong></div>
+          <div><span>Student ID</span><strong>{{ form.patientId || '-' }}</strong></div>
+          <div><span>File Number</span><strong>{{ form.fileNumber || '-' }}</strong></div>
+          <div><span>Staff</span><strong>{{ form.doctorName || '-' }}</strong></div>
+        </section>
+
+        <table class="invoice-lines">
+          <thead>
+            <tr>
+              <th>Fee Item</th>
+              <th>Amount Before VAT</th>
+              <th>Discount</th>
+              <th>VAT 15%</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ form.serviceName }}</td>
+              <td>{{ formatMoney(subtotal) }} SAR</td>
+              <td>{{ formatMoney(discount) }} SAR</td>
+              <td>{{ formatMoney(vatAmount) }} SAR</td>
+              <td>{{ formatMoney(totalAmount) }} SAR</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <section class="invoice-summary totals">
+          <div><span>Paid</span><strong>{{ formatMoney(paidAmount) }} SAR</strong></div>
+          <div><span>Remaining</span><strong>{{ formatMoney(remainingAmount) }} SAR</strong></div>
+        </section>
+
+        <p class="invoice-notes" *ngIf="form.notes">{{ form.notes }}</p>
+      </article>
+    </div>
+  </div>
+</section>

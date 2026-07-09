@@ -1,0 +1,74 @@
+<div class="form-card">
+
+  <h1>Edit Staff Member</h1>
+
+  <div class="form-grid">
+
+    <div class="form-group">
+      <label>Full Name</label>
+      <input [(ngModel)]="staff.name">
+    </div>
+
+    <div class="form-group">
+      <label>Position</label>
+      <input [(ngModel)]="staff.position">
+    </div>
+
+    <div class="form-group">
+      <label>Phone</label>
+      <input [(ngModel)]="staff.phone">
+    </div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input [(ngModel)]="staff.email">
+    </div>
+
+    <div class="form-group">
+      <label>Salary</label>
+      <input type="number" [(ngModel)]="staff.salary">
+    </div>
+
+    <div class="form-group">
+      <label>Status</label>
+
+      <select [(ngModel)]="staff.status">
+        <option>Active</option>
+        <option>Inactive</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Start Date</label>
+      <input type="date" [(ngModel)]="staff.startDate">
+    </div>
+
+    <div class="form-group">
+      <label>Nationality</label>
+      <input [(ngModel)]="staff.nationality">
+    </div>
+
+    <div class="form-group">
+      <label>ID Number</label>
+      <input [(ngModel)]="staff.idNumber">
+    </div>
+
+    <div class="form-group full-width">
+      <label>Notes</label>
+      <textarea
+        rows="5"
+        [(ngModel)]="staff.notes">
+      </textarea>
+    </div>
+
+  </div>
+
+  <button
+    class="save-btn"
+    (click)="saveChanges()">
+
+    Save Changes
+
+  </button>
+
+</div>

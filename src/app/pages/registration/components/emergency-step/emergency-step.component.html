@@ -1,0 +1,9 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title"><span>Step 03</span><h2>Emergency Contact</h2><p>Someone the school can reach immediately if the parents are unavailable.</p></header>
+  <div class="grid">
+    <mat-form-field><mat-label>Emergency Contact Name</mat-label><input matInput formControlName="contactName" required /><mat-error>Contact name is required.</mat-error></mat-form-field>
+    <mat-form-field><mat-label>Relationship to Student</mat-label><input matInput formControlName="relationship" required /><mat-error>Relationship is required.</mat-error></mat-form-field>
+    <mat-form-field><mat-label>Primary Phone</mat-label><input matInput formControlName="phone" required /><mat-error>Primary phone is required.</mat-error></mat-form-field>
+    <mat-form-field><mat-label>Alternative Phone</mat-label><input matInput formControlName="alternativePhone" /></mat-form-field>
+  </div>
+</section>

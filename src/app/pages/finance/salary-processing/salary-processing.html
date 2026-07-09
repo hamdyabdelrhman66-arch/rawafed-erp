@@ -1,0 +1,60 @@
+<div class="page-header">
+
+<h1>Salary Processing</h1>
+
+<button
+class="add-btn"
+(click)="processSalaries()">
+
+Process Salaries
+
+</button>
+
+</div>
+
+<div class="table-card">
+
+<table>
+
+<thead>
+<tr>
+<th>Employee</th>
+<th>Salary</th>
+<th>Deduction</th>
+<th>Bonus</th>
+<th>Net Salary</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr *ngFor="let emp of employees">
+
+<td>{{emp.name}}</td>
+
+<td>{{emp.salary}}</td>
+
+<td>
+<input
+type="number"
+[(ngModel)]="emp.deduction">
+</td>
+
+<td>
+<input
+type="number"
+[(ngModel)]="emp.bonus">
+</td>
+
+<td>
+{{emp.salary - emp.deduction + emp.bonus}}
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</div>

@@ -1,0 +1,134 @@
+<div class="page-header">
+
+  <div>
+    <h1>Add Expense</h1>
+    <p>Record school expense</p>
+  </div>
+
+  <button
+    class="save-btn"
+    (click)="saveExpense()">
+    Save Expense
+  </button>
+
+</div>
+
+<div class="form-card">
+
+  <h2>Expense Information</h2>
+
+  <div class="form-grid">
+
+    <div class="form-group">
+      <label>Category</label>
+
+      <select [(ngModel)]="expense.category">
+
+        <option
+          *ngFor="let category of categories"
+          [value]="category">
+
+          {{ category }}
+
+        </option>
+
+      </select>
+
+    </div>
+
+    <div class="form-group">
+      <label>Expense Date</label>
+
+      <input
+        type="date"
+        [(ngModel)]="expense.date">
+
+    </div>
+
+    <div class="form-group full-width">
+      <label>Description</label>
+
+      <input
+        type="text"
+        placeholder="Expense Description"
+        [(ngModel)]="expense.description">
+
+    </div>
+
+    <div class="form-group">
+      <label>Amount</label>
+
+      <input
+        type="number"
+        [(ngModel)]="expense.amount">
+
+    </div>
+
+    <div class="form-group">
+      <label>Payment Method</label>
+
+      <select [(ngModel)]="expense.method">
+
+        <option
+          *ngFor="let method of methods"
+          [value]="method">
+
+          {{ method }}
+
+        </option>
+
+      </select>
+
+    </div>
+
+    <div class="form-group">
+      <label>Status</label>
+
+      <select [(ngModel)]="expense.status">
+
+        <option value="Paid">
+          Paid
+        </option>
+
+        <option value="Pending">
+          Pending
+        </option>
+
+      </select>
+
+    </div>
+
+    <div class="form-group full-width">
+
+      <label>Notes</label>
+
+      <textarea
+        rows="5"
+        [(ngModel)]="expense.notes">
+
+      </textarea>
+
+    </div>
+
+  </div>
+
+</div>
+
+<div class="summary-grid">
+
+  <div class="summary-card">
+    <h3>Amount</h3>
+    <h2>{{ expense.amount }} SAR</h2>
+  </div>
+
+  <div class="summary-card">
+    <h3>Category</h3>
+    <h2>{{ expense.category }}</h2>
+  </div>
+
+  <div class="summary-card">
+    <h3>Method</h3>
+    <h2>{{ expense.method }}</h2>
+  </div>
+
+</div>

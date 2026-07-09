@@ -1,0 +1,99 @@
+<div class="page-header">
+
+  <div>
+    <h1>Payroll</h1>
+    <p>Manage employee salaries</p>
+  </div>
+
+  <button
+    class="add-btn"
+    routerLink="/finance/salary-processing">
+
+    Process Salaries
+
+  </button>
+
+</div>
+
+<div class="stats-grid">
+
+  <div class="stat-card">
+    <h3>Total Employees</h3>
+    <h2>{{totalEmployees}}</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Monthly Salaries</h3>
+    <h2>{{monthlySalaries}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Paid</h3>
+    <h2>{{paidSalaries}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Pending</h3>
+    <h2>{{pendingSalaries}} SAR</h2>
+  </div>
+
+</div>
+
+<div class="table-card">
+
+  <table>
+
+    <thead>
+
+      <tr>
+
+        <th>Employee</th>
+        <th>Position</th>
+        <th>Salary</th>
+        <th>Deduction</th>
+        <th>Net Salary</th>
+        <th>Start Date</th>
+        <th>Status</th>
+        <th>Action</th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      <tr *ngFor="let employee of employees">
+
+        <td>{{employee.name}}</td>
+
+        <td>{{employee.position}}</td>
+
+        <td>{{employee.salary}} SAR</td>
+
+        <td>{{employee.deduction}} SAR</td>
+
+        <td>{{employee.net}} SAR</td>
+
+        <td>{{employee.startDate}}</td>
+
+        <td>
+
+          <span
+            [style.color]="employee.status === 'Paid' ? 'green' : '#f59e0b'">
+
+            {{employee.status}}
+
+          <td>
+
+</span>
+
+
+</td>
+
+      </tr>
+
+    </tbody>
+
+  </table>
+
+</div>

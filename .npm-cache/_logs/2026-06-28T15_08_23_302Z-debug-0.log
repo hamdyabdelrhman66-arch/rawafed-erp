@@ -1,0 +1,34 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.8.2
+2 info using node@v20.19.5
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npmrc
+5 silly config load:file:C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-global\etc\npmrc
+6 verbose title npm exec @angular/cli@20 new rawafed-admissions --directory . --standalone --style scss --routing --skip-git --skip-tests --package-manager npm
+7 verbose argv "exec" "--yes" "--" "@angular/cli@20" "new" "rawafed-admissions" "--directory" "." "--standalone" "--style" "scss" "--routing" "--skip-git" "--skip-tests" "--package-manager" "npm"
+8 verbose logfile logs-max:10 dir:C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-cache\_logs\2026-06-28T15_08_23_302Z-
+9 verbose logfile C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-cache\_logs\2026-06-28T15_08_23_302Z-debug-0.log
+10 silly logfile done cleaning log files
+11 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+12 http fetch GET 200 https://registry.npmjs.org/@angular%2fcli 773ms (cache revalidated)
+13 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+14 verbose stack Error: ENOENT: no such file or directory, lstat 'C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-global'
+14 verbose stack     at async lstat (node:internal/fs/promises:1025:18)
+14 verbose stack     at async #loadActual (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\load-actual.js:112:20)
+14 verbose stack     at async exec (C:\Program Files\nodejs\node_modules\npm\node_modules\libnpmexec\lib\index.js:207:26)
+14 verbose stack     at async Npm.exec (C:\Program Files\nodejs\node_modules\npm\lib\npm.js:207:9)
+14 verbose stack     at async module.exports (C:\Program Files\nodejs\node_modules\npm\lib\cli\entry.js:74:5)
+15 error code ENOENT
+16 error syscall lstat
+17 error path C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-global
+18 error errno -4058
+19 error enoent ENOENT: no such file or directory, lstat 'C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-global'
+20 error enoent This is related to npm not being able to find a file.
+20 error enoent
+21 verbose cwd C:\Users\Lenovo\OneDrive\المستندات\Registration form
+22 verbose os Windows_NT 10.0.26200
+23 verbose node v20.19.5
+24 verbose npm  v10.8.2
+25 verbose exit -4058
+26 verbose code -4058
+27 error A complete log of this run can be found in: C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-cache\_logs\2026-06-28T15_08_23_302Z-debug-0.log

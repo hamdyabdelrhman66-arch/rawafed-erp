@@ -1,0 +1,71 @@
+<section class="letter-page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Documents</span>
+      <h1>Admission Letter</h1>
+      <p>Generate a bilingual transfer request letter with school branding.</p>
+    </div>
+  </header>
+
+  <form class="letter-grid">
+    <section class="letter-form">
+      <h2>Letter Details</h2>
+      <mat-form-field>
+        <mat-label>Current School / Recipient School</mat-label>
+        <input matInput [(ngModel)]="letter.recipientSchool" name="recipientSchool" />
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Student Name</mat-label>
+        <input matInput [(ngModel)]="letter.studentName" name="studentName" />
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Grade</mat-label>
+        <mat-select [(ngModel)]="letter.grade" name="grade">
+          <mat-option *ngFor="let grade of grades" [value]="grade">{{ grade }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>School Email / Recipient Email</mat-label>
+        <input matInput type="email" [(ngModel)]="letter.recipientEmail" name="recipientEmail" />
+      </mat-form-field>
+
+      <mat-form-field class="wide">
+        <mat-label>Optional Notes</mat-label>
+        <textarea matInput rows="4" [(ngModel)]="letter.notes" name="notes"></textarea>
+      </mat-form-field>
+
+      <nav class="actions">
+        <button mat-stroked-button type="button" (click)="preview()">
+          <mat-icon>visibility</mat-icon>
+          Preview PDF
+        </button>
+        <button mat-flat-button color="primary" type="button" (click)="download()">
+          <mat-icon>download</mat-icon>
+          Download PDF
+        </button>
+        <button mat-stroked-button type="button" (click)="prepareEmail()">
+          <mat-icon>mail</mat-icon>
+          Prepare Email
+        </button>
+      </nav>
+    </section>
+
+    <section class="letter-preview">
+      <h2>{{ storage.settings().schoolName }}</h2>
+      <h3>Admission Letter</h3>
+      <p><strong>To:</strong> {{ letter.recipientSchool || 'Recipient School' }}</p>
+      <p><strong>Student:</strong> {{ letter.studentName || 'Student Name' }}</p>
+      <p><strong>Grade:</strong> {{ letter.grade || 'Grade' }}</p>
+      <p>Please prepare the student file transfer, attested documents, financial clearance, and Noor system transfer.</p>
+      <p class="arabic" dir="rtl">نأمل تزويدنا بملف الطالب/ـة والمستندات المصدقة والمخالصة المالية وإتمام النقل عبر نظام نور.</p>
+    </section>
+
+    <section class="email-draft wide" *ngIf="emailDraft">
+      <h2>Email Draft</h2>
+      <pre>{{ emailDraft }}</pre>
+    </section>
+  </form>
+</section>

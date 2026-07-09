@@ -1,0 +1,60 @@
+<div class="page-header">
+
+  <div>
+    <h1>Add Student</h1>
+    <p>Create new patient profile</p>
+  </div>
+
+</div>
+
+<div class="card">
+
+  <div class="form-grid">
+
+    <div class="form-group">
+      <label>Student Name</label>
+      <input
+      [(ngModel)]="patient.name">
+    </div>
+
+    <div class="form-group">
+      <label>Phone</label>
+      <input
+      [(ngModel)]="patient.phone">
+    </div>
+
+    <div class="form-group">
+      <label>Guardian</label>
+      <input
+      [(ngModel)]="patient.guardian">
+    </div>
+
+    <div class="form-group">
+      <label>Age</label>
+      <input
+      [(ngModel)]="patient.age">
+    </div>
+
+    <div class="form-group">
+      <label>Diagnosis</label>
+      <input
+      [(ngModel)]="patient.diagnosis">
+    </div>
+
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea
+      [(ngModel)]="patient.notes"></textarea>
+    </div>
+
+  </div>
+
+  <button
+  class="save-btn"
+  (click)="savePatient()">
+
+    Save Student
+
+  </button>
+
+</div>

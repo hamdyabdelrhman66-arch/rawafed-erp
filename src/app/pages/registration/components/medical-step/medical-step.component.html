@@ -1,0 +1,15 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title"><span>Step 04</span><h2>Medical Profile</h2><p>Health notes used by the clinic, reception, and emergency team.</p></header>
+  <div class="grid">
+    <mat-form-field><mat-label>Blood Type</mat-label><mat-select formControlName="bloodType"><mat-option *ngFor="let type of bloodTypes" [value]="type">{{ type }}</mat-option></mat-select></mat-form-field>
+    <mat-form-field><mat-label>Allergies</mat-label><input matInput formControlName="allergies" /></mat-form-field>
+    <mat-form-field><mat-label>Medical Conditions</mat-label><input matInput formControlName="medicalConditions" /></mat-form-field>
+    <mat-form-field><mat-label>Current Medication</mat-label><input matInput formControlName="medication" /></mat-form-field>
+    <mat-form-field><mat-label>Primary Physician</mat-label><input matInput formControlName="primaryPhysician" /></mat-form-field>
+    <mat-form-field><mat-label>Preferred Hospital</mat-label><input matInput formControlName="hospital" /></mat-form-field>
+    <mat-form-field><mat-label>Doctor Phone</mat-label><input matInput formControlName="doctorPhone" /></mat-form-field>
+    <mat-form-field><mat-label>Insurance Company</mat-label><input matInput formControlName="insuranceCompany" /></mat-form-field>
+    <mat-form-field><mat-label>Insurance Number</mat-label><input matInput formControlName="insuranceNumber" /></mat-form-field>
+    <mat-form-field class="wide"><mat-label>Special Medical Notes</mat-label><textarea matInput rows="3" formControlName="specialNotes"></textarea></mat-form-field>
+  </div>
+</section>

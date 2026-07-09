@@ -1,0 +1,17 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.8.2
+2 info using node@v20.19.5
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npmrc
+5 silly config load:file:C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-global\etc\npmrc
+6 verbose title npm run build
+7 verbose argv "run" "build"
+8 verbose logfile logs-max:10 dir:C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-cache\_logs\2026-06-28T15_37_53_800Z-
+9 verbose logfile C:\Users\Lenovo\OneDrive\المستندات\Registration form\.npm-cache\_logs\2026-06-28T15_37_53_800Z-debug-0.log
+10 silly logfile done cleaning log files
+11 verbose cwd C:\Users\Lenovo\OneDrive\المستندات\Registration form
+12 verbose os Windows_NT 10.0.26200
+13 verbose node v20.19.5
+14 verbose npm  v10.8.2
+15 verbose exit 1
+16 verbose code 1
