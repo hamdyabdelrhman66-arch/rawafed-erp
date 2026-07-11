@@ -1,14 +1,16 @@
 .wizard-page {
-  width: 100%;
+  width: calc(100% / .88);
   max-width: 100%;
   min-width: 0;
   min-height: 100vh;
   display: grid;
   align-content: start;
   gap: 18px;
-  padding: clamp(18px, 2vw, 30px);
+  padding: clamp(20px, 2.4vw, 34px);
   overflow-x: hidden;
   font-size: 14px;
+  transform: scale(.88);
+  transform-origin: top left;
 }
 
 .page-header {
@@ -386,6 +388,8 @@ h2 {
 
 @media (max-width: 720px) {
   .wizard-page {
+    width: 100%;
+    transform: none;
     padding: 14px;
   }
 
