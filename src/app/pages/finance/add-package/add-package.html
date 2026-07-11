@@ -1,0 +1,242 @@
+<div class="page-header">
+
+    <div>
+        <h1>Add Package</h1>
+        <p>Create a new package for patient</p>
+    </div>
+<div class="form-group">
+
+  <label>
+    Package Start Date
+  </label>
+
+  <input
+    type="date"
+    [(ngModel)]="
+      packageStartDate
+    ">
+
+</div>
+
+<div class="form-group">
+
+  <label>
+    Payment Items Per Plan
+  </label>
+
+  <input
+    type="number"
+    [(ngModel)]="
+      sessionsPerWeek
+    ">
+
+</div>
+
+<div class="form-group">
+
+  <label>
+    Expected End Date
+  </label>
+
+  <input
+    [value]="expectedEndDate"
+    readonly>
+
+</div>
+    <button
+  class="btn-primary"
+  (click)="savePackage()">
+
+  Save Package
+
+</button>
+
+</div>
+
+<div class="card">
+
+    <h2>Student Information</h2>
+
+    <div class="info-grid">
+
+       <div class="form-group">
+
+  <label>Student</label>
+
+<select
+  [(ngModel)]="selectedPatient"
+  [disabled]="selectedPatient">
+
+  <option
+    *ngFor="let patient of patients"
+    [ngValue]="patient">
+
+    {{patient.name}}
+
+  </option>
+
+
+</select>
+</div>
+        <div class="form-group">
+
+            <label>Package Date</label>
+
+            <input type="date">
+
+        </div>
+
+        <div class="form-group">
+
+            <label>Discount %</label>
+
+            <input
+                type="number"
+                [(ngModel)]="discountPercent">
+
+        </div>
+
+        <div class="form-group">
+
+            <label>Initial Payment</label>
+
+            <input
+                type="number"
+                [(ngModel)]="initialPayment">
+
+        </div>
+
+    </div>
+
+</div>
+
+<div class="card">
+
+    <h2>Fee Items</h2>
+
+    <button
+        class="btn-primary"
+        (click)="addService()">
+
+        + Add Fee Item
+
+    </button>
+
+    <table class="services-table">
+
+        <thead>
+
+            <tr>
+                <th>Fee Item</th>
+                <th>Payment Items</th>
+                <th>Price</th>
+                <th>Total</th>
+                <th>Delete</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            <tr *ngFor="let item of packageServices">
+
+                <td>
+
+                    <select
+                        [(ngModel)]="item.service"
+                        (change)="onServiceChange(item)">
+
+                        <option value="">
+                            Select Fee Item
+                        </option>
+
+                        <option
+                            *ngFor="let service of serviceTypes"
+                            [value]="service.name">
+
+                            {{ service.name }}
+
+                        </option>
+
+                    </select>
+
+                </td>
+
+                <td>
+
+                    <input
+                        type="number"
+                        [(ngModel)]="item.sessions">
+
+                </td>
+
+                <td>
+
+                    <input
+                        type="number"
+                        [value]="item.price"
+                        readonly>
+
+                </td>
+
+                <td>
+
+                    {{ item.sessions * item.price }}
+
+                </td>
+
+                <td>
+
+                    <button
+                        class="delete-btn"
+                        (click)="removeService(item)">
+
+                        Delete
+
+                    </button>
+
+                </td>
+
+            </tr>
+
+        </tbody>
+
+    </table>
+
+</div>
+
+<div class="summary">
+
+    <div class="summary-card">
+
+        <h3>Subtotal</h3>
+
+        <h2>{{ subtotal }} SAR</h2>
+
+    </div>
+
+    <div class="summary-card">
+
+        <h3>Discount</h3>
+
+        <h2>{{ discountAmount }} SAR</h2>
+
+    </div>
+
+    <div class="summary-card">
+
+        <h3>Net Total</h3>
+
+        <h2>{{ netTotal }} SAR</h2>
+
+    </div>
+
+    <div class="summary-card">
+
+        <h3>Outstanding</h3>
+
+        <h2>{{ outstanding }} SAR</h2>
+
+    </div>
+
+</div>

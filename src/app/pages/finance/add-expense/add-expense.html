@@ -1,0 +1,212 @@
+<div class="page-header">
+  <div>
+    <h1>{{ 'expense.add_title' | t }}</h1>
+    <p>{{ 'expense.add_description' | t }}</p>
+  </div>
+
+  <button class="save-btn" [disabled]="saving" (click)="saveExpense()">
+    {{ saving ? ('expense.saving' | t) : ('expense.save_post' | t) }}
+  </button>
+</div>
+
+<div class="form-card">
+  <h2>{{ 'expense.voucher' | t }}</h2>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>{{ 'expense.date' | t }}</label>
+      <input type="date" [(ngModel)]="expense.expenseDate" />
+    </div>
+
+    <div class="form-group supplier-field">
+      <label>{{ 'common.supplier' | t }}</label>
+      <div class="inline-control">
+        <input type="search" [placeholder]="'expense.search_supplier' | t" [(ngModel)]="supplierSearch" />
+        <button type="button" (click)="showSupplierModal = true">{{ 'expense.new_supplier' | t }}</button>
+      </div>
+      <select [ngModel]="expense.supplierId" (ngModelChange)="selectSupplier($event)">
+        <option value="">{{ 'expense.select_supplier' | t }}</option>
+        <option *ngFor="let supplier of filteredSuppliers" [value]="supplier.id">
+          {{ supplier.supplierCode }} - {{ supplier.nameEn }} {{ supplier.vatNumber ? '(' + supplier.vatNumber + ')' : '' }}
+        </option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.supplier_vat' | t }}</label>
+      <input type="text" [(ngModel)]="expense.supplierVatNumber" readonly />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.category_account' | t }}</label>
+      <select [(ngModel)]="expense.expenseAccountId">
+        <option *ngFor="let account of expenseAccounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.invoice_type' | t }}</label>
+      <select [(ngModel)]="expense.invoiceType" (ngModelChange)="onInvoiceTypeChange()">
+        <option *ngFor="let type of invoiceTypes" [value]="type">{{ type | statusLabel }}</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.supplier_invoice_number' | t }}</label>
+      <input type="text" [(ngModel)]="expense.supplierInvoiceNumber" />
+    </div>
+
+    <div class="form-group full-width">
+      <label>{{ 'common.description' | t }}</label>
+      <input type="text" [placeholder]="'expense.description_placeholder' | t" [(ngModel)]="expense.description" />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.cost_center' | t }}</label>
+      <select [(ngModel)]="expense.costCenterId">
+        <option value="">{{ 'expense.no_cost_center' | t }}</option>
+        <option *ngFor="let center of costCenters" [value]="center.id">{{ center.code }} - {{ center.nameEn }}</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.amount_before_vat' | t }}</label>
+      <input type="number" [(ngModel)]="expense.amountBeforeVat" (ngModelChange)="recalculateVat()" />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.vat_percent' | t }}</label>
+      <input type="number" [(ngModel)]="expense.vatRate" (ngModelChange)="recalculateVat()" [disabled]="expense.invoiceType !== 'Tax Invoice' && expense.invoiceType !== 'Simplified Tax Invoice'" />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.vat_amount' | t }}</label>
+      <input type="number" [(ngModel)]="expense.vatAmount" readonly />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.total_amount' | t }}</label>
+      <input type="number" [ngModel]="totalAmount" readonly />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.payment_status' | t }}</label>
+      <select [(ngModel)]="expense.paymentStatus" (ngModelChange)="onPaymentStatusChange()">
+        <option *ngFor="let status of paymentStatuses" [value]="status">{{ status | statusLabel }}</option>
+      </select>
+    </div>
+
+    <div class="form-group" *ngIf="expense.paymentStatus === 'Partially Paid'">
+      <label>{{ 'expense.paid_amount' | t }}</label>
+      <input type="number" [(ngModel)]="expense.paidAmount" />
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.payment_method' | t }}</label>
+      <select [(ngModel)]="expense.paymentMethod">
+        <option *ngFor="let method of paymentMethods" [value]="method">{{ method | statusLabel }}</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{ 'expense.payment_from' | t }}</label>
+      <select [(ngModel)]="expense.paymentFromAccountId" [disabled]="expense.paymentStatus === 'Unpaid'">
+        <option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
+      </select>
+    </div>
+
+    <div class="form-group full-width">
+      <label>{{ 'expense.attachment_upload' | t }}</label>
+      <div class="file-upload-control">
+        <input id="expense-invoice-upload" type="file" accept="image/*,.pdf" (change)="onInvoiceSelected($event)" />
+        <label class="file-upload-button" for="expense-invoice-upload">
+          <span aria-hidden="true">attach_file</span>
+          {{ 'expense.upload_invoice' | t }}
+        </label>
+        <span class="file-upload-name" [class.is-empty]="!invoiceDocument">
+          {{ invoiceDocument?.fileName || ('expense.no_file' | t) }}
+        </span>
+        <button class="file-upload-clear" type="button" *ngIf="invoiceDocument" (click)="clearInvoiceDocument()">
+          {{ 'common.remove' | t }}
+        </button>
+      </div>
+      <small class="upload-hint">{{ 'expense.accepted_files' | t }}</small>
+    </div>
+
+    <div class="form-group full-width">
+      <label>{{ 'expense.notes' | t }}</label>
+      <textarea rows="4" [(ngModel)]="expense.notes"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="summary-grid">
+  <div class="summary-card">
+    <h3>{{ 'expense.expense_account' | t }}</h3>
+    <h2>{{ selectedExpenseAccount | accountName }}</h2>
+  </div>
+  <div class="summary-card">
+    <h3>{{ 'expense.vat_amount' | t }}</h3>
+    <h2>{{ expense.vatAmount | number }} {{ 'currency.SAR' | t }}</h2>
+  </div>
+  <div class="summary-card">
+    <h3>{{ 'common.total' | t }}</h3>
+    <h2>{{ totalAmount | number }} {{ 'currency.SAR' | t }}</h2>
+  </div>
+  <div class="summary-card">
+    <h3>{{ 'expense.posting' | t }}</h3>
+    <h2>{{ expense.paymentStatus | statusLabel }}</h2>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="showSupplierModal">
+  <section class="supplier-modal">
+    <header>
+      <div>
+        <span>{{ 'expense.supplier_master' | t }}</span>
+        <h2>{{ 'expense.add_supplier' | t }}</h2>
+      </div>
+      <button type="button" (click)="showSupplierModal = false">{{ 'common.cancel' | t }}</button>
+    </header>
+
+    <div class="modal-grid">
+      <label>
+        <span>{{ 'expense.supplier_name' | t }}</span>
+        <input type="text" [(ngModel)]="newSupplier.name" />
+      </label>
+      <label>
+        <span>{{ 'expense.vat_number' | t }}</span>
+        <input type="text" [(ngModel)]="newSupplier.vatNumber" />
+      </label>
+      <label>
+        <span>{{ 'expense.commercial_registration' | t }}</span>
+        <input type="text" [(ngModel)]="newSupplier.commercialRegistration" />
+      </label>
+      <label>
+        <span>{{ 'common.phone' | t }}</span>
+        <input type="text" [(ngModel)]="newSupplier.phone" />
+      </label>
+      <label>
+        <span>{{ 'common.email' | t }}</span>
+        <input type="email" [(ngModel)]="newSupplier.email" />
+      </label>
+      <label>
+        <span>{{ 'common.contact_person' | t }}</span>
+        <input type="text" [(ngModel)]="newSupplier.contactPerson" />
+      </label>
+      <label class="wide">
+        <span>{{ 'common.address' | t }}</span>
+        <input type="text" [(ngModel)]="newSupplier.address" />
+      </label>
+      <label>
+        <span>{{ 'expense.opening_balance' | t }}</span>
+        <input type="number" [(ngModel)]="newSupplier.openingBalance" />
+      </label>
+    </div>
+
+    <footer>
+      <button type="button" (click)="showSupplierModal = false">{{ 'common.cancel' | t }}</button>
+      <button type="button" class="save-btn" (click)="saveSupplier()">{{ 'expense.save_supplier' | t }}</button>
+    </footer>
+  </section>
+</div>

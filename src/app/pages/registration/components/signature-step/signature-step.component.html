@@ -1,0 +1,8 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title"><span>Step 08</span><h2>Official Signatures</h2><p>High resolution signing area optimized for Apple Pencil, external stylus, and touch input.</p></header>
+  <div class="signature-grid">
+    <raw-signature-pad label="Parent Signature" [value]="parentSignature" (valueChange)="signatureChange.emit({ field: 'parentSignature', value: $event })" />
+    <raw-signature-pad label="Student Signature" [value]="studentSignature" (valueChange)="signatureChange.emit({ field: 'studentSignature', value: $event })" />
+  </div>
+  <mat-form-field><mat-label>Signature Date</mat-label><input matInput type="date" formControlName="signedDate" /></mat-form-field>
+</section>

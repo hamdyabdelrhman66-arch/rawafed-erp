@@ -1,0 +1,56 @@
+.coa-page { display: grid; gap: 18px; }
+.page-header span, .details-card span, .account-modal header span { color: #b4232c; font-weight: 900; text-transform: uppercase; font-size: 12px; }
+.page-header h1 { margin: 4px 0; color: #07336b; font-size: 34px; }
+.page-header p, .details-card p { margin: 0; color: #64748b; font-weight: 650; }
+.toolbar-card, .tree-card, .details-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
+.toolbar, .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.filters { margin-top: 12px; }
+button { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #07336b; padding: 0 12px; cursor: pointer; font-weight: 850; }
+button.primary { border-color: #0b5ed7; background: #0b5ed7; color: #fff; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+input, select, textarea { min-height: 42px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fff; min-width: 0; }
+textarea { padding-top: 10px; }
+.filters input { min-width: 340px; flex: 1; }
+.tree-card { padding: 0; overflow: hidden; }
+.tree-header, .tree-row { display: grid; grid-template-columns: minmax(340px, 2.4fr) .7fr .9fr .9fr .8fr .8fr .6fr .9fr .7fr; align-items: stretch; }
+.tree-header { background: #eaf2ff; color: #07336b; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.tree-header div, .tree-row > div { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+.tree-row { color: #0f172a; cursor: pointer; }
+.tree-row:hover, .tree-row.selected { background: #f8fafc; }
+.tree-row.archived { color: #64748b; background: #fafafa; }
+.account-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.account-cell strong { display: block; color: #07336b; }
+.account-cell small { display: block; color: #64748b; margin-top: 2px; }
+.toggle { width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; }
+.toggle.ghost { border: 0; background: transparent; }
+.status { display: inline-flex; border-radius: 999px; padding: 5px 10px; background: #dcfce7; color: #166534; font-weight: 850; }
+.status.inactive { background: #fee2e2; color: #991b1b; }
+.empty { padding: 20px; text-align: center; color: #64748b; }
+.details-card { display: grid; grid-template-columns: 1.2fr 2fr; gap: 16px; }
+.details-card h2 { margin: 4px 0; color: #07336b; }
+.detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.detail-grid p { padding: 10px; background: #f8fafc; border-radius: 9px; }
+.detail-grid span { display: block; margin-bottom: 4px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.42); display: grid; place-items: center; padding: 20px; z-index: 50; }
+.account-modal { width: min(980px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 24px 80px rgba(15,23,42,.28); padding: 20px; }
+.account-modal header, .account-modal footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.account-modal h2 { margin: 4px 0 0; color: #07336b; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+label { display: flex; flex-direction: column; gap: 7px; color: #07336b; font-weight: 850; }
+.wide, .flags-row { grid-column: 1 / -1; }
+.flags-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.flags-row label { flex-direction: row; align-items: center; color: #0f172a; }
+.flags-row input { min-height: auto; }
+.account-modal footer { margin-top: 16px; justify-content: flex-end; }
+.error { margin: 12px 0 0; color: #991b1b; background: #fee2e2; border: 1px solid #fecaca; border-radius: 10px; padding: 10px 12px; font-weight: 850; }
+@media (max-width: 1100px) {
+  .tree-card { overflow-x: auto; }
+  .tree-header, .tree-row { min-width: 1180px; }
+  .details-card { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+  .form-grid, .detail-grid { grid-template-columns: 1fr; }
+  .filters input { min-width: 0; width: 100%; }
+  .toolbar, .filters { align-items: stretch; }
+  .toolbar button, .filters button, .filters select { flex: 1 1 160px; }
+}

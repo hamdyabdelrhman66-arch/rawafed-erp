@@ -1,0 +1,182 @@
+<section class="coa-page">
+  <header class="page-header">
+    <div>
+      <span>Accounting Master Data</span>
+      <h1>Chart of Accounts</h1>
+      <p>Professional account tree with balances, posting controls, archive, movement, and backend validation.</p>
+    </div>
+  </header>
+
+  <section class="toolbar-card">
+    <div class="toolbar">
+      <button type="button" class="primary" [disabled]="!canWrite" (click)="newParent()">+ New Parent Account</button>
+      <button type="button" [disabled]="!canWrite" (click)="newChild()">+ New Child Account</button>
+      <button type="button" [disabled]="!selectedAccount || !canWrite" (click)="editSelected()">Edit</button>
+      <button type="button" [disabled]="!selectedAccount || !canFullAccess" (click)="deleteSelected()">Delete</button>
+      <button type="button" [disabled]="!selectedAccount || !canFullAccess" (click)="archiveSelected()">Archive</button>
+      <button type="button" [disabled]="!canWrite" (click)="importPlaceholder()">Import</button>
+      <button type="button" (click)="downloadTemplate()">Excel Template</button>
+      <button type="button" (click)="exportExcel()">Export Excel</button>
+      <button type="button" (click)="refresh()">Refresh</button>
+    </div>
+    <div class="filters">
+      <input type="search" placeholder="Search by code, Arabic, English, type..." [(ngModel)]="searchText" />
+      <select [(ngModel)]="typeFilter">
+        <option value="">All types</option>
+        <option *ngFor="let type of accountTypes" [value]="type.value">{{ type.label }}</option>
+      </select>
+      <select [(ngModel)]="statusFilter">
+        <option value="">All statuses</option>
+        <option *ngFor="let status of statuses" [value]="status">{{ status }}</option>
+      </select>
+      <button type="button" (click)="expandAll()">Expand All</button>
+      <button type="button" (click)="collapseAll()">Collapse All</button>
+    </div>
+    <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  </section>
+
+  <section class="tree-card">
+    <div class="tree-header">
+      <div>Account</div>
+      <div>Type</div>
+      <div>Opening</div>
+      <div>Current</div>
+      <div>Debit</div>
+      <div>Credit</div>
+      <div>Entries</div>
+      <div>Last Txn</div>
+      <div>Status</div>
+    </div>
+
+    <div class="tree-row"
+      *ngFor="let account of visibleRows"
+      [class.selected]="account.id === selectedId"
+      [class.archived]="account.status === 'archived'"
+      (click)="select(account)">
+      <div class="account-cell" [style.padding-left.px]="account.level * 24 + 10">
+        <button class="toggle" type="button" *ngIf="account.hasChildren" (click)="toggle(account); $event.stopPropagation()">
+          {{ expanded.has(account.id) ? '−' : '+' }}
+        </button>
+        <span class="toggle ghost" *ngIf="!account.hasChildren"></span>
+        <div>
+          <strong>{{ account.code }} · {{ account.nameEn }}</strong>
+          <small>{{ account.nameAr }} <span *ngIf="flagText(account)">· {{ flagText(account) }}</span></small>
+        </div>
+      </div>
+      <div>{{ account.type }}</div>
+      <div>{{ money(account.openingBalance) }} {{ account.currency }}</div>
+      <div>{{ money(account.currentBalance) }}</div>
+      <div>{{ money(account.debit) }}</div>
+      <div>{{ money(account.credit) }}</div>
+      <div>{{ account.journalEntries || 0 }}</div>
+      <div>{{ account.lastTransactionDate || '-' }}</div>
+      <div><span class="status" [class.inactive]="account.status !== 'active'">{{ account.status }}</span></div>
+    </div>
+
+    <p class="empty" *ngIf="!visibleRows.length">No accounts match your filters.</p>
+  </section>
+
+  <section class="details-card" *ngIf="selectedAccount">
+    <div>
+      <span>Selected Account</span>
+      <h2>{{ selectedAccount.code }} - {{ selectedAccount.nameEn }}</h2>
+      <p>{{ selectedAccount.nameAr || '-' }}</p>
+    </div>
+    <div class="detail-grid">
+      <p><span>Parent</span>{{ selectedAccount.parentCode || 'Root' }}</p>
+      <p><span>Normal Balance</span>{{ selectedAccount.normalBalance || '-' }}</p>
+      <p><span>Posting</span>{{ selectedAccount.postingAccount === false ? 'No' : 'Yes' }}</p>
+      <p><span>Current Balance</span>{{ money(selectedAccount.currentBalance) }}</p>
+      <p><span>Journal Entries</span>{{ selectedAccount.journalEntries || 0 }}</p>
+      <p><span>Can Delete</span>{{ selectedAccount.canDelete ? 'Yes' : 'No' }}</p>
+    </div>
+  </section>
+
+  <div class="modal-backdrop" *ngIf="modalOpen">
+    <section class="account-modal">
+      <header>
+        <div>
+          <span>{{ modalMode === 'edit' ? 'Edit Account' : 'New Account' }}</span>
+          <h2>{{ modalMode === 'edit' ? selectedAccount?.code : form.code || 'Suggested code' }}</h2>
+        </div>
+        <button type="button" (click)="closeModal()">×</button>
+      </header>
+
+      <div class="form-grid">
+        <label>
+          <span>Account Code</span>
+          <input type="text" [(ngModel)]="form.code" [disabled]="!canEditCode()" />
+        </label>
+        <label>
+          <span>English Name</span>
+          <input type="text" [(ngModel)]="form.nameEn" />
+        </label>
+        <label>
+          <span>Arabic Name</span>
+          <input type="text" [(ngModel)]="form.nameAr" />
+        </label>
+        <label>
+          <span>Parent Account</span>
+          <select [(ngModel)]="form.parentId" (ngModelChange)="onParentOrTypeChange()">
+            <option value="">No parent</option>
+            <option *ngFor="let account of parentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option>
+          </select>
+        </label>
+        <label>
+          <span>Account Type</span>
+          <select [(ngModel)]="form.type" (ngModelChange)="onParentOrTypeChange()">
+            <option *ngFor="let type of accountTypes" [value]="type.value">{{ type.label }}</option>
+          </select>
+        </label>
+        <label>
+          <span>Normal Balance</span>
+          <select [(ngModel)]="form.normalBalance">
+            <option value="debit">Debit</option>
+            <option value="credit">Credit</option>
+          </select>
+        </label>
+        <label>
+          <span>Posting Account</span>
+          <select [(ngModel)]="form.postingAccount">
+            <option [ngValue]="true">Yes</option>
+            <option [ngValue]="false">No</option>
+          </select>
+        </label>
+        <label>
+          <span>Currency</span>
+          <input type="text" [(ngModel)]="form.currency" />
+        </label>
+        <label>
+          <span>Opening Balance</span>
+          <input type="number" [(ngModel)]="form.openingBalance" [disabled]="!canEditOpening()" />
+        </label>
+        <label>
+          <span>Status</span>
+          <select [(ngModel)]="form.status">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <div class="flags-row">
+          <label><input type="checkbox" [(ngModel)]="form.isCashAccount" /> Cash</label>
+          <label><input type="checkbox" [(ngModel)]="form.isBankAccount" /> Bank</label>
+          <label><input type="checkbox" [(ngModel)]="form.isVatAccount" /> VAT</label>
+          <label><input type="checkbox" [(ngModel)]="form.isReceivableAccount" /> Receivable</label>
+          <label><input type="checkbox" [(ngModel)]="form.isPayableAccount" /> Payable</label>
+        </div>
+        <label class="wide">
+          <span>Description</span>
+          <textarea rows="3" [(ngModel)]="form.notes"></textarea>
+        </label>
+      </div>
+
+      <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+      <footer>
+        <button type="button" (click)="closeModal()">Cancel</button>
+        <button type="button" class="primary" (click)="save()">Save</button>
+      </footer>
+    </section>
+  </div>
+</section>

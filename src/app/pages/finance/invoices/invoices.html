@@ -1,0 +1,116 @@
+<div class="page-header">
+
+  <div>
+    <h1>School Invoices</h1>
+    <p>Manage all school invoices</p>
+  </div>
+
+</div>
+
+<div class="stats-grid">
+
+  <div class="stat-card">
+    <h3>Total School Invoices</h3>
+    <h2>{{totalInvoices}}</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Total Revenue</h3>
+    <h2>{{totalRevenue | number}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Paid</h3>
+    <h2>{{paidInvoices | number}} SAR</h2>
+  </div>
+
+  <div class="stat-card">
+    <h3>Pending</h3>
+    <h2>{{pendingInvoices | number}} SAR</h2>
+  </div>
+
+</div>
+
+<div class="table-card">
+
+  <input
+    class="search-box"
+    placeholder="Search School Invoice..."
+  >
+
+  <table>
+
+    <thead>
+      <tr>
+        <th>School Invoice Number</th>
+        <th>Student</th>
+        <th>Fee Item</th>
+        <th>Total</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+
+    <tbody>
+
+      <tr *ngFor="let invoice of invoices">
+
+        <td>{{ invoice.invoiceNumber }}</td>
+        <td>{{ invoice.patient }}</td>
+        <td>{{ invoice.service }}</td>
+        <td>{{ (invoice.total || invoice.amount) | number }} SAR</td>
+        <td>{{ invoice.date }}</td>
+
+        <td>
+
+          <span
+            class="status"
+            [class.paid]="invoice.status === 'Paid'"
+            [class.pending]="invoice.status === 'Pending'">
+
+            {{ invoice.status }}
+
+          </span>
+
+        </td>
+
+        <td>
+
+          <button
+  class="action-btn view-btn"
+  [routerLink]="[
+    '/finance/invoice-details',
+    invoice.id
+  ]">
+
+  View
+
+</button>
+
+<button
+  class="action-btn edit-btn"
+  [routerLink]="[
+    '/finance/edit-invoice',
+    invoice.id
+  ]">
+
+  Edit
+
+</button>
+          <button
+            class="action-btn print-btn">
+
+            Print
+
+          </button>
+
+        </td>
+
+      </tr>
+
+    </tbody>
+
+  </table>
+
+</div>

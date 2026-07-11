@@ -1,0 +1,59 @@
+<section class="master-page">
+  <header class="page-header">
+    <div>
+      <span>Bank Management</span>
+      <h1>Banks</h1>
+      <p>Bank master data, opening/current balances, statements, and transfers.</p>
+    </div>
+  </header>
+
+  <section class="stats-grid">
+    <article><span>Banks</span><strong>{{ banks.length }}</strong></article>
+    <article><span>Total Current Balance</span><strong>{{ money(totalCurrent) }}</strong></article>
+  </section>
+
+  <section class="form-card">
+    <h2>Add Bank</h2>
+    <div class="form-grid">
+      <label><span>Bank Name</span><input [(ngModel)]="form.bankName" /></label>
+      <label><span>IBAN</span><input [(ngModel)]="form.iban" /></label>
+      <label><span>Account Number</span><input [(ngModel)]="form.accountNumber" /></label>
+      <label><span>Opening Balance</span><input type="number" [(ngModel)]="form.openingBalance" /></label>
+      <label><span>Status</span><select [(ngModel)]="form.status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+      <label class="wide"><span>Notes</span><input [(ngModel)]="form.notes" /></label>
+    </div>
+    <footer><button class="primary" type="button" (click)="saveBank()">Save Bank</button></footer>
+  </section>
+
+  <section class="form-card">
+    <h2>Transfer Between Banks / Cashboxes</h2>
+    <div class="form-grid">
+      <label><span>From</span><select [(ngModel)]="transfer.fromAccountId"><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option></select></label>
+      <label><span>To</span><select [(ngModel)]="transfer.toAccountId"><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option></select></label>
+      <label><span>Amount</span><input type="number" [(ngModel)]="transfer.amount" /></label>
+      <label><span>Date</span><input type="date" [(ngModel)]="transfer.date" /></label>
+      <label class="wide"><span>Description</span><input [(ngModel)]="transfer.description" /></label>
+    </div>
+    <footer><button class="primary" type="button" (click)="saveTransfer()">Post Transfer</button></footer>
+  </section>
+
+  <section class="table-card">
+    <h2>Bank Statement</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Bank</th><th>IBAN</th><th>Account No.</th><th>COA Account</th><th>Opening</th><th>Current</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let bank of banks">
+            <td>{{ bank.bankName }}</td>
+            <td>{{ bank.iban || '-' }}</td>
+            <td>{{ bank.accountNumber || '-' }}</td>
+            <td>{{ bank.accountCode }} - {{ bank.accountNameEn }}</td>
+            <td>{{ money(bank.openingBalance) }}</td>
+            <td>{{ money(bank.currentBalance) }}</td>
+            <td>{{ bank.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

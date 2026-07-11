@@ -1,0 +1,531 @@
+<section class="accounting-page">
+  <header class="page-header">
+    <div>
+      <span>{{ 'accounting.eyebrow' | t }}</span>
+      <h1>{{ 'accounting.title' | t }}</h1>
+      <p>{{ 'accounting.description' | t }}</p>
+    </div>
+    <div class="header-actions">
+      <button type="button" (click)="setActiveTab('journal')">{{ 'accounting.manual_journal' | t }}</button>
+      <button type="button" class="primary" (click)="load()">{{ 'common.refresh' | t }}</button>
+    </div>
+  </header>
+
+  <p class="error-banner" *ngIf="error">{{ error }}</p>
+
+  <section class="erp-stats">
+    <article *ngFor="let card of kpiCards.slice(0, 4)">
+      <span>{{ card.label }}</span>
+      <strong>{{ money(card.value) }}</strong>
+      <small>{{ card.note }}</small>
+    </article>
+  </section>
+
+  <nav class="erp-tabs" [attr.aria-label]="'nav.accounting' | t">
+    <button type="button" [class.active]="activeTab === 'overview'" (click)="setActiveTab('overview')">{{ 'accounting.tabs.overview' | t }}</button>
+    <button type="button" [class.active]="activeTab === 'accounts'" (click)="setActiveTab('accounts')">{{ 'nav.chart_of_accounts' | t }}</button>
+    <button type="button" [class.active]="activeTab === 'journal'" (click)="setActiveTab('journal')">{{ 'nav.general_journal' | t }}</button>
+    <button type="button" [class.active]="activeTab === 'ledger'" (click)="setActiveTab('ledger')">{{ 'nav.general_ledger' | t }}</button>
+    <button type="button" [class.active]="activeTab === 'trial'" (click)="setActiveTab('trial')">{{ 'nav.trial_balance' | t }}</button>
+  </nav>
+
+  <section class="filter-row">
+    <label>
+      <span>{{ 'common.from' | t }}</span>
+      <input type="date" [(ngModel)]="fromDate" (change)="load()" />
+    </label>
+    <label>
+      <span>{{ 'common.to' | t }}</span>
+      <input type="date" [(ngModel)]="toDate" (change)="load()" />
+    </label>
+  </section>
+
+  <section class="erp-panel" *ngIf="activeTab === 'overview'">
+    <div class="type-grid kpi-grid">
+      <article *ngFor="let card of kpiCards">
+        <span>{{ card.label }}</span>
+        <strong>{{ money(card.value) }}</strong>
+        <small>{{ card.note }}</small>
+      </article>
+    </div>
+
+    <div class="workflow-strip">
+      <article *ngFor="let item of workflowCards">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+      </article>
+    </div>
+
+    <div class="chart-grid">
+      <article class="mini-chart">
+        <h3>{{ 'accounting.monthly_revenue' | t }}</h3>
+        <div class="bar-row" *ngFor="let row of dashboard?.charts?.monthlyRevenue || []">
+          <span>{{ row.label }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.monthlyRevenue, 'value', row)"></i></div>
+          <strong>{{ money(row.value) }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.monthlyRevenue || []).length">{{ 'accounting.no_revenue' | t }}</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>{{ 'accounting.monthly_expenses' | t }}</h3>
+        <div class="bar-row expense" *ngFor="let row of dashboard?.charts?.monthlyExpenses || []">
+          <span>{{ row.label }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.monthlyExpenses, 'value', row)"></i></div>
+          <strong>{{ money(row.value) }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.monthlyExpenses || []).length">{{ 'accounting.no_expenses' | t }}</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>{{ 'accounting.cash_flow' | t }}</h3>
+        <div class="bar-row cash" *ngFor="let row of dashboard?.charts?.cashFlow || []">
+          <span>{{ row.label }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.cashFlow, 'value', row)"></i></div>
+          <strong>{{ money(row.value) }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.cashFlow || []).length">{{ 'accounting.no_cash' | t }}</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>{{ 'accounting.revenue_vs_expense' | t }}</h3>
+        <div class="dual-row" *ngFor="let row of dashboard?.charts?.revenueVsExpense || []">
+          <span>{{ row.label }}</span>
+          <b>{{ 'type.revenue' | t }} {{ money(row.revenue) }}</b>
+          <b>{{ 'type.expense' | t }} {{ money(row.expenses) }}</b>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.revenueVsExpense || []).length">{{ 'accounting.no_comparison' | t }}</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>{{ 'accounting.assets_distribution' | t }}</h3>
+        <div class="bar-row asset" *ngFor="let row of dashboard?.charts?.assetsDistribution || []">
+          <span>{{ row.code }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.assetsDistribution, 'amount', row)"></i></div>
+          <strong>{{ row.name }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.assetsDistribution || []).length">{{ 'accounting.no_assets' | t }}</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>{{ 'accounting.expense_categories' | t }}</h3>
+        <div class="bar-row expense" *ngFor="let row of dashboard?.charts?.expenseCategories || []">
+          <span>{{ row.code }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.expenseCategories, 'amount', row)"></i></div>
+          <strong>{{ money(row.amount) }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.expenseCategories || []).length">{{ 'accounting.no_expense_categories' | t }}</p>
+      </article>
+    </div>
+
+    <div class="control-center-grid">
+      <article class="info-table">
+        <h3>{{ 'accounting.recent_journals' | t }}</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>{{ 'common.entry' | t }}</th><th>{{ 'common.date' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let entry of dashboard?.recent?.journalEntries || []">
+                <td>{{ entry.entryNumber }}</td>
+                <td>{{ entry.postingDate }}</td>
+                <td>{{ entry.description }}</td>
+                <td><span class="status-pill">{{ entry.status | statusLabel }}</span></td>
+              </tr>
+              <tr *ngIf="!(dashboard?.recent?.journalEntries || []).length"><td colspan="4" class="empty-cell">{{ 'accounting.no_journals' | t }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="info-table">
+        <h3>{{ 'accounting.recent_payments' | t }}</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>{{ 'common.no' | t }}</th><th>{{ 'common.item' | t }}</th><th>{{ 'common.method' | t }}</th><th>{{ 'common.amount' | t }}</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let payment of dashboard?.recent?.payments || []">
+                <td>{{ payment.receipt_number }}</td>
+                <td>{{ payment.payment_item }}</td>
+                <td>{{ payment.method }}</td>
+                <td>{{ money(payment.amount) }}</td>
+              </tr>
+              <tr *ngIf="!(dashboard?.recent?.payments || []).length"><td colspan="4" class="empty-cell">{{ 'finance.dashboard.no_payments' | t }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="info-table">
+        <h3>{{ 'accounting.recent_suppliers' | t }}</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>{{ 'common.code' | t }}</th><th>{{ 'common.supplier' | t }}</th><th>{{ 'expense.vat_amount' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let supplier of dashboard?.recent?.suppliers || []">
+                <td>{{ supplier.supplierCode }}</td>
+                <td>{{ supplier.nameEn }}</td>
+                <td>{{ supplier.vatNumber || '-' }}</td>
+                <td>{{ supplier.status | statusLabel }}</td>
+              </tr>
+              <tr *ngIf="!(dashboard?.recent?.suppliers || []).length"><td colspan="4" class="empty-cell">{{ 'accounting.no_suppliers' | t }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="info-table">
+        <h3>{{ 'accounting.recent_bank_transactions' | t }}</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>{{ 'common.entry' | t }}</th><th>{{ 'common.account' | t }}</th><th>{{ 'common.debit' | t }}</th><th>{{ 'common.credit' | t }}</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let row of dashboard?.recent?.bankTransactions || []">
+                <td>{{ row.entryNumber }}</td>
+                <td>{{ row.account }}</td>
+                <td>{{ money(row.debit) }}</td>
+                <td>{{ money(row.credit) }}</td>
+              </tr>
+              <tr *ngIf="!(dashboard?.recent?.bankTransactions || []).length"><td colspan="4" class="empty-cell">{{ 'accounting.no_bank_transactions' | t }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="erp-panel" *ngIf="activeTab === 'accounts'">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'common.code' | t }}</th>
+            <th>{{ 'accounting.english_name' | t }}</th>
+            <th>{{ 'accounting.arabic_name' | t }}</th>
+            <th>{{ 'common.type' | t }}</th>
+            <th>{{ 'common.parent' | t }}</th>
+            <th>{{ 'common.opening' | t }}</th>
+            <th>{{ 'common.status' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let account of accounts">
+            <td>{{ account.code }}</td>
+            <td>{{ account.nameEn }}</td>
+            <td>{{ account.nameAr }}</td>
+            <td>{{ 'type.' + account.type | t }}</td>
+            <td>{{ account.parentId || '-' }}</td>
+            <td>{{ money(account.openingBalance) }}</td>
+            <td>{{ account.status | statusLabel }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="erp-panel journal-layout" *ngIf="activeTab === 'journal'">
+    <form class="journal-form" (ngSubmit)="saveJournal()">
+      <div class="form-grid">
+        <label>
+          <span>{{ 'accounting.posting_date' | t }}</span>
+          <input type="date" [(ngModel)]="draftEntry.postingDate" name="postingDate" required />
+        </label>
+        <label>
+          <span>{{ 'accounting.reference_no' | t }}</span>
+          <input type="text" [(ngModel)]="draftEntry.referenceNumber" name="referenceNumber" />
+        </label>
+        <label>
+          <span>{{ 'common.status' | t }}</span>
+          <select [(ngModel)]="draftEntry.status" name="status">
+            <option value="posted">{{ 'status.posted' | t }}</option>
+            <option value="draft">{{ 'status.draft' | t }}</option>
+          </select>
+        </label>
+        <label class="wide">
+          <span>{{ 'common.description' | t }}</span>
+          <input type="text" [(ngModel)]="draftEntry.description" name="description" required />
+        </label>
+      </div>
+
+      <div class="line-table">
+        <div class="line-head">
+          <span>{{ 'common.account' | t }}</span>
+          <span>{{ 'common.description' | t }}</span>
+          <span>{{ 'common.debit' | t }}</span>
+          <span>{{ 'common.credit' | t }}</span>
+          <span></span>
+        </div>
+        <div class="line-row" *ngFor="let line of draftEntry.lines; let index = index">
+          <select [(ngModel)]="line.accountId" [name]="'account' + index" required>
+            <option value="">{{ 'accounting.select_account' | t }}</option>
+            <option *ngFor="let account of accounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
+          </select>
+          <input type="text" [(ngModel)]="line.description" [name]="'description' + index" />
+          <input type="number" [(ngModel)]="line.debit" [name]="'debit' + index" min="0" />
+          <input type="number" [(ngModel)]="line.credit" [name]="'credit' + index" min="0" />
+          <button type="button" (click)="removeLine(index)">{{ 'common.remove' | t }}</button>
+        </div>
+      </div>
+
+      <footer class="journal-footer">
+        <button type="button" (click)="addLine()">{{ 'common.add_line' | t }}</button>
+        <strong>{{ 'common.debit' | t }}: {{ money(debitTotal) }}</strong>
+        <strong>{{ 'common.credit' | t }}: {{ money(creditTotal) }}</strong>
+        <button type="submit" class="primary">{{ 'accounting.save_journal' | t }}</button>
+      </footer>
+    </form>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'common.entry' | t }}</th>
+            <th>{{ 'common.date' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.lines' | t }}</th>
+            <th>{{ 'common.status' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let entry of entries">
+            <td>{{ entry.entryNumber }}</td>
+            <td>{{ entry.postingDate }}</td>
+            <td>{{ entry.description }}</td>
+            <td>{{ entry.lines.length }}</td>
+            <td>{{ entry.status | statusLabel }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="erp-panel" *ngIf="activeTab === 'ledger'">
+    <label class="account-picker">
+      <span>{{ 'common.account' | t }}</span>
+      <select [(ngModel)]="selectedAccountId" (change)="loadLedger()">
+        <option *ngFor="let account of accounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
+      </select>
+    </label>
+
+    <div class="ledger-summary" *ngIf="ledger">
+      <strong>{{ ledger.account.code }} - {{ i18n.label(ledger.account.nameEn, ledger.account.nameAr) }}</strong>
+      <span>{{ 'common.opening' | t }}: {{ money(ledger.openingBalance) }}</span>
+      <span>{{ 'common.closing' | t }}: {{ money(ledger.closingBalance) }}</span>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'common.date' | t }}</th>
+            <th>{{ 'common.entry' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.debit' | t }}</th>
+            <th>{{ 'common.credit' | t }}</th>
+            <th>{{ 'common.closing' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of ledger?.transactions || []">
+            <td>{{ row.date }}</td>
+            <td><button type="button" class="entry-link" (click)="openJournalVoucher(row.journalEntryId)">{{ row.entryNumber }}</button></td>
+            <td>{{ row.description }}</td>
+            <td>{{ money(row.debit) }}</td>
+            <td>{{ money(row.credit) }}</td>
+            <td>{{ money(row.balance) }}</td>
+          </tr>
+          <tr *ngIf="!(ledger?.transactions || []).length">
+            <td colspan="6" class="empty-cell">{{ 'accounting.no_ledger' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="erp-panel" *ngIf="activeTab === 'trial'">
+    <div class="display-modes" [attr.aria-label]="'nav.trial_balance' | t">
+      <button type="button" [class.active]="trialDisplayMode === 'activity'" (click)="setTrialDisplayMode('activity')">{{ 'accounting.display.activity' | t }}</button>
+      <button type="button" [class.active]="trialDisplayMode === 'balance'" (click)="setTrialDisplayMode('balance')">{{ 'accounting.display.balance' | t }}</button>
+      <button type="button" [class.active]="trialDisplayMode === 'all'" (click)="setTrialDisplayMode('all')">{{ 'accounting.display.all' | t }}</button>
+    </div>
+
+    <div class="trial-toolbar">
+      <label>
+        <span>{{ 'accounting.date_from' | t }}</span>
+        <input type="date" [(ngModel)]="fromDate" (change)="refreshTrialBalance()" />
+      </label>
+      <label>
+        <span>{{ 'accounting.date_to' | t }}</span>
+        <input type="date" [(ngModel)]="toDate" (change)="refreshTrialBalance()" />
+      </label>
+      <label>
+        <span>{{ 'accounting.account_type' | t }}</span>
+        <select [(ngModel)]="trialAccountType" (change)="refreshTrialBalance()">
+          <option value="">{{ 'common.all_types' | t }}</option>
+          <option value="asset">{{ 'type.asset' | t }}</option>
+          <option value="liability">{{ 'type.liability' | t }}</option>
+          <option value="equity">{{ 'type.equity' | t }}</option>
+          <option value="revenue">{{ 'type.revenue' | t }}</option>
+          <option value="expense">{{ 'type.expense' | t }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ 'accounting.parent_account' | t }}</span>
+        <select [(ngModel)]="trialParentAccountId" (change)="refreshTrialBalance()">
+          <option value="">{{ 'common.all_parent_accounts' | t }}</option>
+          <option *ngFor="let account of parentAccounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ 'accounting.by_branch' | t }}</span>
+        <select [(ngModel)]="trialBranch" (change)="refreshTrialBalance()">
+          <option value="">{{ 'common.all_branches' | t }}</option>
+          <option *ngFor="let branch of branchOptions" [value]="branch.id">{{ 'common.main_branch' | t }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ 'expense.cost_center' | t }}</span>
+        <select [(ngModel)]="trialCostCenterId" (change)="refreshTrialBalance()">
+          <option value="">{{ 'common.all_cost_centers' | t }}</option>
+          <option *ngFor="let center of costCenters" [value]="center.id">{{ center.code }} - {{ center.nameEn }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ 'common.currency' | t }}</span>
+        <select [(ngModel)]="trialCurrency" (change)="refreshTrialBalance()">
+          <option value="">{{ 'common.all_currencies' | t }}</option>
+          <option *ngFor="let currency of currencyOptions" [value]="currency">{{ currency }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ 'accounting.account_status' | t }}</span>
+        <select [(ngModel)]="trialAccountStatus" (change)="refreshTrialBalance()">
+          <option value="">{{ 'common.all_statuses' | t }}</option>
+          <option value="active">{{ 'status.active' | t }}</option>
+          <option value="inactive">{{ 'status.inactive' | t }}</option>
+          <option value="archived">{{ 'status.archived' | t }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ 'common.search' | t }}</span>
+        <input type="search" [(ngModel)]="trialSearch" (input)="refreshTrialBalance()" [placeholder]="'accounting.code_or_name' | t" />
+      </label>
+      <label>
+        <span>{{ 'common.report' | t }}</span>
+        <select [(ngModel)]="trialReportScope" (change)="refreshTrialBalance()">
+          <option value="standard">{{ 'accounting.standard_trial' | t }}</option>
+          <option value="branch">{{ 'accounting.by_branch' | t }}</option>
+          <option value="cost-center">{{ 'accounting.by_cost_center' | t }}</option>
+          <option value="fiscal-year">{{ 'accounting.by_fiscal_year' | t }}</option>
+          <option value="period">{{ 'accounting.by_period' | t }}</option>
+          <option value="comparative">{{ 'accounting.comparative_trial' | t }}</option>
+        </select>
+      </label>
+      <label class="check-toggle">
+        <input type="checkbox" [(ngModel)]="showParentAccounts" (change)="refreshTrialBalance()" />
+        <span>{{ 'accounting.show_parent_accounts' | t }}</span>
+      </label>
+      <div class="trial-actions">
+        <button type="button" (click)="exportTrialExcel()">{{ 'common.export_excel' | t }}</button>
+        <button type="button" (click)="exportTrialPdf()">{{ 'common.export_pdf' | t }}</button>
+        <button type="button" (click)="exportTrialPdf()">{{ 'common.print' | t }}</button>
+      </div>
+    </div>
+
+    <div class="trial-state" [class.unbalanced]="!balanced">
+      <strong>{{ balanced ? ('common.balanced' | t) : ('common.unbalanced' | t) }}</strong>
+      <span>{{ 'common.debit' | t }} {{ money(totalDebit) }} / {{ 'common.credit' | t }} {{ money(totalCredit) }}</span>
+      <small *ngIf="!balanced">{{ 'accounting.warning_unbalanced' | t }}</small>
+    </div>
+
+    <div class="table-scroll trial-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'common.code' | t }}</th>
+            <th>{{ 'common.account' | t }}</th>
+            <th>{{ 'accounting.opening_debit' | t }}</th>
+            <th>{{ 'accounting.opening_credit' | t }}</th>
+            <th>{{ 'accounting.period_debit' | t }}</th>
+            <th>{{ 'accounting.period_credit' | t }}</th>
+            <th>{{ 'accounting.closing_debit' | t }}</th>
+            <th>{{ 'accounting.closing_credit' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of visibleTrialRows" [class.parent-row]="row.isParent" [class.child-row]="!row.isParent">
+            <td>
+              <button type="button" class="tree-toggle" *ngIf="showParentAccounts && row.isParent" (click)="toggleTrialAccount(row)">
+                {{ isTrialCollapsed(row) ? '+' : '-' }}
+              </button>
+              {{ row.code }}
+            </td>
+            <td [style.padding-left.px]="12 + (row.level || 0) * 22">{{ i18n.label(row.nameEn, row.nameAr) }}</td>
+            <td [class.negative]="row.openingBalance < 0"><button type="button" class="amount-link" (click)="openLedgerFromTrial(row)">{{ money(row.openingDebit) }}</button></td>
+            <td [class.negative]="row.openingBalance < 0"><button type="button" class="amount-link" (click)="openLedgerFromTrial(row)">{{ money(row.openingCredit) }}</button></td>
+            <td><button type="button" class="amount-link" (click)="openLedgerFromTrial(row)">{{ money(row.periodDebit) }}</button></td>
+            <td><button type="button" class="amount-link" (click)="openLedgerFromTrial(row)">{{ money(row.periodCredit) }}</button></td>
+            <td [class.negative]="row.closingBalance < 0"><button type="button" class="amount-link" (click)="openLedgerFromTrial(row)">{{ money(row.closingDebit) }}</button></td>
+            <td [class.negative]="row.closingBalance < 0"><button type="button" class="amount-link" (click)="openLedgerFromTrial(row)">{{ money(row.closingCredit) }}</button></td>
+          </tr>
+          <tr *ngIf="!visibleTrialRows.length">
+            <td colspan="8" class="empty-cell">{{ 'accounting.no_accounts' | t }}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2">{{ 'common.grand_total' | t }}</td>
+            <td>{{ money(trialTotals.openingDebit) }}</td>
+            <td>{{ money(trialTotals.openingCredit) }}</td>
+            <td>{{ money(trialTotals.periodDebit) }}</td>
+            <td>{{ money(trialTotals.periodCredit) }}</td>
+            <td>{{ money(trialTotals.closingDebit) }}</td>
+            <td>{{ money(trialTotals.closingCredit) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <div class="voucher-modal" *ngIf="selectedJournal">
+    <article>
+      <header>
+        <div>
+          <span>{{ 'accounting.journal_voucher' | t }}</span>
+          <h2>{{ selectedJournal.entryNumber }}</h2>
+        </div>
+        <button type="button" (click)="closeJournalVoucher()">{{ 'common.close' | t }}</button>
+      </header>
+      <div class="voucher-meta">
+        <span>{{ 'accounting.posting_date' | t }}: {{ selectedJournal.postingDate }}</span>
+        <span>{{ 'common.status' | t }}: {{ selectedJournal.status | statusLabel }}</span>
+        <span>{{ 'accounting.created_by' | t }}: {{ selectedJournal.createdBy || '-' }}</span>
+        <span>{{ 'common.source' | t }}: {{ selectedJournal.sourceType || ('accounting.manual' | t) }}</span>
+      </div>
+      <p>{{ selectedJournal.description }}</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ 'common.account' | t }}</th>
+              <th>{{ 'common.description' | t }}</th>
+              <th>{{ 'common.debit' | t }}</th>
+              <th>{{ 'common.credit' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let line of selectedJournal.lines">
+              <td>{{ line.accountCode }} - {{ line.accountNameEn }}</td>
+              <td>{{ line.description || '-' }}</td>
+              <td>{{ money(line.debit) }}</td>
+              <td>{{ money(line.credit) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <footer>
+        <span>{{ 'common.attachments' | t }}: -</span>
+        <span>{{ 'accounting.related_document' | t }}: {{ selectedJournal.sourceId || '-' }}</span>
+      </footer>
+    </article>
+  </div>
+</section>

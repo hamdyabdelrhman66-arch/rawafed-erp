@@ -1,0 +1,21 @@
+<section class="simple-page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Student Records</span>
+      <h1>Students</h1>
+    </div>
+  </header>
+
+  <section class="simple-list">
+    <article *ngFor="let item of students()" class="simple-card">
+      <div class="avatar">{{ initials(item) }}</div>
+      <div>
+        <h2>{{ item.student.englishName || 'Unnamed Student' }}</h2>
+        <p>{{ item.student.applyingGrade }} · {{ item.registrationNumber }} · {{ item.father.phone || item.mother.phone }}</p>
+      </div>
+      <strong>{{ paymentStatus(item) }}</strong>
+    </article>
+
+    <p class="empty" *ngIf="!students().length">No approved students yet.</p>
+  </section>
+</section>

@@ -1,0 +1,78 @@
+.finance-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.payment-card,
+.summary-card {
+  background: #fff;
+  border: 1px solid var(--raw-border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 12px 30px rgba(23, 59, 112, .06);
+}
+
+.summary-card {
+  grid-column: 1 / -1;
+}
+
+.payment-card h3,
+.summary-card h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  color: var(--raw-navy);
+}
+
+.payment-options {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.payment-card mat-form-field {
+  margin-top: 18px;
+  width: 100%;
+}
+
+.fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--raw-border);
+  font-size: 15px;
+}
+
+.fee-row span {
+  color: var(--raw-muted);
+  font-weight: 600;
+}
+
+.fee-row strong {
+  color: var(--raw-ink);
+  font-size: 16px;
+}
+
+.fee-row.total {
+  margin-top: 12px;
+  padding: 18px;
+  border: 0;
+  border-radius: 16px;
+  background: #eef5ff;
+}
+
+.fee-row.total span,
+.fee-row.total strong {
+  color: var(--raw-blue);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .finance-layout {
+    grid-template-columns: 1fr;
+  }
+}

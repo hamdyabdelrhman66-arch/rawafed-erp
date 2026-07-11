@@ -1,0 +1,196 @@
+<section class="finance-dashboard">
+  <header class="page-header finance-hero">
+    <div>
+      <span class="page-eyebrow">{{ 'finance.dashboard.page_eyebrow' | t }}</span>
+      <h1>{{ 'finance.dashboard.title' | t }}</h1>
+      <p>{{ 'finance.dashboard.executive_view' | t }}</p>
+    </div>
+    <div class="header-actions">
+      <button routerLink="/finance/add-payment">{{ 'finance.dashboard.add_payment' | t }}</button>
+      <button class="secondary-action" routerLink="/finance/generate-invoice">{{ 'finance.dashboard.generate_invoice' | t }}</button>
+    </div>
+  </header>
+
+  <section class="kpi-grid" aria-label="Finance KPIs">
+    <article class="kpi-card" *ngFor="let card of kpiCards" [class]="card.tone" [routerLink]="card.route">
+      <div class="kpi-icon"><mat-icon>{{ card.icon }}</mat-icon></div>
+      <div>
+        <span>{{ card.label }}</span>
+        <strong>{{ card.value | number:'1.0-2' }} <small *ngIf="card.suffix">{{ card.suffix }}</small></strong>
+        <em>{{ card.note }}</em>
+      </div>
+    </article>
+  </section>
+
+  <section class="insight-grid">
+    <article class="info-card chart-card">
+      <div class="section-heading">
+        <div>
+          <span>{{ 'finance.dashboard.performance' | t }}</span>
+          <h2>{{ 'accounting.revenue_vs_expense' | t }}</h2>
+        </div>
+        <a routerLink="/finance/accounting">{{ 'finance.dashboard.open_accounting' | t }}</a>
+      </div>
+      <div class="mini-bars" *ngIf="revenueExpenseRows.length; else noChartData">
+        <div class="mini-bar-row" *ngFor="let row of revenueExpenseRows">
+          <span>{{ row.label }}</span>
+          <div class="bar-track">
+            <i class="revenue-bar" [style.width.%]="row.revenue ? 100 : 4"></i>
+            <i class="expense-bar" [style.width.%]="row.revenue ? ((row.expenses / row.revenue) * 100 > 100 ? 100 : (row.expenses / row.revenue) * 100) : 4"></i>
+          </div>
+          <strong>{{ row.revenue | number:'1.0-0' }}</strong>
+        </div>
+      </div>
+      <ng-template #noChartData>
+        <p class="empty-state">{{ 'finance.dashboard.no_chart' | t }}</p>
+      </ng-template>
+    </article>
+
+    <article class="info-card">
+      <div class="section-heading">
+        <div>
+          <span>{{ 'nav.treasury' | t }}</span>
+          <h2>{{ 'nav.cash_bank_reports' | t }}</h2>
+        </div>
+      </div>
+      <div class="position-list">
+        <div>
+          <span>{{ 'common.cash' | t }}</span>
+          <strong>{{ accountingDashboard?.kpis?.cashBalance || 0 | number:'1.2-2' }} {{ 'currency.SAR' | t }}</strong>
+        </div>
+        <div>
+          <span>{{ 'common.bank' | t }}</span>
+          <strong>{{ accountingDashboard?.kpis?.bankBalance || 0 | number:'1.2-2' }} {{ 'currency.SAR' | t }}</strong>
+        </div>
+        <div>
+          <span>{{ 'nav.alerts' | t }}</span>
+          <strong>{{ pendingApprovals }}</strong>
+        </div>
+      </div>
+    </article>
+
+    <article class="info-card">
+      <div class="section-heading">
+        <div>
+          <span>{{ 'nav.alerts' | t }}</span>
+          <h2>{{ 'nav.alerts' | t }}</h2>
+        </div>
+      </div>
+      <div class="alert-list">
+        <p><strong>{{ unpaidPackages }}</strong><span>{{ 'status.unpaid' | t }} {{ 'nav.student_accounts' | t }}</span></p>
+        <p><strong>{{ partialPackages }}</strong><span>{{ 'status.partially_paid' | t }} {{ 'nav.student_accounts' | t }}</span></p>
+        <p><strong>{{ pendingApprovals }}</strong><span>{{ 'nav.accounting' | t }} {{ 'nav.alerts' | t }}</span></p>
+      </div>
+    </article>
+  </section>
+
+  <section class="finance-modules" aria-label="Finance modules">
+    <a class="module-card" routerLink="/finance/accounting"><mat-icon>account_balance</mat-icon><strong>{{ 'nav.accounting' | t }}</strong><small>{{ 'finance.module.accounting_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/chart-of-accounts"><mat-icon>schema</mat-icon><strong>{{ 'nav.chart_of_accounts' | t }}</strong><small>{{ 'finance.module.accounts_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/patient-packages"><mat-icon>school</mat-icon><strong>{{ 'nav.student_accounts' | t }}</strong><small>{{ 'finance.module.student_accounts_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/add-payment"><mat-icon>add_card</mat-icon><strong>{{ 'nav.payments_receipts' | t }}</strong><small>{{ 'finance.module.payments_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/invoices"><mat-icon>receipt_long</mat-icon><strong>{{ 'nav.invoices' | t }}</strong><small>{{ 'finance.module.invoices_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/suppliers"><mat-icon>storefront</mat-icon><strong>{{ 'nav.suppliers' | t }}</strong><small>{{ 'finance.module.suppliers_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/expenses"><mat-icon>request_quote</mat-icon><strong>{{ 'nav.expenses' | t }}</strong><small>{{ 'finance.module.expenses_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/inventory"><mat-icon>inventory_2</mat-icon><strong>{{ 'nav.inventory_dashboard' | t }}</strong><small>{{ 'finance.module.inventory_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/payroll"><mat-icon>badge</mat-icon><strong>{{ 'nav.payroll' | t }}</strong><small>{{ 'finance.module.payroll_desc' | t }}</small></a>
+    <a class="module-card" routerLink="/finance/reports"><mat-icon>monitoring</mat-icon><strong>{{ 'nav.reports' | t }}</strong><small>{{ 'finance.module.reports_desc' | t }}</small></a>
+  </section>
+
+  <div class="dashboard-sections">
+    <article class="info-card">
+      <div class="section-heading">
+        <div>
+          <span>{{ 'finance.dashboard.collections' | t }}</span>
+          <h2>{{ 'finance.dashboard.recent_payments' | t }}</h2>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ 'common.student' | t }}</th>
+              <th class="num">{{ 'common.amount' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of recentPayments">
+              <td>{{ item.patient }}</td>
+              <td class="num">{{ item.amount | number }} {{ 'currency.SAR' | t }}</td>
+              <td>{{ item.date }}</td>
+            </tr>
+            <tr *ngIf="!recentPayments.length">
+              <td colspan="3" class="empty-cell">{{ 'finance.dashboard.no_payments' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="info-card">
+      <div class="section-heading">
+        <div>
+          <span>{{ 'finance.dashboard.billing' | t }}</span>
+          <h2>{{ 'finance.dashboard.recent_invoices' | t }}</h2>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ 'nav.invoices' | t }}</th>
+              <th>{{ 'common.student' | t }}</th>
+              <th class="num">{{ 'common.amount' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of recentInvoices">
+              <td>{{ item.invoiceNumber }}</td>
+              <td>{{ item.patient }}</td>
+              <td class="num">{{ item.amount | number }} {{ 'currency.SAR' | t }}</td>
+            </tr>
+            <tr *ngIf="!recentInvoices.length">
+              <td colspan="3" class="empty-cell">{{ 'finance.dashboard.no_invoices' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </div>
+
+  <article class="info-card">
+    <div class="section-heading">
+      <div>
+        <span>{{ 'nav.receivables' | t }}</span>
+        <h2>{{ 'finance.dashboard.top_outstanding' | t }}</h2>
+      </div>
+      <a routerLink="/finance/patient-packages">{{ 'finance.dashboard.view_accounts' | t }}</a>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'common.student' | t }}</th>
+            <th class="num">{{ 'common.total' | t }}</th>
+            <th class="num">{{ 'status.paid' | t }}</th>
+            <th class="num">{{ 'nav.receivables' | t }}</th>
+            <th>{{ 'common.status' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of topOutstanding">
+            <td>{{ item.patient }}</td>
+            <td class="num">{{ item.total | number }} {{ 'currency.SAR' | t }}</td>
+            <td class="num">{{ item.paid | number }} {{ 'currency.SAR' | t }}</td>
+            <td class="num">{{ item.remaining | number }} {{ 'currency.SAR' | t }}</td>
+            <td><span class="status" [class.unpaid]="item.status === 'Unpaid'" [class.paid]="item.status === 'Paid'">{{ item.status | statusLabel }}</span></td>
+          </tr>
+          <tr *ngIf="!topOutstanding.length">
+            <td colspan="5" class="empty-cell">{{ 'finance.dashboard.no_outstanding' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>

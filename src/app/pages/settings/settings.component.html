@@ -1,0 +1,93 @@
+<section class="settings-page">
+  <header>
+    <span>System Settings</span>
+    <h1>School Profile, Fees & Agreement</h1>
+  </header>
+
+  <form class="settings-grid" (ngSubmit)="save()">
+    <section>
+      <h2>School Information</h2>
+      <mat-form-field><mat-label>School Logo URL/Data</mat-label><input matInput [(ngModel)]="settings.logoDataUrl" name="logoDataUrl" /></mat-form-field>
+      <mat-form-field><mat-label>School Name</mat-label><input matInput [(ngModel)]="settings.schoolName" name="schoolName" /></mat-form-field>
+      <mat-form-field><mat-label>Arabic Name</mat-label><input matInput dir="rtl" [(ngModel)]="settings.schoolNameAr" name="schoolNameAr" /></mat-form-field>
+      <mat-form-field><mat-label>Address</mat-label><input matInput [(ngModel)]="settings.address" name="address" /></mat-form-field>
+      <mat-form-field><mat-label>Phone</mat-label><input matInput [(ngModel)]="settings.phone" name="phone" /></mat-form-field>
+      <mat-form-field><mat-label>Email</mat-label><input matInput [(ngModel)]="settings.email" name="email" /></mat-form-field>
+      <mat-form-field><mat-label>Academic Year</mat-label><input matInput [(ngModel)]="settings.academicYear" name="academicYear" /></mat-form-field>
+    </section>
+
+    <section>
+      <h2>Contract PDF</h2>
+      <raw-file-uploader label="Official Contract PDF" accept=".pdf" [document]="settings.contractPdf" (uploaded)="settings.contractPdf = $event" (delete)="settings.contractPdf = undefined" />
+      <p class="note">Upload the official contract here. The system generates a printable signed admission contract with the saved school branding and parent signature.</p>
+      <button mat-stroked-button type="button" (click)="admission.downloadContractCalibrationPdf()">
+        <mat-icon>fact_check</mat-icon>
+        Download Calibration PDF
+      </button>
+    </section>
+
+    <section class="wide">
+      <div class="section-heading">
+        <div>
+          <h2>Grade Fees</h2>
+          <p class="note">These values are copied into the registration financial summary when the applying grade changes.</p>
+        </div>
+      </div>
+
+      <div class="fee-table">
+        <div class="fee-table-header">
+          <strong>Grade</strong>
+          <strong *ngFor="let column of feeColumns">{{ column.label }}</strong>
+        </div>
+        <div class="fee-table-row" *ngFor="let grade of grades">
+          <strong>{{ grade }}</strong>
+          <mat-form-field *ngFor="let column of feeColumns">
+            <mat-label>{{ column.label }}</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="settings.gradeFees[grade][column.key]" [name]="'grade-' + grade + '-' + column.key" />
+          </mat-form-field>
+        </div>
+      </div>
+    </section>
+
+    <section class="wide">
+      <div class="section-heading">
+        <div>
+          <h2>Transportation Areas</h2>
+          <p class="note">Parents can optionally choose one of these areas in the Fees & Payment step.</p>
+        </div>
+        <button mat-stroked-button type="button" (click)="addTransportationArea()">
+          <mat-icon>add</mat-icon>
+          Add Area
+        </button>
+      </div>
+
+      <div class="transportation-list">
+        <article class="transportation-row" *ngFor="let area of settings.transportationAreas; let i = index">
+          <mat-form-field>
+            <mat-label>Area Name</mat-label>
+            <input matInput [(ngModel)]="area.name" [name]="'transportation-name-' + i" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Annual Fee</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="area.annualFee" [name]="'transportation-fee-' + i" />
+          </mat-form-field>
+          <button mat-icon-button type="button" title="Delete area" (click)="removeTransportationArea(area.id)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </article>
+      </div>
+    </section>
+
+    <section class="wide">
+      <h2>Rules & Agreement</h2>
+      <article *ngFor="let section of settings.agreementSections; let i = index">
+        <mat-form-field><mat-label>Section Title</mat-label><input matInput [(ngModel)]="section.title" [name]="'title' + i" /></mat-form-field>
+        <mat-form-field><mat-label>Clauses</mat-label><textarea matInput rows="5" [ngModel]="section.body.join('\n')" (ngModelChange)="section.body = splitLines($event)" [name]="'body' + i"></textarea></mat-form-field>
+      </article>
+    </section>
+
+    <nav>
+      <button mat-flat-button color="primary" type="submit"><mat-icon>save</mat-icon>Save Settings</button>
+    </nav>
+  </form>
+</section>

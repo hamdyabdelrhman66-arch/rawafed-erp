@@ -1,0 +1,65 @@
+.page-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:30px;
+}
+
+.page-header h1{
+  font-size:42px;
+  margin:0;
+}
+
+.page-header p{
+  color:#666;
+  margin-top:8px;
+}
+
+.save-btn{
+  background:var(--raw-brand-primary);
+  color:white;
+  border:none;
+  padding:14px 28px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+}
+
+.card{
+  background:white;
+  border-radius:16px;
+  padding:30px;
+  box-shadow:0 2px 12px rgba(0,0,0,.05);
+}
+
+.card h2{
+  margin-bottom:25px;
+}
+
+.form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+
+.form-group{
+  display:flex;
+  flex-direction:column;
+}
+
+.form-group label{
+  font-weight:600;
+  margin-bottom:8px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea{
+  padding:12px;
+  border:1px solid #ddd;
+  border-radius:10px;
+}
+
+.full-width{
+  grid-column:1 / -1;
+}

@@ -1,0 +1,123 @@
+<section class="profile-page" *ngIf="customer">
+  <header class="page-header">
+    <div>
+      <a routerLink="/finance/customers">← Customers AR</a>
+      <span>{{ customer.customerCode }}</span>
+      <h1>{{ customer.nameEn }}</h1>
+      <p>{{ customer.registrationNumber }} · {{ customer.grade || '-' }} · {{ customer.parentLink || '-' }}</p>
+    </div>
+    <button type="button" (click)="printStatement()">Print</button>
+  </header>
+
+  <section class="summary-grid">
+    <article><span>Current Balance</span><strong>{{ money(customer.summary?.currentBalance) }}</strong></article>
+    <article><span>Outstanding</span><strong>{{ money(customer.summary?.outstanding) }}</strong></article>
+    <article><span>Credit</span><strong>{{ money(customer.summary?.credit) }}</strong></article>
+    <article><span>Overdue</span><strong>{{ money(customer.summary?.overdue) }}</strong></article>
+    <article><span>Invoices</span><strong>{{ customer.summary?.invoicesCount || 0 }}</strong></article>
+    <article><span>Payments</span><strong>{{ customer.summary?.paymentsCount || 0 }}</strong></article>
+  </section>
+
+  <nav class="tabs">
+    <button type="button" [class.active]="tab === 'overview'" (click)="tab = 'overview'">Overview</button>
+    <button type="button" [class.active]="tab === 'invoices'" (click)="tab = 'invoices'">Invoices</button>
+    <button type="button" [class.active]="tab === 'payments'" (click)="tab = 'payments'">Payments</button>
+    <button type="button" [class.active]="tab === 'ledger'" (click)="tab = 'ledger'">Ledger</button>
+    <button type="button" [class.active]="tab === 'installments'" (click)="tab = 'installments'">Installments</button>
+    <button type="button" [class.active]="tab === 'activity'" (click)="tab = 'activity'">Activity Log</button>
+  </nav>
+
+  <section class="panel" *ngIf="tab === 'overview'">
+    <h2>Accounting Profile</h2>
+    <div class="info-grid">
+      <p><span>Arabic Name</span>{{ customer.nameAr || '-' }}</p>
+      <p><span>Phone</span>{{ customer.phone || '-' }}</p>
+      <p><span>Email</span>{{ customer.email || '-' }}</p>
+      <p><span>National / Iqama</span>{{ customer.nationalId || '-' }}</p>
+      <p><span>Receivable Account</span>{{ customer.receivableCode }} - {{ customer.receivableNameEn }}</p>
+      <p><span>Credit Limit</span>{{ money(customer.creditLimit) }}</p>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'invoices'">
+    <h2>Invoices</h2>
+    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.invoices, type: 'invoice' }"></ng-container>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'payments'">
+    <h2>Payments</h2>
+    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.payments, type: 'payment' }"></ng-container>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'ledger'">
+    <h2>Customer Statement</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Journal</th><th>Reference</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of statement.transactions">
+            <td>{{ row.date }}</td>
+            <td>{{ row.entryNumber }}</td>
+            <td>{{ row.referenceNumber || '-' }}</td>
+            <td>{{ row.description }}</td>
+            <td>{{ money(row.debit) }}</td>
+            <td>{{ money(row.credit) }}</td>
+            <td>{{ money(row.balance) }}</td>
+          </tr>
+          <tr *ngIf="!statement.transactions.length"><td colspan="7" class="empty-cell">No ledger movement.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'installments'">
+    <h2>Payment Plan</h2>
+    <div class="form-grid">
+      <label><span>Plan Type</span><select [(ngModel)]="planForm.planType"><option>Annual Tuition</option><option>Semester</option><option>Monthly</option><option>Custom</option></select></label>
+      <label><span>Total Amount</span><input type="number" [(ngModel)]="planForm.totalAmount" /></label>
+      <label><span>Start Date</span><input type="date" [(ngModel)]="planForm.startDate" /></label>
+      <label><span>Installments</span><input type="number" [(ngModel)]="planForm.installmentsCount" /></label>
+      <label><span>Late Fee</span><input type="number" [(ngModel)]="planForm.lateFeeValue" /></label>
+      <label><span>Grace Days</span><input type="number" [(ngModel)]="planForm.gracePeriodDays" /></label>
+    </div>
+    <footer><button type="button" class="primary" (click)="savePlan()">Create Plan</button></footer>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Due Date</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let item of installments.installments">
+            <td>{{ item.dueDate }}</td>
+            <td>{{ money(item.amount) }}</td>
+            <td>{{ money(item.paidAmount) }}</td>
+            <td><span class="status">{{ item.status }}</span></td>
+          </tr>
+          <tr *ngIf="!installments.installments.length"><td colspan="4" class="empty-cell">No installment plan yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'activity'">
+    <h2>Activity Log</h2>
+    <p class="muted">Invoices, receipts, installments, and ledger movements are connected here. Documents tab is reserved for registration attachments.</p>
+  </section>
+</section>
+
+<ng-template #tableTpl let-rows="rows" let-type="type">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Date</th><th>No</th><th>Item</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let row of rows">
+          <td>{{ row.issuedAt || row.paidAt }}</td>
+          <td>{{ row.invoiceNumber || row.receiptNumber }}</td>
+          <td>{{ row.feeItem || row.paymentItem }}</td>
+          <td>{{ row.paymentMethod || row.method }}</td>
+          <td>{{ money(row.total || row.amount) }}</td>
+          <td>{{ row.status || 'Paid' }}</td>
+        </tr>
+        <tr *ngIf="!rows.length"><td colspan="6" class="empty-cell">No {{ type }} rows.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</ng-template>

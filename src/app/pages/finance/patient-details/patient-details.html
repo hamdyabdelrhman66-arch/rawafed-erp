@@ -1,0 +1,63 @@
+<div *ngIf="patient">
+
+  <div class="card">
+
+    <h1>{{patient.name}}</h1>
+
+    <p>
+      Phone:
+      {{patient.phone}}
+    </p>
+
+    <p>
+      Guardian:
+      {{patient.guardian}}
+    </p>
+
+    <p>
+      Diagnosis:
+      {{patient.diagnosis}}
+    </p>
+
+  </div>
+
+  <div class="card">
+
+    <h2>Packages</h2>
+
+    <table>
+
+      <thead>
+
+        <tr>
+
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Remaining</th>
+          <th>Status</th>
+
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+        <tr
+        *ngFor="
+        let item of packages
+        ">
+
+          <td>{{item.total}}</td>
+          <td>{{item.paid}}</td>
+          <td>{{item.remaining}}</td>
+          <td>{{item.status}}</td>
+
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>

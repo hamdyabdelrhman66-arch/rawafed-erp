@@ -1,0 +1,312 @@
+<section class="inventory-page">
+  <header class="page-header">
+    <div>
+      <span>Inventory + Procurement ERP</span>
+      <h1>Inventory & Purchasing</h1>
+      <p>Items, warehouses, stock movements, purchase workflow, GRN, student issues, and accounting posting.</p>
+    </div>
+    <button type="button" (click)="print()">Print</button>
+  </header>
+
+  <section class="summary-grid">
+    <article><span>Items</span><strong>{{ items.length }}</strong></article>
+    <article><span>Warehouses</span><strong>{{ warehouses.length }}</strong></article>
+    <article><span>Stock Value</span><strong>{{ money(totals.stockValue) }}</strong></article>
+    <article><span>Low Stock</span><strong>{{ totals.lowStock }}</strong></article>
+    <article><span>Open PR / PO</span><strong>{{ totals.openPr }} / {{ totals.openPo }}</strong></article>
+  </section>
+
+  <nav class="tabs">
+    <button type="button" [class.active]="tab === 'dashboard'" (click)="openTab('dashboard')">Dashboard</button>
+    <button type="button" [class.active]="tab === 'items'" (click)="openTab('items')">Items</button>
+    <button type="button" [class.active]="tab === 'warehouses'" (click)="openTab('warehouses')">Warehouses</button>
+    <button type="button" [class.active]="tab === 'movements'" (click)="openTab('movements')">Stock Movements</button>
+    <button type="button" [class.active]="tab === 'pr'" (click)="openTab('pr')">Purchase Requests</button>
+    <button type="button" [class.active]="tab === 'po'" (click)="openTab('po')">Purchase Orders</button>
+    <button type="button" [class.active]="tab === 'grn'" (click)="openTab('grn')">Goods Receiving</button>
+    <button type="button" [class.active]="tab === 'students'" (click)="openTab('students')">Issue Items</button>
+    <button type="button" [class.active]="tab === 'reports'" (click)="openTab('reports')">Reports</button>
+  </nav>
+
+  <section class="panel" *ngIf="tab === 'dashboard'">
+    <div class="panel-title">
+      <h2>Inventory Control Center</h2>
+      <input type="search" placeholder="Search item, code, barcode, category..." [(ngModel)]="searchText" />
+    </div>
+
+    <div class="dashboard-grid">
+      <article *ngFor="let card of dashboardCards" (click)="openTab(card.action || 'dashboard')">
+        <span>{{ card.label }}</span>
+        <strong>{{ card.kind === 'money' ? money(card.value) : (card.value || 0) }}</strong>
+      </article>
+    </div>
+
+    <div class="quick-actions">
+      <button type="button" (click)="openTab('items')">New Item</button>
+      <button type="button" (click)="openTab('pr')">Create Purchase Request</button>
+      <button type="button" (click)="openTab('po')">Create Purchase Order</button>
+      <button type="button" (click)="openTab('grn')">Receive Goods</button>
+      <button type="button" (click)="openTab('students')">Issue Items</button>
+      <button type="button" (click)="openTab('reports')">Reports Center</button>
+    </div>
+
+    <div class="chart-grid">
+      <article class="mini-chart">
+        <h3>Stock by Category</h3>
+        <div class="bar-row" *ngFor="let row of dashboard?.charts?.stockByCategory || []">
+          <span>{{ row.label }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.stockByCategory, 'value', row)"></i></div>
+          <strong>{{ money(row.value) }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.stockByCategory || []).length">No stock value yet.</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>Purchases per Month</h3>
+        <div class="bar-row purchase" *ngFor="let row of dashboard?.charts?.purchasesPerMonth || []">
+          <span>{{ row.label }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.purchasesPerMonth, 'value', row)"></i></div>
+          <strong>{{ money(row.value) }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.purchasesPerMonth || []).length">No purchases yet.</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>Most Issued Items</h3>
+        <div class="bar-row issue" *ngFor="let row of dashboard?.charts?.mostIssuedItems || []">
+          <span>{{ row.itemCode }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.mostIssuedItems, 'quantity', row)"></i></div>
+          <strong>{{ row.quantity }} {{ row.itemName }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.mostIssuedItems || []).length">No issued items yet.</p>
+      </article>
+
+      <article class="mini-chart">
+        <h3>Most Purchased Items</h3>
+        <div class="bar-row purchased" *ngFor="let row of dashboard?.charts?.mostPurchasedItems || []">
+          <span>{{ row.itemCode }}</span>
+          <div><i [style.width.%]="chartWidth(dashboard?.charts?.mostPurchasedItems, 'quantity', row)"></i></div>
+          <strong>{{ row.quantity }} {{ row.itemName }}</strong>
+        </div>
+        <p class="empty-cell" *ngIf="!(dashboard?.charts?.mostPurchasedItems || []).length">No purchased items yet.</p>
+      </article>
+    </div>
+
+    <div class="recent-grid">
+      <article>
+        <h3>Latest Stock Movements</h3>
+        <div class="table-scroll"><table><thead><tr><th>Date</th><th>No</th><th>Type</th><th>Item</th><th>Qty</th><th>Warehouse</th></tr></thead><tbody>
+          <tr *ngFor="let row of dashboard?.recent?.stockMovements || []"><td>{{ row.date }}</td><td>{{ row.movementNo }}</td><td>{{ row.movementType }}</td><td>{{ row.itemCode }} {{ row.itemName }}</td><td>{{ row.quantity }}</td><td>{{ row.warehouseCode }}</td></tr>
+          <tr *ngIf="!(dashboard?.recent?.stockMovements || []).length"><td colspan="6" class="empty-cell">No stock movements yet.</td></tr>
+        </tbody></table></div>
+      </article>
+
+      <article>
+        <h3>Latest Purchase Requests</h3>
+        <div class="table-scroll"><table><thead><tr><th>No</th><th>Department</th><th>Requested By</th><th>Priority</th><th>Status</th></tr></thead><tbody>
+          <tr *ngFor="let row of dashboard?.recent?.purchaseRequests || []"><td>{{ row.requestNo }}</td><td>{{ row.department }}</td><td>{{ row.requestedBy }}</td><td>{{ row.priority }}</td><td>{{ row.status }}</td></tr>
+          <tr *ngIf="!(dashboard?.recent?.purchaseRequests || []).length"><td colspan="5" class="empty-cell">No purchase requests yet.</td></tr>
+        </tbody></table></div>
+      </article>
+
+      <article>
+        <h3>Latest Goods Receiving</h3>
+        <div class="table-scroll"><table><thead><tr><th>GRN</th><th>PO</th><th>Supplier</th><th>Warehouse</th><th>Total</th></tr></thead><tbody>
+          <tr *ngFor="let row of dashboard?.recent?.goodsReceiving || []"><td>{{ row.grnNumber }}</td><td>{{ row.poNumber || '-' }}</td><td>{{ row.supplierName || '-' }}</td><td>{{ row.warehouseCode }}</td><td>{{ money(row.total) }}</td></tr>
+          <tr *ngIf="!(dashboard?.recent?.goodsReceiving || []).length"><td colspan="5" class="empty-cell">No goods receiving yet.</td></tr>
+        </tbody></table></div>
+      </article>
+
+      <article>
+        <h3>Low Stock Center</h3>
+        <div class="table-scroll"><table><thead><tr><th>Code</th><th>Item</th><th>Stock</th><th>Minimum</th><th>Action</th></tr></thead><tbody>
+          <tr *ngFor="let item of dashboard?.alerts?.lowStockItems || []"><td>{{ item.itemCode }}</td><td>{{ item.nameEn }}</td><td>{{ item.currentQuantity }}</td><td>{{ item.minimumStock }}</td><td><button type="button" (click)="openTab('pr')">Create PR</button></td></tr>
+          <tr *ngIf="!(dashboard?.alerts?.lowStockItems || []).length"><td colspan="5" class="empty-cell">No low stock alerts.</td></tr>
+        </tbody></table></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'items'">
+    <div class="panel-title">
+      <h2>Items Master</h2>
+      <input type="search" placeholder="Search item, barcode, category..." [(ngModel)]="searchText" />
+    </div>
+    <div class="form-grid">
+      <label><span>English Name</span><input [(ngModel)]="itemForm.nameEn" /></label>
+      <label><span>Arabic Name</span><input [(ngModel)]="itemForm.nameAr" /></label>
+      <label><span>Category</span><select [(ngModel)]="itemForm.category"><option *ngFor="let category of categoryMaster" [value]="category.nameEn">{{ category.code }} - {{ category.nameEn }}</option><option *ngFor="let category of categories">{{ category }}</option></select></label>
+      <label><span>Subcategory</span><input [(ngModel)]="itemForm.subcategory" /></label>
+      <label><span>Unit</span><input [(ngModel)]="itemForm.unit" /></label>
+      <label><span>Barcode</span><input [(ngModel)]="itemForm.barcode" /></label>
+      <label><span>QR Code</span><input [(ngModel)]="itemForm.qrCode" /></label>
+      <label><span>Purchase Price</span><input type="number" [(ngModel)]="itemForm.purchasePrice" /></label>
+      <label><span>Selling Price</span><input type="number" [(ngModel)]="itemForm.sellingPrice" /></label>
+      <label><span>VAT Type</span><select [(ngModel)]="itemForm.vatType"><option>Taxable</option><option>Exempt</option><option>Zero Rated</option></select></label>
+      <label><span>VAT %</span><input type="number" [(ngModel)]="itemForm.vatRate" /></label>
+      <label><span>Minimum Stock</span><input type="number" [(ngModel)]="itemForm.minimumStock" /></label>
+      <label><span>Maximum Stock</span><input type="number" [(ngModel)]="itemForm.maximumStock" /></label>
+      <label><span>Reorder Point</span><input type="number" [(ngModel)]="itemForm.reorderPoint" /></label>
+      <label><span>Safety Stock</span><input type="number" [(ngModel)]="itemForm.safetyStock" /></label>
+      <label><span>Opening Quantity</span><input type="number" [(ngModel)]="itemForm.openingQuantity" /></label>
+      <label><span>Opening Value</span><input type="number" [(ngModel)]="itemForm.openingValue" /></label>
+      <label><span>Default Warehouse</span><select [(ngModel)]="itemForm.defaultWarehouseId"><option *ngFor="let warehouse of warehouses" [value]="warehouse.id">{{ warehouse.code }} - {{ warehouse.name }}</option></select></label>
+      <label><span>Supplier</span><select [(ngModel)]="itemForm.supplierId"><option value="">No default supplier</option><option *ngFor="let supplier of suppliers" [value]="supplier.id">{{ supplier.supplierCode }} - {{ supplier.nameEn }}</option></select></label>
+      <label><span>Brand</span><input [(ngModel)]="itemForm.brand" /></label>
+      <label class="check"><input type="checkbox" [(ngModel)]="itemForm.taxable" /> Taxable</label>
+      <label class="wide"><span>Description</span><input [(ngModel)]="itemForm.description" /></label>
+      <label class="wide"><span>Notes</span><input [(ngModel)]="itemForm.notes" /></label>
+    </div>
+    <footer><button type="button" class="primary" (click)="saveItem()">Save Item</button></footer>
+    <ng-container *ngTemplateOutlet="itemsTable"></ng-container>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'warehouses'">
+    <h2>Warehouses</h2>
+    <div class="form-grid compact">
+      <label><span>Code</span><input [(ngModel)]="warehouseForm.code" /></label>
+      <label><span>Name</span><input [(ngModel)]="warehouseForm.name" /></label>
+      <label><span>English Name</span><input [(ngModel)]="warehouseForm.nameEn" /></label>
+      <label><span>Arabic Name</span><input [(ngModel)]="warehouseForm.nameAr" /></label>
+      <label><span>Location</span><input [(ngModel)]="warehouseForm.location" /></label>
+      <label><span>Responsible</span><input [(ngModel)]="warehouseForm.responsibleEmployee" /></label>
+      <label class="wide"><span>Description</span><input [(ngModel)]="warehouseForm.description" /></label>
+    </div>
+    <footer><button type="button" class="primary" (click)="saveWarehouse()">Save Warehouse</button></footer>
+    <div class="table-scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Arabic</th><th>Location</th><th>Responsible</th><th>Stock Value</th><th>Status</th></tr></thead><tbody>
+      <tr *ngFor="let row of warehouses"><td>{{ row.code }}</td><td>{{ row.nameEn || row.name }}</td><td>{{ row.nameAr || '-' }}</td><td>{{ row.location || '-' }}</td><td>{{ row.responsibleEmployee || '-' }}</td><td>{{ money(row.currentStockValue) }}</td><td>{{ row.status }}</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'movements'">
+    <h2>Stock Movements</h2>
+    <div class="form-grid">
+      <label><span>Type</span><select [(ngModel)]="movementForm.movementType"><option *ngFor="let type of movementTypes">{{ type }}</option></select></label>
+      <label><span>Date</span><input type="date" [(ngModel)]="movementForm.date" /></label>
+      <label><span>Reference</span><input [(ngModel)]="movementForm.referenceNo" /></label>
+      <label><span>Item</span><select [(ngModel)]="movementForm.itemId"><option value="">Select item</option><option *ngFor="let item of items" [value]="item.id">{{ item.itemCode }} - {{ item.nameEn }}</option></select></label>
+      <label><span>Quantity</span><input type="number" [(ngModel)]="movementForm.quantity" /></label>
+      <label><span>Unit Cost</span><input type="number" [(ngModel)]="movementForm.unitCost" /></label>
+      <label><span>Warehouse</span><select [(ngModel)]="movementForm.warehouseId"><option *ngFor="let warehouse of warehouses" [value]="warehouse.id">{{ warehouse.code }} - {{ warehouse.name }}</option></select></label>
+      <label><span>To Warehouse</span><select [(ngModel)]="movementForm.toWarehouseId"><option value="">Only for transfer</option><option *ngFor="let warehouse of warehouses" [value]="warehouse.id">{{ warehouse.code }} - {{ warehouse.name }}</option></select></label>
+      <label class="wide"><span>Reason</span><input [(ngModel)]="movementForm.reason" /></label>
+    </div>
+    <footer><button type="button" class="primary" (click)="saveMovement()">Save Movement</button></footer>
+    <div class="table-scroll"><table><thead><tr><th>Date</th><th>No</th><th>Type</th><th>Item</th><th>Qty</th><th>Cost</th><th>Warehouse</th><th>Reason</th><th>Journal</th></tr></thead><tbody>
+      <tr *ngFor="let row of movements"><td>{{ row.date }}</td><td>{{ row.movementNo }}</td><td>{{ row.movementType }}</td><td>{{ row.itemCode }} {{ row.itemName }}</td><td>{{ row.quantity }}</td><td>{{ money(row.unitCost) }}</td><td>{{ row.warehouseCode }} <small>{{ row.toWarehouseCode }}</small></td><td>{{ row.reason }}</td><td>{{ row.journalEntryNo || '-' }}</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'pr'">
+    <h2>Purchase Requests</h2>
+    <div class="form-grid compact">
+      <label><span>Department</span><input [(ngModel)]="prForm.department" /></label>
+      <label><span>Requested By</span><input [(ngModel)]="prForm.requestedBy" /></label>
+      <label><span>Priority</span><select [(ngModel)]="prForm.priority"><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
+      <label><span>Expected Date</span><input type="date" [(ngModel)]="prForm.expectedDate" /></label>
+      <label class="wide"><span>Reason</span><input [(ngModel)]="prForm.reason" /></label>
+    </div>
+    <ng-container *ngTemplateOutlet="lineEditor; context: { lines: prForm.items, mode: 'pr' }"></ng-container>
+    <footer><button type="button" (click)="addPrLine()">Add Line</button><button type="button" class="primary" (click)="savePurchaseRequest()">Save PR</button></footer>
+    <div class="table-scroll"><table><thead><tr><th>No</th><th>Department</th><th>Requested By</th><th>Priority</th><th>Status</th><th>Items</th><th>Action</th></tr></thead><tbody>
+      <tr *ngFor="let row of purchaseRequests"><td>{{ row.requestNo }}</td><td>{{ row.department }}</td><td>{{ row.requestedBy }}</td><td>{{ row.priority }}</td><td>{{ row.status }}</td><td>{{ row.items.length }}</td><td><select [ngModel]="row.status" (ngModelChange)="setPurchaseRequestStatus(row, $event)"><option *ngFor="let status of prStatuses">{{ status }}</option></select></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'po'">
+    <h2>Purchase Orders</h2>
+    <div class="form-grid compact">
+      <label><span>Supplier</span><select [(ngModel)]="poForm.supplierId"><option value="">Select supplier</option><option *ngFor="let supplier of suppliers" [value]="supplier.id">{{ supplier.supplierCode }} - {{ supplier.nameEn }}</option></select></label>
+      <label><span>Request</span><select [(ngModel)]="poForm.requestId"><option value="">No request</option><option *ngFor="let request of purchaseRequests" [value]="request.id">{{ request.requestNo }} - {{ request.department }}</option></select></label>
+      <label><span>Delivery Date</span><input type="date" [(ngModel)]="poForm.deliveryDate" /></label>
+      <label><span>Payment Terms</span><input [(ngModel)]="poForm.paymentTerms" /></label>
+    </div>
+    <ng-container *ngTemplateOutlet="lineEditor; context: { lines: poForm.items, mode: 'po' }"></ng-container>
+    <footer><button type="button" (click)="addPoLine()">Add Line</button><button type="button" class="primary" (click)="savePurchaseOrder()">Save PO</button></footer>
+    <div class="table-scroll"><table><thead><tr><th>PO</th><th>Supplier</th><th>Delivery</th><th>Status</th><th>Total</th><th>Items</th><th>Actions</th></tr></thead><tbody>
+      <tr *ngFor="let row of purchaseOrders"><td>{{ row.poNumber }}</td><td>{{ row.supplierName || '-' }}</td><td>{{ row.deliveryDate || '-' }}</td><td>{{ row.status }}</td><td>{{ money(row.total) }}</td><td>{{ row.items.length }}</td><td><button type="button" (click)="usePoForGrn(row)">Receive</button><select [ngModel]="row.status" (ngModelChange)="setPurchaseOrderStatus(row, $event)"><option *ngFor="let status of poStatuses">{{ status }}</option></select></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'grn'">
+    <h2>Goods Receiving Note</h2>
+    <div class="form-grid compact">
+      <label><span>PO</span><select [(ngModel)]="grnForm.poId"><option value="">Direct GRN</option><option *ngFor="let order of purchaseOrders" [value]="order.id">{{ order.poNumber }} - {{ order.supplierName }}</option></select></label>
+      <label><span>Supplier</span><select [(ngModel)]="grnForm.supplierId"><option value="">From PO / No supplier</option><option *ngFor="let supplier of suppliers" [value]="supplier.id">{{ supplier.nameEn }}</option></select></label>
+      <label><span>Warehouse</span><select [(ngModel)]="grnForm.warehouseId"><option *ngFor="let warehouse of warehouses" [value]="warehouse.id">{{ warehouse.code }} - {{ warehouse.name }}</option></select></label>
+      <label><span>Received Date</span><input type="date" [(ngModel)]="grnForm.receivedDate" /></label>
+      <label><span>Supplier Invoice No.</span><input [(ngModel)]="grnForm.supplierInvoiceNo" /></label>
+    </div>
+    <ng-container *ngTemplateOutlet="lineEditor; context: { lines: grnForm.items, mode: 'grn' }"></ng-container>
+    <footer><button type="button" (click)="addGrnLine()">Add Line</button><button type="button" class="primary" (click)="saveGoodsReceipt()">Post GRN</button></footer>
+    <div class="table-scroll"><table><thead><tr><th>GRN</th><th>PO</th><th>Supplier</th><th>Warehouse</th><th>Date</th><th>Total</th><th>Journal</th></tr></thead><tbody>
+      <tr *ngFor="let row of goodsReceipts"><td>{{ row.grnNumber }}</td><td>{{ row.poNumber || '-' }}</td><td>{{ row.supplierName || '-' }}</td><td>{{ row.warehouseCode }}</td><td>{{ row.receivedDate }}</td><td>{{ money(row.total) }}</td><td>{{ row.journalEntryNo || '-' }}</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'students'">
+    <h2>Issue Items</h2>
+    <div class="form-grid">
+      <label><span>Student Customer</span><select [(ngModel)]="issueForm.customerId"><option value="">Select student</option><option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customerCode }} - {{ customer.nameEn }}</option></select></label>
+      <label><span>Item</span><select [(ngModel)]="issueForm.itemId"><option value="">Select item</option><option *ngFor="let item of items" [value]="item.id">{{ item.itemCode }} - {{ item.nameEn }}</option></select></label>
+      <label><span>Warehouse</span><select [(ngModel)]="issueForm.warehouseId"><option *ngFor="let warehouse of warehouses" [value]="warehouse.id">{{ warehouse.code }} - {{ warehouse.name }}</option></select></label>
+      <label><span>Quantity</span><input type="number" [(ngModel)]="issueForm.quantity" /></label>
+      <label><span>Date</span><input type="date" [(ngModel)]="issueForm.date" /></label>
+      <label><span>Selling Price</span><input type="number" [(ngModel)]="issueForm.sellingPrice" /></label>
+      <label class="check"><input type="checkbox" [(ngModel)]="issueForm.billable" /> Billable</label>
+      <label class="wide"><span>Reason</span><input [(ngModel)]="issueForm.reason" /></label>
+    </div>
+    <footer><button type="button" class="primary" (click)="issueToStudent()">Issue Item</button></footer>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'reports'">
+    <h2>Inventory Reports</h2>
+    <div class="report-grid">
+      <article><span>Stock Balance</span><strong>{{ reports?.stockBalance?.length || 0 }}</strong></article>
+      <article><span>Low Stock</span><strong>{{ reports?.lowStock?.length || 0 }}</strong></article>
+      <article><span>Stock Valuation</span><strong>{{ money(reports?.stockValuation?.total) }}</strong></article>
+      <article><span>Damaged Items</span><strong>{{ reports?.damagedItems?.length || 0 }}</strong></article>
+      <article><span>Adjustments</span><strong>{{ reports?.adjustments?.length || 0 }}</strong></article>
+    </div>
+    <div class="table-scroll"><table><thead><tr><th>Item</th><th>Warehouse</th><th>Qty</th><th>Avg Cost</th><th>Value</th></tr></thead><tbody>
+      <tr *ngFor="let row of reports?.stockBalance || []"><td>{{ row.itemCode }} - {{ row.nameEn }}</td><td>{{ row.warehouseCode }}</td><td>{{ row.quantity }}</td><td>{{ money(row.averageCost) }}</td><td>{{ money(row.value) }}</td></tr>
+    </tbody></table></div>
+  </section>
+</section>
+
+<ng-template #itemsTable>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Code</th><th>Item</th><th>Category</th><th>Brand</th><th>Unit</th><th>Barcode</th><th>Avg Cost</th><th>Selling</th><th>Stock</th><th>Value</th><th>Reorder</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let item of filteredItems">
+          <td>{{ item.itemCode }}</td>
+          <td><strong>{{ item.nameEn }}</strong><small>{{ item.nameAr }}</small></td>
+          <td>{{ item.category }}<small>{{ item.subcategory }}</small></td>
+          <td>{{ item.brand || '-' }}</td>
+          <td>{{ item.unit }}</td>
+          <td>{{ item.barcode || '-' }}</td>
+          <td>{{ money(item.averageCost || item.purchasePrice) }}</td>
+          <td>{{ money(item.sellingPrice) }}</td>
+          <td [class.warn]="item.currentQuantity <= item.reorderPoint || item.currentQuantity <= item.minimumStock">{{ item.currentQuantity }}</td>
+          <td>{{ money(item.currentValue) }}</td>
+          <td>{{ item.reorderPoint || item.minimumStock }}</td>
+          <td>{{ item.status }}</td>
+        </tr>
+        <tr *ngIf="!filteredItems.length"><td colspan="12" class="empty-cell">No items yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</ng-template>
+
+<ng-template #lineEditor let-lines="lines" let-mode="mode">
+  <div class="lines">
+    <div class="line-row" *ngFor="let line of lines; let i = index">
+      <label><span>Item</span><select [(ngModel)]="line.itemId"><option value="">Select item</option><option *ngFor="let item of items" [value]="item.id">{{ item.itemCode }} - {{ item.nameEn }}</option></select></label>
+      <label><span>Qty</span><input type="number" [(ngModel)]="line.quantity" /></label>
+      <label *ngIf="mode !== 'pr'"><span>Unit Price</span><input type="number" [(ngModel)]="line.unitPrice" /></label>
+      <label *ngIf="mode !== 'pr'"><span>VAT %</span><input type="number" [(ngModel)]="line.vatRate" /></label>
+      <label *ngIf="mode === 'pr'" class="wide"><span>Reason</span><input [(ngModel)]="line.reason" /></label>
+    </div>
+  </div>
+</ng-template>

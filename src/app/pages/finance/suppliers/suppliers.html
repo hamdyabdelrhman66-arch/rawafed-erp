@@ -1,0 +1,168 @@
+<section class="suppliers-page">
+  <header class="page-header">
+    <div>
+      <span>Supplier Master Data</span>
+      <h1>Suppliers</h1>
+      <p>Manage supplier profiles, VAT numbers, payable accounts, and statements.</p>
+    </div>
+  </header>
+
+  <section class="supplier-form">
+    <h2>{{ editingId ? 'Edit Supplier' : 'Add Supplier' }}</h2>
+    <div class="form-grid">
+      <label>
+        <span>Supplier Name English</span>
+        <input type="text" [(ngModel)]="form.nameEn" />
+      </label>
+      <label>
+        <span>Supplier Name Arabic</span>
+        <input type="text" [(ngModel)]="form.nameAr" />
+      </label>
+      <label>
+        <span>VAT Number</span>
+        <input type="text" [(ngModel)]="form.vatNumber" />
+      </label>
+      <label>
+        <span>Commercial Registration</span>
+        <input type="text" [(ngModel)]="form.commercialRegistration" />
+      </label>
+      <label>
+        <span>Phone</span>
+        <input type="text" [(ngModel)]="form.phone" />
+      </label>
+      <label>
+        <span>Email</span>
+        <input type="email" [(ngModel)]="form.email" />
+      </label>
+      <label>
+        <span>City</span>
+        <input type="text" [(ngModel)]="form.city" />
+      </label>
+      <label>
+        <span>Contact Person</span>
+        <input type="text" [(ngModel)]="form.contactPerson" />
+      </label>
+      <label>
+        <span>Payment Terms</span>
+        <input type="text" [(ngModel)]="form.paymentTerms" />
+      </label>
+      <label>
+        <span>Opening Balance</span>
+        <input type="number" [(ngModel)]="form.openingBalance" />
+      </label>
+      <label>
+        <span>Supplier Account</span>
+        <select [(ngModel)]="form.payableAccountId">
+          <option value="">Default suppliers payable</option>
+          <option *ngFor="let account of payableAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option>
+        </select>
+      </label>
+      <label>
+        <span>Status</span>
+        <select [(ngModel)]="form.status">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </label>
+      <label class="wide">
+        <span>Address</span>
+        <input type="text" [(ngModel)]="form.address" />
+      </label>
+      <label class="wide">
+        <span>Notes</span>
+        <textarea rows="3" [(ngModel)]="form.notes"></textarea>
+      </label>
+    </div>
+    <footer>
+      <button type="button" (click)="cancel()">Cancel</button>
+      <button type="button" class="primary" (click)="save()">Save Supplier</button>
+    </footer>
+  </section>
+
+  <section class="table-card">
+    <div class="table-title">
+      <div>
+        <h2>Supplier Directory</h2>
+        <p>{{ filteredSuppliers.length }} suppliers</p>
+      </div>
+      <input type="search" placeholder="Search supplier..." [(ngModel)]="searchText" />
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Supplier</th>
+            <th>VAT Number</th>
+            <th>Phone</th>
+            <th>Payment Terms</th>
+            <th>Opening</th>
+            <th>Payable Account</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let supplier of filteredSuppliers">
+            <td>{{ supplier.supplierCode }}</td>
+            <td>
+              <strong>{{ supplier.nameEn }}</strong>
+              <small>{{ supplier.nameAr }}</small>
+            </td>
+            <td>{{ supplier.vatNumber || '-' }}</td>
+            <td>{{ supplier.phone || '-' }}</td>
+            <td>{{ supplier.paymentTerms || '-' }}</td>
+            <td>{{ money(supplier.openingBalance) }}</td>
+            <td>{{ supplier.payableCode || '-' }} {{ supplier.payableNameEn || '' }}</td>
+            <td><span class="status" [class.inactive]="supplier.status === 'inactive'">{{ supplier.status }}</span></td>
+            <td>
+              <button type="button" (click)="edit(supplier)">Edit</button>
+              <a class="button-link" [routerLink]="['/finance/suppliers', supplier.id]">AP Profile</a>
+              <button type="button" (click)="deactivate(supplier.id)">Deactivate</button>
+            </td>
+          </tr>
+          <tr *ngIf="!filteredSuppliers.length">
+            <td colspan="9" class="empty-cell">No suppliers found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="table-card" *ngIf="statementSupplierId">
+    <div class="table-title">
+      <h2>Supplier Statement</h2>
+      <button type="button" (click)="statementSupplierId = ''">Close</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Expense No</th>
+            <th>Category</th>
+            <th>Invoice</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th>Journal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of statementRows">
+            <td>{{ row.date }}</td>
+            <td>{{ row.expenseNo }}</td>
+            <td>{{ row.category }}</td>
+            <td>{{ row.invoiceType }}</td>
+            <td>{{ money(row.totalAmount) }}</td>
+            <td>{{ row.paymentStatus }}</td>
+            <td>{{ row.journalEntryNo }}</td>
+          </tr>
+          <tr *ngIf="!statementRows.length">
+            <td colspan="7" class="empty-cell">No expense transactions for this supplier yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

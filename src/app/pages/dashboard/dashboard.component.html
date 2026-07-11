@@ -1,0 +1,96 @@
+<section class="admin-page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Admission Office</span>
+      <h1>Admin Dashboard</h1>
+    </div>
+    <div class="header-actions">
+      <button mat-stroked-button (click)="storage.clearNotifications()"><mat-icon>notifications_off</mat-icon>Clear Alerts</button>
+      <button mat-flat-button color="primary" (click)="admission.exportExcel()"><mat-icon>table_view</mat-icon>Export Excel</button>
+    </div>
+  </header>
+
+  <section class="stats">
+    <article><span>Today's Registrations</span><strong>{{ todayCount() }}</strong></article>
+    <article><span>Pending</span><strong>{{ count('pending') }}</strong></article>
+    <article><span>Approved</span><strong>{{ count('approved') }}</strong></article>
+    <article><span>Rejected</span><strong>{{ count('rejected') }}</strong></article>
+    <article><span>Total Students</span><strong>{{ storage.registrations().length }}</strong></article>
+  </section>
+
+  <section class="notifications" *ngIf="storage.notifications().length">
+    <h2>Notifications</h2>
+    <p *ngFor="let note of storage.notifications()"><mat-icon>campaign</mat-icon>{{ note.message || note }}</p>
+  </section>
+
+  <section class="filters">
+    <mat-form-field>
+      <mat-label>Search student, parent, phone, ID, grade, registration number</mat-label>
+      <input matInput [(ngModel)]="query" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Status</mat-label>
+      <mat-select [(ngModel)]="statusFilter">
+        <mat-option value="">All</mat-option>
+        <mat-option value="pending">Pending</mat-option>
+        <mat-option value="approved">Approved</mat-option>
+        <mat-option value="rejected">Rejected</mat-option>
+        <mat-option value="archived">Archived</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </section>
+
+  <section class="registration-list">
+    <article class="registration-card" *ngFor="let item of filtered()">
+      <div class="student-block">
+        <img *ngIf="photo(item) as image" [src]="image" alt="Student photo" />
+        <div class="avatar" *ngIf="!photo(item)">{{ initials(item.student.englishName) }}</div>
+        <div>
+          <h2>{{ item.student.englishName || 'Unnamed Student' }}</h2>
+          <p>{{ item.registrationNumber || 'Draft' }} · {{ item.student.applyingGrade }} · {{ item.father.phone || item.mother.phone }}</p>
+          <div class="chips">
+            <mat-chip>{{ item.status }}</mat-chip>
+            <mat-chip [class.warn]="missingDocs(item).length">{{ missingDocs(item).length ? missingDocs(item).length + ' missing docs' : 'Documents ready' }}</mat-chip>
+            <mat-chip>{{ item.financial.paymentStatus }}</mat-chip>
+            <mat-chip>{{ item.priority }}</mat-chip>
+          </div>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button mat-icon-button title="Open" (click)="open.set(item)"><mat-icon>visibility</mat-icon></button>
+        <button mat-icon-button title="Download Contract PDF" (click)="admission.downloadContractPdf(item)"><mat-icon>contract</mat-icon></button>
+        <button mat-icon-button title="Download Registration Information PDF" (click)="admission.downloadRegistrationInfoPdf(item)"><mat-icon>badge</mat-icon></button>
+        <button mat-icon-button title="Duplicate" (click)="duplicate(item)"><mat-icon>content_copy</mat-icon></button>
+        <button mat-icon-button title="Approve" (click)="admission.setStatus(item, 'approved')"><mat-icon>task_alt</mat-icon></button>
+        <button mat-icon-button title="Reject" (click)="admission.setStatus(item, 'rejected')"><mat-icon>cancel</mat-icon></button>
+        <button mat-icon-button title="Archive" (click)="admission.setStatus(item, 'archived')"><mat-icon>archive</mat-icon></button>
+        <button mat-icon-button title="Delete" (click)="storage.deleteRegistration(item.id)"><mat-icon>delete</mat-icon></button>
+      </div>
+    </article>
+  </section>
+
+  <aside class="drawer" *ngIf="open() as item">
+    <button mat-icon-button class="close" (click)="open.set(null)"><mat-icon>close</mat-icon></button>
+    <h2>{{ item.student.englishName }}</h2>
+    <p>{{ item.student.arabicName }}</p>
+    <img class="qr" *ngIf="item.qrDataUrl" [src]="item.qrDataUrl" alt="Registration QR" />
+    <mat-divider />
+    <dl>
+      <dt>Father</dt><dd>{{ item.father.fullName }} · {{ item.father.phone }}</dd>
+      <dt>Mother</dt><dd>{{ item.mother.fullName }} · {{ item.mother.phone }}</dd>
+      <dt>Medical</dt><dd>{{ item.medical.bloodType }} · {{ item.medical.allergies || 'No allergies declared' }}</dd>
+      <dt>Total</dt><dd>{{ item.financial.grandTotal | number:'1.2-2' }} SAR</dd>
+      <dt>Agreement</dt><dd>{{ item.agreement.accepted ? 'Accepted' : 'Not accepted' }}</dd>
+      <dt>Contract PDF</dt><dd>{{ item.contractPdf?.fileName || 'Not generated' }}</dd>
+      <dt>Student File PDF</dt><dd>{{ item.registrationInfoPdf?.fileName || 'Not generated' }}</dd>
+    </dl>
+    <div class="drawer-actions">
+      <button mat-stroked-button type="button" (click)="admission.downloadContractPdf(item)"><mat-icon>contract</mat-icon>Contract PDF</button>
+      <button mat-stroked-button type="button" (click)="admission.downloadRegistrationInfoPdf(item)"><mat-icon>badge</mat-icon>Student File PDF</button>
+    </div>
+    <h3>Application Timeline</h3>
+    <ol>
+      <li *ngFor="let event of item.timeline"><strong>{{ event.title }}</strong><span>{{ event.date | date:'medium' }}</span><p>{{ event.description }}</p></li>
+    </ol>
+  </aside>
+</section>

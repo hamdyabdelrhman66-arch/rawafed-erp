@@ -1,0 +1,95 @@
+.letter-page {
+  display: grid;
+  gap: 18px;
+}
+
+.page-header,
+.letter-form,
+.letter-preview,
+.email-draft {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(10, 87, 164, .1);
+  box-shadow: 0 14px 34px rgba(23, 32, 51, .07);
+}
+
+.page-header,
+.letter-form,
+.letter-preview,
+.email-draft {
+  padding: 22px;
+}
+
+.eyebrow {
+  color: #c49226;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: #0a57a4;
+}
+
+.page-header p,
+.letter-preview p {
+  margin-top: 8px;
+  color: #697386;
+}
+
+.letter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  gap: 16px;
+}
+
+.letter-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.letter-form h2,
+.wide,
+.actions {
+  grid-column: 1 / -1;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.letter-preview {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.arabic {
+  font-family: 'Cairo', sans-serif;
+  line-height: 1.8;
+}
+
+pre {
+  white-space: pre-wrap;
+  margin: 0;
+  color: #172033;
+  line-height: 1.6;
+}
+
+@media (max-width: 1000px) {
+  .letter-grid,
+  .letter-form {
+    grid-template-columns: 1fr;
+  }
+}

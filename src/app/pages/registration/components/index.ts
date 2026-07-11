@@ -1,0 +1,9 @@
+export { StudentStepComponent } from './student-step/student-step.component';
+export { ParentsStepComponent } from './parents-step/parents-step.component';
+export { EmergencyStepComponent } from './emergency-step/emergency-step.component';
+export { MedicalStepComponent } from './medical-step/medical-step.component';
+export { DocumentsStepComponent } from './documents-step/documents-step.component';
+export { FinancialStepComponent } from './financial-step/financial-step.component';
+export { AgreementStepComponent } from './agreement-step/agreement-step.component';
+export { SignatureStepComponent } from './signature-step/signature-step.component';
+export { ReviewStepComponent } from './review-step/review-step.component';

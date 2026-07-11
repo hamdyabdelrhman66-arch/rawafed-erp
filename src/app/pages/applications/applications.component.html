@@ -1,0 +1,25 @@
+<section class="simple-page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Admission Pipeline</span>
+      <h1>Applications</h1>
+    </div>
+  </header>
+
+  <section class="simple-list">
+    <article *ngFor="let item of applications()" class="simple-card">
+      <div>
+        <h2>{{ item.student.englishName || 'Unnamed Student' }}</h2>
+        <p>{{ item.registrationNumber || 'Draft' }} · {{ item.student.applyingGrade }} · {{ item.status }}</p>
+      </div>
+      <div class="actions">
+        <button mat-icon-button title="Download Contract PDF" (click)="admission.downloadContractPdf(item)"><mat-icon>contract</mat-icon></button>
+        <button mat-icon-button title="Download Registration Information PDF" (click)="admission.downloadRegistrationInfoPdf(item)"><mat-icon>badge</mat-icon></button>
+        <button mat-icon-button title="Approve" (click)="admission.setStatus(item, 'approved')"><mat-icon>task_alt</mat-icon></button>
+        <button mat-icon-button title="Reject" (click)="admission.setStatus(item, 'rejected')"><mat-icon>cancel</mat-icon></button>
+      </div>
+    </article>
+
+    <p class="empty" *ngIf="!applications().length">No open applications.</p>
+  </section>
+</section>

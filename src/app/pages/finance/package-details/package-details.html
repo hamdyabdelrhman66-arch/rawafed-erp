@@ -1,0 +1,83 @@
+<div class="details-header">
+  <div>
+    <span>Student Finance Account</span>
+    <h1>{{ package.patient }}</h1>
+  </div>
+
+  <button
+    class="edit-btn"
+    [routerLink]="['/finance/add-payment']"
+    [queryParams]="{ accountId: package.id }">
+    Record Payment
+  </button>
+</div>
+
+<div class="details-card">
+  <div class="detail-item">
+    <span>Student</span>
+    <h3>{{ package.patient }}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Grade</span>
+    <h3>{{ package.grade || '-' }}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Registration No.</span>
+    <h3>{{ package.registrationNumber || '-' }}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Payment Plan</span>
+    <h3>{{ package.paymentPlan || '-' }}</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Expected Total</span>
+    <h3>{{ package.total | number }} SAR</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Paid</span>
+    <h3>{{ package.paid | number }} SAR</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Remaining</span>
+    <h3>{{ package.remaining | number }} SAR</h3>
+  </div>
+
+  <div class="detail-item">
+    <span>Status</span>
+    <h3>{{ package.status }}</h3>
+  </div>
+</div>
+
+<div class="services-card">
+  <h2>Grade Fee Breakdown</h2>
+
+  <table class="services-table">
+    <thead>
+      <tr>
+        <th>Fee Item</th>
+        <th>Qty</th>
+        <th>Price</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <tr *ngFor="let service of package.services">
+        <td>{{ service.service }}</td>
+        <td>{{ service.sessions }}</td>
+        <td>{{ service.price | number }} SAR</td>
+        <td>{{ service.sessions * service.price | number }} SAR</td>
+      </tr>
+
+      <tr *ngIf="!package.services?.length">
+        <td colspan="4">No fee breakdown available for this account.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

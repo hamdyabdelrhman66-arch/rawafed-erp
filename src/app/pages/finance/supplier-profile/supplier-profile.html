@@ -1,0 +1,106 @@
+<section class="supplier-profile" *ngIf="profile">
+  <header class="page-header">
+    <div>
+      <a routerLink="/finance/suppliers">← Suppliers</a>
+      <span>{{ profile.supplier.supplierCode }}</span>
+      <h1>{{ profile.supplier.nameEn }}</h1>
+      <p>{{ profile.supplier.vatNumber || 'No VAT number' }} · {{ profile.supplier.commercialRegistration || 'No CR' }}</p>
+    </div>
+  </header>
+
+  <section class="summary-grid">
+    <article><span>Current Payable</span><strong>{{ money(profile.summary.currentBalance) }}</strong></article>
+    <article><span>Invoice Total</span><strong>{{ money(profile.summary.invoiceTotal) }}</strong></article>
+    <article><span>Paid</span><strong>{{ money(profile.summary.paidTotal) }}</strong></article>
+    <article><span>Unpaid Invoices</span><strong>{{ profile.summary.unpaidInvoices }}</strong></article>
+    <article><span>Payments</span><strong>{{ profile.summary.paymentsCount }}</strong></article>
+  </section>
+
+  <nav class="tabs">
+    <button type="button" [class.active]="tab === 'statement'" (click)="tab = 'statement'">Statement</button>
+    <button type="button" [class.active]="tab === 'expenses'" (click)="tab = 'expenses'">Supplier Invoices</button>
+    <button type="button" [class.active]="tab === 'payments'" (click)="tab = 'payments'">Payments</button>
+    <button type="button" [class.active]="tab === 'new-payment'" (click)="tab = 'new-payment'">Pay Supplier</button>
+  </nav>
+
+  <section class="panel" *ngIf="tab === 'statement'">
+    <h2>Supplier Statement</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Journal</th><th>Reference</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of profile.statement.transactions">
+            <td>{{ row.date }}</td>
+            <td>{{ row.entryNumber }}</td>
+            <td>{{ row.referenceNumber || '-' }}</td>
+            <td>{{ row.description }}</td>
+            <td>{{ money(row.debit) }}</td>
+            <td>{{ money(row.credit) }}</td>
+            <td>{{ money(row.balance) }}</td>
+          </tr>
+          <tr *ngIf="!profile.statement.transactions.length"><td colspan="7" class="empty-cell">No supplier ledger movement.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'expenses'">
+    <h2>Supplier Invoices</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>No</th><th>Description</th><th>Invoice Type</th><th>VAT</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of profile.expenses">
+            <td>{{ row.expenseDate }}</td>
+            <td>{{ row.expenseNo }}</td>
+            <td>{{ row.description }}</td>
+            <td>{{ row.invoiceType }}</td>
+            <td>{{ money(row.vatAmount) }}</td>
+            <td>{{ money(row.totalAmount) }}</td>
+            <td>{{ row.paymentStatus }}</td>
+          </tr>
+          <tr *ngIf="!profile.expenses.length"><td colspan="7" class="empty-cell">No supplier invoices.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'payments'">
+    <h2>Supplier Payments</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>No</th><th>Type</th><th>Paid From</th><th>Amount</th><th>Journal</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of profile.payments">
+            <td>{{ row.paidAt }}</td>
+            <td>{{ row.paymentNo }}</td>
+            <td>{{ row.paymentType }}</td>
+            <td>{{ row.paymentAccountCode }} {{ row.paymentAccountName }}</td>
+            <td>{{ money(row.amount) }}</td>
+            <td>{{ row.journalEntryNo }}</td>
+          </tr>
+          <tr *ngIf="!profile.payments.length"><td colspan="6" class="empty-cell">No supplier payments.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'new-payment'">
+    <h2>Record Supplier Payment</h2>
+    <div class="form-grid">
+      <label><span>Payment Type</span><select [(ngModel)]="paymentForm.paymentType"><option value="full">Full</option><option value="partial">Partial</option><option value="advance">Advance</option></select></label>
+      <label><span>Amount</span><input type="number" [(ngModel)]="paymentForm.amount" /></label>
+      <label><span>Paid At</span><input type="date" [(ngModel)]="paymentForm.paidAt" /></label>
+      <label><span>Payment Method</span><select [(ngModel)]="paymentForm.paymentMethod"><option>Cash</option><option>Bank Transfer</option><option>Card</option><option>Online</option></select></label>
+      <label>
+        <span>Payment From</span>
+        <select [(ngModel)]="paymentForm.paymentAccountId">
+          <option value="">Auto by method</option>
+          <option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option>
+        </select>
+      </label>
+      <label class="wide"><span>Notes</span><input type="text" [(ngModel)]="paymentForm.notes" /></label>
+    </div>
+    <footer><button type="button" class="primary" (click)="savePayment()">Save Payment</button></footer>
+  </section>
+</section>

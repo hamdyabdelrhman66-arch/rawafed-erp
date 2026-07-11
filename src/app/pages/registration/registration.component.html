@@ -1,0 +1,384 @@
+    <section class="wizard-page">
+
+  <header class="page-header">
+
+    <div class="page-title">
+      <h1>Student Registration</h1>
+      <p>Rawafed International School Admissions</p>
+    </div>
+
+    <div class="application-card">
+      <span>Application No.</span>
+      <strong>{{ draft().registrationNumber || 'NEW APPLICATION' }}</strong>
+    </div>
+
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="submit(stepper)">
+
+    <mat-stepper
+      #stepper
+      linear
+      class="premium-stepper"
+      (selectionChange)="activeStep.set($event.selectedIndex)">
+
+      <!-- STEP 1 -->
+
+      <mat-step
+        [stepControl]="studentGroup"
+        label="Student Information"
+        [completed]="studentGroup.valid">
+
+        <raw-student-step
+          [group]="studentGroup"
+          [grades]="grades"
+          [firstStepDocs]="firstStepDocs"
+          [documents]="documents()"
+          (uploaded)="upsertDocument($event)"
+          (deleteDocument)="removeDocument($event)">
+        </raw-student-step>
+
+        <nav class="actions">
+
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="saveDraft()">
+            Save Draft
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, studentGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 2 -->
+
+      <mat-step
+        [stepControl]="parentsGroup"
+        label="Parents & Guardian">
+
+        <raw-parents-step
+          [group]="parentsGroup">
+        </raw-parents-step>
+
+        <nav class="actions">
+
+          <button
+            mat-button
+            type="button"
+            (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="saveDraft()">
+            Save Draft
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, parentsGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 3 -->
+
+      <mat-step
+        [stepControl]="emergencyGroup"
+        label="Emergency Contact">
+
+        <raw-emergency-step
+          [group]="emergencyGroup">
+        </raw-emergency-step>
+
+        <nav class="actions">
+
+          <button mat-button type="button" (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, emergencyGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 4 -->
+
+      <mat-step
+        [stepControl]="medicalGroup"
+        label="Medical Information">
+
+        <raw-medical-step
+          [group]="medicalGroup"
+          [bloodTypes]="bloodTypes">
+        </raw-medical-step>
+
+        <nav class="actions">
+
+          <button mat-button type="button" (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, medicalGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 5 -->
+
+      <mat-step
+        [stepControl]="documentsGroup"
+        label="Required Documents">
+
+        <raw-documents-step
+          [documentLabels]="documentLabels"
+          [documents]="documents()"
+          [missingDocuments]="missingDocuments()"
+          (uploaded)="upsertDocument($event)"
+          (deleteDocument)="removeDocument($event)">
+        </raw-documents-step>
+
+        <nav class="actions">
+
+          <button mat-button type="button" (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, documentsGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 6 -->
+
+      <mat-step
+        [stepControl]="financialGroup"
+        label="Fees & Payment">
+
+        <raw-financial-step
+  [group]="financialGroup"
+  [paymentPlans]="paymentPlans"
+  [transportationAreas]="transportationAreas()">
+</raw-financial-step>
+
+        <nav class="actions">
+
+          <button mat-button type="button" (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, financialGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 7 -->
+
+      <mat-step
+        [stepControl]="agreementGroup"
+        label="Agreement">
+
+        <raw-agreement-step
+          [group]="agreementGroup"
+          [sections]="agreementSections()"
+          [scrolledToEnd]="agreementScrolled()"
+          (reachedEnd)="markAgreementScrolled()">
+        </raw-agreement-step>
+
+        <nav class="actions">
+
+          <button mat-button type="button" (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, agreementGroup)">
+            Continue ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 8 -->
+
+      <mat-step
+        [stepControl]="signatureGroup"
+        label="Signature">
+
+        <raw-signature-step
+          [group]="signatureGroup"
+          [parentSignature]="parentSignature()"
+          [studentSignature]="studentSignature()"
+          (signatureChange)="setSignature($event.field,$event.value)">
+        </raw-signature-step>
+
+        <nav class="actions">
+
+          <button mat-button type="button" (click)="stepper.previous()">
+            <- Back
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="goNext(stepper, signatureGroup, true)">
+            Review ->
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+      <!-- STEP 9 -->
+
+      <mat-step label="Final Review">
+
+        <raw-review-step
+          [student]="studentSummary()"
+          [parents]="parentsSummary()"
+          [emergency]="emergencySummary()"
+          [medical]="medicalSummary()"
+          [financial]="financialSummary()"
+          [documents]="documentsSummary()"
+          [missingDocuments]="missingDocuments()"
+          [agreementAccepted]="agreementAccepted()"
+          [hasParentSignature]="hasParentSignature()"
+          [parentSignature]="parentSignature()">
+        </raw-review-step>
+
+        @if (submittedRegistration(); as submitted) {
+          <section class="submit-confirmation" role="status" aria-live="polite">
+            <div class="confirmation-icon">
+              <mat-icon>check_circle</mat-icon>
+            </div>
+
+            <div>
+              <h2>Registration submitted successfully</h2>
+              <p>
+                Registration No.
+                <strong>{{ submitted.registrationNumber }}</strong>
+              </p>
+              <p class="confirmation-note">
+                The application is now available for admission review, and the finance account was created for payment follow-up.
+              </p>
+            </div>
+
+            <div class="confirmation-actions">
+              <button mat-stroked-button type="button" (click)="goToApplications()">
+                View Applications
+              </button>
+
+              <button mat-flat-button color="primary" type="button" (click)="downloadDraftRegistrationInfoPdf()">
+                Download Student File
+              </button>
+            </div>
+          </section>
+        }
+
+        @if (submitError()) {
+          <section class="submit-error" role="alert">
+            <mat-icon>error</mat-icon>
+            <span>{{ submitError() }}</span>
+          </section>
+        }
+
+        <nav class="actions sticky-actions">
+
+          <button
+            mat-button
+            type="button"
+            (click)="stepper.previous()">
+            <- Edit
+          </button>
+
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="print()">
+            Print
+          </button>
+
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="downloadDraftPdf()">
+            Download Contract
+          </button>
+
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="downloadDraftRegistrationInfoPdf()">
+            Download Student File
+          </button>
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="isSubmitting() || !!submittedRegistration()">
+
+            <mat-icon>{{ submittedRegistration() ? 'task_alt' : 'check_circle' }}</mat-icon>
+
+            {{ isSubmitting() ? 'Submitting...' : (submittedRegistration() ? 'Submitted' : 'Submit Registration') }}
+
+          </button>
+
+        </nav>
+
+      </mat-step>
+
+    </mat-stepper>
+
+  </form>
+
+</section>

@@ -1,0 +1,39 @@
+<div class="grid" [formGroup]="group">
+  <mat-form-field>
+    <mat-label>Full Name</mat-label>
+    <input matInput formControlName="fullName" required />
+    <mat-error>Full name is required.</mat-error>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Occupation</mat-label>
+    <input matInput formControlName="occupation" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Company</mat-label>
+    <input matInput formControlName="company" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Nationality</mat-label>
+    <input matInput formControlName="nationality" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>ID Number</mat-label>
+    <input matInput formControlName="idNumber" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Mobile Number</mat-label>
+    <input matInput formControlName="phone" required />
+    <mat-error>Enter a unique mobile number.</mat-error>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Email Address</mat-label>
+    <input matInput type="email" formControlName="email" required />
+    <mat-error>Enter a valid unique email address.</mat-error>
+  </mat-form-field>
+</div>

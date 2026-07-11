@@ -1,0 +1,48 @@
+<section class="login-page">
+  <aside class="login-identity">
+    <div class="hero-logo">
+      <img src="/assets/rawafed-logo.png" [alt]="'app.school_full' | t" />
+    </div>
+    <h1>{{ 'app.school_full' | t }}</h1>
+    <p>{{ 'login.portal_description' | t }}</p>
+  </aside>
+
+  <article class="login-panel">
+    <div class="brand-row">
+      <img class="logo" src="/assets/rawafed-logo.png" [alt]="'app.school_full' | t" />
+      <div>
+        <strong>{{ 'app.school_full' | t }}</strong>
+        <small>{{ 'login.portal_name' | t }}</small>
+      </div>
+    </div>
+
+    <div class="login-title">
+      <h2>{{ 'login.sign_in' | t }}</h2>
+      <p>{{ 'login.instructions' | t }}</p>
+    </div>
+
+    <form (ngSubmit)="login()" class="login-form">
+      <label>
+        <span>{{ 'login.username' | t }}</span>
+        <input name="username" [(ngModel)]="username" autocomplete="username" />
+      </label>
+
+      <label>
+        <span>{{ 'login.password' | t }}</span>
+        <input name="password" type="password" [(ngModel)]="password" autocomplete="current-password" />
+      </label>
+
+      <p class="error" *ngIf="error">{{ error }}</p>
+
+      <button mat-flat-button color="primary" type="submit" [disabled]="isLoggingIn">
+        <mat-icon>login</mat-icon>
+        {{ isLoggingIn ? ('login.signing_in' | t) : ('login.login' | t) }}
+      </button>
+    </form>
+
+    <a class="register-button" routerLink="/register">
+      <mat-icon>app_registration</mat-icon>
+      {{ 'login.student_registration' | t }}
+    </a>
+  </article>
+</section>

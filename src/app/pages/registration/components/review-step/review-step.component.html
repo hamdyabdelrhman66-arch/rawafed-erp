@@ -1,0 +1,17 @@
+<section class="step-section">
+  <header class="section-title"><span>Step 09</span><h2>Final Review</h2><p>Confirm the application, documents, agreement, financials, and signature before submission.</p></header>
+  <div class="status-strip">
+    <mat-chip [class.ok]="agreementAccepted">{{ agreementAccepted ? 'Agreement accepted' : 'Agreement pending' }}</mat-chip>
+    <mat-chip [class.ok]="hasParentSignature">{{ hasParentSignature ? 'Parent signature saved' : 'Parent signature required' }}</mat-chip>
+    <mat-chip [class.warn]="missingDocuments.length">{{ missingDocuments.length ? missingDocuments.length + ' missing documents' : 'Documents complete' }}</mat-chip>
+  </div>
+  <div class="summary-grid">
+    <raw-summary-card title="Student" [rows]="student" />
+    <raw-summary-card title="Parents" [rows]="parents" />
+    <raw-summary-card title="Emergency" [rows]="emergency" />
+    <raw-summary-card title="Medical" [rows]="medical" />
+    <raw-summary-card title="Financial" [rows]="financial" />
+    <raw-summary-card title="Documents" [rows]="documents" />
+  </div>
+  <img class="signature-preview" *ngIf="parentSignature" [src]="parentSignature" alt="Parent signature preview" />
+</section>

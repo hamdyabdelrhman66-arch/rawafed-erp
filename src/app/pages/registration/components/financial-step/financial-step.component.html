@@ -1,0 +1,85 @@
+<section class="step-section" [formGroup]="group">
+  <header class="section-title">
+    <span>Step 06</span>
+    <h2>Fees & Payment</h2>
+    <p>Fees are calculated automatically from school settings.</p>
+  </header>
+
+  <div class="finance-layout">
+
+    <section class="payment-card">
+      <h3>Payment Method</h3>
+
+      <mat-radio-group formControlName="paymentPlan" class="payment-options">
+        <mat-radio-button *ngFor="let plan of paymentPlans" [value]="plan">
+          {{ plan }}
+        </mat-radio-button>
+      </mat-radio-group>
+    </section>
+
+    <section class="payment-card">
+      <h3>Transportation</h3>
+
+      <mat-checkbox formControlName="transportationRequired">
+        Transportation Required
+      </mat-checkbox>
+
+      <mat-form-field *ngIf="group.get('transportationRequired')?.value">
+        <mat-label>Area</mat-label>
+        <mat-select formControlName="transportationArea">
+          <mat-option *ngIf="!transportationAreas.length" value="" disabled>No transportation areas configured</mat-option>
+          <mat-option *ngFor="let area of transportationAreas" [value]="area.name">
+            {{ area.name }} - {{ area.annualFee | number }} SAR
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </section>
+
+    <section class="summary-card">
+      <h3>Financial Summary</h3>
+
+      <div class="fee-row">
+        <span>Registration Fee</span>
+        <strong>{{ group.get('registrationFee')?.value | number }} SAR</strong>
+      </div>
+
+      <div class="fee-row">
+        <span>Tuition</span>
+        <strong>{{ group.get('tuition')?.value | number }} SAR</strong>
+      </div>
+
+      <div class="fee-row">
+        <span>Books</span>
+        <strong>{{ group.get('books')?.value | number }} SAR</strong>
+      </div>
+
+      <div class="fee-row">
+        <span>Uniform</span>
+        <strong>{{ group.get('uniform')?.value | number }} SAR</strong>
+      </div>
+
+      <div class="fee-row">
+        <span>Activities</span>
+        <strong>{{ group.get('activities')?.value | number }} SAR</strong>
+      </div>
+
+      <div class="fee-row">
+        <span>Transportation</span>
+        <strong>
+          {{ group.get('transportationRequired')?.value ? (group.get('transportationFee')?.value | number) : 0 }} SAR
+        </strong>
+      </div>
+
+      <div class="fee-row">
+        <span>VAT</span>
+        <strong>{{ group.get('vat')?.value }}%</strong>
+      </div>
+
+      <div class="fee-row total">
+        <span>Grand Total</span>
+        <strong>{{ group.get('grandTotal')?.value | number:'1.2-2' }} SAR</strong>
+      </div>
+    </section>
+
+  </div>
+</section>

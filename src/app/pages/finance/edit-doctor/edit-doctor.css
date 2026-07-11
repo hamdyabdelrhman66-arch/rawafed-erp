@@ -1,0 +1,49 @@
+.form-card{
+  background:white;
+  padding:30px;
+  border-radius:16px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);
+}
+
+.form-card h1{
+  margin-bottom:25px;
+}
+
+.form-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:20px;
+}
+
+.form-group{
+  display:flex;
+  flex-direction:column;
+}
+
+.form-group label{
+  margin-bottom:8px;
+  font-weight:600;
+}
+
+input,
+select,
+textarea{
+  padding:12px;
+  border:1px solid #ddd;
+  border-radius:8px;
+}
+
+textarea{
+  margin-top:8px;
+}
+
+.save-btn{
+  margin-top:25px;
+  background:var(--raw-brand-primary);
+  color:white;
+  border:none;
+  padding:14px 24px;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:600;
+}

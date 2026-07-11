@@ -1,0 +1,105 @@
+<div class="reports-page">
+  <header class="page-header">
+    <div>
+      <span>Rawafed Reports</span>
+      <h1>{{ reportTitle }}</h1>
+      <p>Build finance and admissions reports by date range, search, then download Excel or branded PDF.</p>
+    </div>
+
+    <div class="export-actions">
+      <button type="button" (click)="downloadExcel()">Download Excel</button>
+      <button type="button" class="primary" (click)="downloadPdf()">Download PDF</button>
+    </div>
+  </header>
+
+  <section class="report-controls">
+    <label>
+      <span>Report Type</span>
+      <select [ngModel]="reportKind" (ngModelChange)="setReportKind($event)">
+        <option *ngFor="let option of reportOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <label *ngIf="reportKind === 'account-ledger'">
+      <span>Account</span>
+      <select [(ngModel)]="selectedAccount">
+        <option *ngFor="let account of accountOptions" [value]="account.value">{{ account.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      <span>From Date</span>
+      <input type="date" [(ngModel)]="fromDate" />
+    </label>
+
+    <label>
+      <span>To Date</span>
+      <input type="date" [(ngModel)]="toDate" />
+    </label>
+
+    <label>
+      <span>Search</span>
+      <input type="search" placeholder="Student, receipt, grade, status..." [(ngModel)]="searchText" />
+    </label>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <h3>Rows</h3>
+      <h2>{{ rows.length }}</h2>
+    </article>
+
+    <article class="stat-card">
+      <h3>Report Amount</h3>
+      <h2>{{ totalAmount | number }} SAR</h2>
+    </article>
+
+    <article class="stat-card">
+      <h3>Collections</h3>
+      <h2>{{ totalRevenue | number }} SAR</h2>
+    </article>
+
+    <article class="stat-card">
+      <h3>Expenses</h3>
+      <h2>{{ totalExpenses | number }} SAR</h2>
+    </article>
+
+    <article class="stat-card">
+      <h3>Outstanding</h3>
+      <h2>{{ remainingTotal | number }} SAR</h2>
+    </article>
+
+    <article class="stat-card">
+      <h3>Admissions</h3>
+      <h2>{{ admissionsInPeriod }}</h2>
+    </article>
+  </section>
+
+  <section class="report-card">
+    <div class="table-title">
+      <div>
+        <h2>{{ reportTitle }}</h2>
+        <p>{{ reportSubtitle }}</p>
+      </div>
+      <strong>{{ rows.length }} records</strong>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th *ngFor="let column of columns">{{ column }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of tableRows">
+            <td *ngFor="let cell of row">{{ cell }}</td>
+          </tr>
+          <tr *ngIf="!tableRows.length">
+            <td [attr.colspan]="columns.length" class="empty-cell">No records found for this filter.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

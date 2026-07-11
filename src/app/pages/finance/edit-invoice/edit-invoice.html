@@ -1,0 +1,55 @@
+<div class="form-card">
+
+  <h1>Edit School Invoice</h1>
+
+  <div class="form-group">
+
+    <label>Student</label>
+
+    <input
+      [(ngModel)]="invoice.patient">
+
+  </div>
+
+  <div class="form-group">
+
+    <label>Fee Item</label>
+
+    <input
+      [(ngModel)]="invoice.service">
+
+  </div>
+
+  <div class="form-group">
+
+    <label>Amount</label>
+
+    <input
+      type="number"
+      [(ngModel)]="invoice.amount">
+
+  </div>
+
+  <div class="form-group">
+
+    <label>Status</label>
+
+    <select
+      [(ngModel)]="invoice.status">
+
+      <option>Paid</option>
+      <option>Pending</option>
+
+    </select>
+
+  </div>
+
+  <button
+    class="save-btn"
+    (click)="saveInvoice()">
+
+    Save Changes
+
+  </button>
+
+</div>

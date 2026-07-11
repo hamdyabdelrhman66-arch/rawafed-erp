@@ -1,0 +1,10 @@
+<section class="step-section">
+  <header class="section-title"><span>Step 05</span><h2>Required Documents</h2><p>Upload clear images or PDF copies. HEIC photos from iPad camera are accepted when supported by the browser.</p></header>
+  <div class="document-grid">
+    <raw-file-uploader *ngFor="let label of documentLabels" [label]="label" accept="image/*,.pdf,.heic,.heif" [document]="documentFor(label)" (uploaded)="uploaded.emit($event)" (delete)="deleteDocument.emit(label)" />
+  </div>
+  <div class="missing" *ngIf="missingDocuments.length">
+    <mat-icon>warning</mat-icon>
+    Missing documents: {{ missingDocuments.join(', ') }}
+  </div>
+</section>

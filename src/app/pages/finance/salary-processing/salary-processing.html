@@ -1,0 +1,115 @@
+<section class="payroll-processing">
+  <header class="page-header">
+    <div>
+      <span>HR & Payroll</span>
+      <h1>Salary Processing</h1>
+      <p>Prepare payroll, post salary journals, and keep a backend payroll run history.</p>
+    </div>
+    <button
+      class="add-btn"
+      type="button"
+      (click)="processSalaries()"
+      [disabled]="isProcessing || !employees.length"
+      [title]="!employees.length ? 'Add staff first before processing salaries' : 'Post payroll journal'">
+      {{ isProcessing ? 'Posting...' : 'Post Payroll Run' }}
+    </button>
+  </header>
+
+  <p class="notice" *ngIf="message">{{ message }}</p>
+  <div class="empty-state" *ngIf="!employees.length">
+    <strong>No staff available for payroll.</strong>
+    <span>Add staff members first, then return here to post the payroll run.</span>
+    <a routerLink="/finance/add-staff">Add Staff</a>
+  </div>
+
+  <section class="run-filters">
+    <label>
+      <span>Payroll Period</span>
+      <input type="month" [(ngModel)]="period" />
+    </label>
+    <label>
+      <span>Payment Date</span>
+      <input type="date" [(ngModel)]="paymentDate" />
+    </label>
+  </section>
+
+  <section class="table-card">
+    <h2>Payroll Lines</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Basic</th>
+            <th>Housing</th>
+            <th>Transport</th>
+            <th>Other Allow.</th>
+            <th>Overtime</th>
+            <th>Bonus</th>
+            <th>Absence</th>
+            <th>Late</th>
+            <th>Loans</th>
+            <th>GOSI Emp.</th>
+            <th>GOSI Employer</th>
+            <th>Net Salary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let emp of employees">
+            <td><strong>{{ emp.name }}</strong><small>{{ emp.position }}</small></td>
+            <td><input type="number" [(ngModel)]="emp.basicSalary" /></td>
+            <td><input type="number" [(ngModel)]="emp.housingAllowance" /></td>
+            <td><input type="number" [(ngModel)]="emp.transportationAllowance" /></td>
+            <td><input type="number" [(ngModel)]="emp.otherAllowances" /></td>
+            <td><input type="number" [(ngModel)]="emp.overtime" /></td>
+            <td><input type="number" [(ngModel)]="emp.bonus" /></td>
+            <td><input type="number" [(ngModel)]="emp.absenceDeduction" /></td>
+            <td><input type="number" [(ngModel)]="emp.lateDeduction" /></td>
+            <td><input type="number" [(ngModel)]="emp.loanDeduction" /></td>
+            <td><input type="number" [(ngModel)]="emp.gosiEmployee" /></td>
+            <td><input type="number" [(ngModel)]="emp.gosiEmployer" /></td>
+            <td><strong>{{ net(emp) | number:'1.2-2' }} SAR</strong></td>
+          </tr>
+          <tr *ngIf="!employees.length">
+            <td colspan="13" class="empty-cell">No employees found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="table-card">
+    <h2>Payroll Run History</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Payment Date</th>
+            <th>Gross</th>
+            <th>Deductions</th>
+            <th>Employer GOSI</th>
+            <th>Net</th>
+            <th>Status</th>
+            <th>Journal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let run of payrollRuns">
+            <td>{{ run.period }}</td>
+            <td>{{ run.paymentDate }}</td>
+            <td>{{ run.grossTotal | number:'1.2-2' }} SAR</td>
+            <td>{{ run.deductionsTotal | number:'1.2-2' }} SAR</td>
+            <td>{{ run.employerGosiTotal | number:'1.2-2' }} SAR</td>
+            <td>{{ run.netTotal | number:'1.2-2' }} SAR</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.journalEntryNo }}</td>
+          </tr>
+          <tr *ngIf="!payrollRuns.length">
+            <td colspan="8" class="empty-cell">No payroll runs posted yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

@@ -1,0 +1,115 @@
+<div class="page-header">
+
+  <div>
+    <h1>Students</h1>
+    <p>Manage all patients</p>
+  </div>
+
+  <button
+  class="add-btn"
+  routerLink="/finance/add-patient">
+
+    + Add Student
+
+  </button>
+
+</div>
+
+<div class="card">
+
+  <input
+  class="search"
+  placeholder="Search Student..."
+  [(ngModel)]="search"
+  (input)="searchPatients()">
+
+  <table>
+
+    <thead>
+
+      <tr>
+
+        <th>Name</th>
+        <th>Phone</th>
+        <th>Age</th>
+        <th>Action</th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      <tr
+      *ngFor="
+      let patient of filteredPatients
+      ">
+
+        <td>{{patient.name}}</td>
+        <td>{{patient.phone}}</td>
+        <td>{{patient.age}}</td>
+
+        <td class="actions">
+
+  <button
+    class="view-btn"
+    [routerLink]="[
+      '/finance/patient-details',
+      patient.id
+    ]">
+
+    View
+
+  </button>
+
+  <button
+    *ngIf="!patient.hasPackage"
+    class="add-btn"
+    [routerLink]="[
+      '/finance/add-package',
+      patient.id
+    ]">
+
+    Add Package
+
+  </button>
+
+  <button
+    class="edit-btn"
+    [routerLink]="[
+      '/finance/edit-patient',
+      patient.id
+    ]">
+
+    Edit
+
+  </button>
+
+  <button
+    *ngIf="patient.hasPackage"
+    class="edit-btn"
+    [routerLink]="[
+      '/finance/edit-package',
+      patient.packageId
+    ]">
+
+    Edit Package
+
+  </button>
+
+  <button
+    class="edit-btn"
+    (click)="deletePatient(patient.id)">
+
+    Delete
+
+  </button>
+
+</td>
+      </tr>
+
+    </tbody>
+
+  </table>
+
+</div>

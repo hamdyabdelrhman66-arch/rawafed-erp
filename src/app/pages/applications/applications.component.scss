@@ -1,0 +1,58 @@
+.simple-page {
+  display: grid;
+  gap: 18px;
+}
+
+.page-header,
+.simple-card,
+.empty {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(10, 87, 164, .1);
+  box-shadow: 0 14px 34px rgba(23, 32, 51, .07);
+}
+
+.page-header,
+.simple-card,
+.empty {
+  padding: 20px;
+}
+
+.eyebrow {
+  color: #c49226;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  color: #0a57a4;
+}
+
+p,
+.empty {
+  color: #697386;
+}
+
+.simple-list {
+  display: grid;
+  gap: 12px;
+}
+
+.simple-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}

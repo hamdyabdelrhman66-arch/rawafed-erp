@@ -1,0 +1,24 @@
+<section class="reports-page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Operational Reports</span>
+      <h1>Reports</h1>
+    </div>
+    <button mat-flat-button color="primary" (click)="admission.exportExcel()"><mat-icon>table_view</mat-icon>Export Excel</button>
+  </header>
+
+  <section class="stats">
+    <article><span>Total Applications</span><strong>{{ storage.registrations().length }}</strong></article>
+    <article><span>Pending</span><strong>{{ storage.pendingCount() }}</strong></article>
+    <article><span>Projected Fees</span><strong>{{ totalRevenue() | number:'1.2-2' }} SAR</strong></article>
+  </section>
+
+  <section class="report-table">
+    <h2>Applications by Grade</h2>
+    <div class="report-row" *ngFor="let row of gradeRows()">
+      <span>{{ row.grade }}</span>
+      <strong>{{ row.count }}</strong>
+    </div>
+    <p class="empty" *ngIf="!gradeRows().length">No registrations to report yet.</p>
+  </section>
+</section>
