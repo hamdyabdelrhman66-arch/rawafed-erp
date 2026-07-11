@@ -19,7 +19,7 @@ import { createGoodsReceipt, createItem, createPurchaseOrder, createPurchaseRequ
 const app = express();
 const port = Number(process.env.PORT || 4300);
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const uploadDir = process.env.VERCEL ? join('/tmp', 'rawafed-uploads') : join(__dirname, '..', 'uploads');
+const uploadDir = process.env.RAWAFED_UPLOAD_DIR || (process.env.VERCEL ? join('/tmp', 'rawafed-uploads') : join(__dirname, '..', 'uploads'));
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://127.0.0.1:4200,http://localhost:4200')
   .split(',')
   .map((item) => item.trim());

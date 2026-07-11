@@ -63,9 +63,10 @@ export class ApiService {
     const override = localStorage.getItem(API_OVERRIDE_KEY) || window.RAWAFED_API_BASE_URL || '';
     if (override.trim()) return override.replace(/\/$/, '');
 
+    const hostedBackend = 'https://rawafed-erp-backend.onrender.com/api';
     const localHosts = new Set(['127.0.0.1', 'localhost']);
     if (localHosts.has(window.location.hostname)) return 'http://127.0.0.1:4300/api';
 
-    return '/api';
+    return hostedBackend;
   }
 }

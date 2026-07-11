@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: rawafed-erp-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: RAWAFED_DATA_DIR
+        value: /var/data
+      - key: RAWAFED_UPLOAD_DIR
+        value: /var/data/uploads
+      - key: CORS_ORIGIN
+        value: https://rawafed-erp.vercel.app,http://localhost:4200,http://127.0.0.1:4200
+    disk:
+      name: rawafed-data
+      mountPath: /var/data
+      sizeGB: 1
