@@ -7,7 +7,7 @@ import type { Database, SqlValue } from 'sql.js';
 import { AppNotification, AuditLogRecord, DatabaseShape, FinanceAccount, FinanceExpense, FinanceInvoice, FinancePayment, RefreshTokenRecord, StaffRecord, StudentRecord, UploadedFileRecord, UserRecord } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dataDir = join(__dirname, '..', 'data');
+const dataDir = process.env.VERCEL ? join('/tmp', 'rawafed-data') : join(__dirname, '..', 'data');
 const legacyJsonPath = join(dataDir, 'rawafed-db.json');
 const sqlitePath = join(dataDir, 'rawafed.sqlite');
 const wasmPath = join(__dirname, '..', 'node_modules', 'sql.js', 'dist');
