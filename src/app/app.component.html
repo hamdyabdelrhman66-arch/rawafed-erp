@@ -115,7 +115,7 @@
       <div class="topbar-meta">
         <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
         <span class="pill"><mat-icon>calendar_month</mat-icon>{{ storage.settings().academicYear }}</span>
-        <span class="pill"><mat-icon>account_circle</mat-icon>{{ auth.session()?.displayName || ('common.user' | t) }} · {{ auth.session()?.role || '' }}</span>
+        <span class="pill user-pill"><mat-icon>account_circle</mat-icon>{{ auth.session()?.displayName || ('common.user' | t) }} · {{ auth.session()?.role || '' }}</span>
         <div class="notification-center">
           <button mat-stroked-button type="button" [attr.aria-label]="'nav.alerts' | t" (click)="toggleNotifications()">
             <mat-icon aria-hidden="false" [matBadge]="unreadNotifications()" [matBadgeHidden]="!unreadNotifications()" matBadgeColor="warn">notifications</mat-icon>
