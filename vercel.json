@@ -1,14 +1,23 @@
 {
-  "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist/rawafed-admission-management/browser",
-  "installCommand": "npm ci",
-  "framework": "angular",
-  "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
+  "services": {
+    "frontend": {
+      "root": ".",
+      "framework": "angular",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build",
+      "outputDirectory": "dist/rawafed-admission-management/browser"
+    },
+    "backend": {
+      "root": "backend",
+      "framework": "express",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build"
     }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/uploads/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
   ],
   "headers": [
     {
