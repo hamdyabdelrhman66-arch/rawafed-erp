@@ -112,6 +112,60 @@ textarea,
   transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, color 200ms ease, transform 200ms ease;
 }
 
+.premium-stepper,
+.premium-stepper .mat-horizontal-stepper-wrapper,
+.premium-stepper .mat-horizontal-content-container,
+.premium-stepper .mat-horizontal-stepper-content {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.premium-stepper .mat-horizontal-stepper-header-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+}
+
+.premium-stepper .mat-step-header {
+  flex: 0 0 auto !important;
+  max-width: 240px !important;
+}
+
+.premium-stepper .mat-step-label {
+  white-space: nowrap !important;
+}
+
+.premium-stepper .mat-stepper-horizontal-line {
+  flex: 0 0 36px !important;
+  min-width: 36px !important;
+}
+
+.wizard-page .actions {
+  position: fixed !important;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  max-width: calc(100vw - 48px);
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--raw-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px rgba(23, 59, 112, .16);
+}
+
+.wizard-page .actions button {
+  flex: 0 0 auto;
+  min-width: 132px;
+}
+
 .mat-mdc-form-field {
   width: 100%;
 }
