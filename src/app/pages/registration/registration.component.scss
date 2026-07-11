@@ -2,9 +2,56 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  min-height: 100vh;
   display: grid;
+  align-content: start;
   gap: 18px;
+  padding: clamp(18px, 2vw, 30px);
   overflow-x: hidden;
+  font-size: 14px;
+}
+
+.page-header {
+  width: min(100%, 1540px);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.page-title h1 {
+  margin: 0 0 4px;
+  color: #07336b;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  line-height: 1.05;
+}
+
+.page-title p,
+.application-card span {
+  margin: 0;
+  color: #667085;
+  font-weight: 650;
+}
+
+.application-card {
+  min-width: 220px;
+  padding: 14px 16px;
+  border: 1px solid var(--raw-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(23, 59, 112, .07);
+}
+
+.application-card span,
+.application-card strong {
+  display: block;
+}
+
+.application-card strong {
+  margin-top: 4px;
+  color: #172033;
+  font-size: 1rem;
 }
 
 .hero-band {
@@ -60,8 +107,9 @@
 }
 
 .premium-stepper {
+  justify-self: center;
   width: 100%;
-  max-width: 100%;
+  max-width: 1540px;
   min-width: 0;
   border-radius: 8px;
   overflow: hidden;
@@ -78,30 +126,66 @@
 }
 
 ::ng-deep .premium-stepper .mat-step-header {
+  height: 58px;
+  padding: 0 12px;
   flex: 0 0 auto;
-  max-width: 240px;
+  max-width: 210px;
 }
 
 ::ng-deep .premium-stepper .mat-step-label {
+  font-size: 13px;
   white-space: nowrap;
 }
 
 ::ng-deep .premium-stepper .mat-stepper-horizontal-line {
-  min-width: 36px;
-  flex: 0 0 36px;
+  min-width: 28px;
+  flex: 0 0 28px;
 }
 
 ::ng-deep .mat-horizontal-content-container {
   max-width: 100%;
   min-width: 0;
-  padding: 24px !important;
+  padding: 20px !important;
   overflow: visible !important;
+}
+
+::ng-deep .premium-stepper .mat-mdc-form-field {
+  --mat-form-field-container-height: 52px;
+  --mat-form-field-container-vertical-padding: 12px;
+}
+
+.step-section {
+  min-width: 0;
+}
+
+.section-title {
+  margin-bottom: 18px;
+}
+
+.section-title span {
+  color: #344054;
+  font-weight: 800;
+}
+
+.section-title h2 {
+  margin: 8px 0;
+  color: #0a57a4;
+  font-size: clamp(1.7rem, 2.5vw, 2.25rem);
+  line-height: 1.1;
+}
+
+.section-title p {
+  max-width: 900px;
+  margin: 0;
+  color: #344054;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -301,6 +385,19 @@ h2 {
 }
 
 @media (max-width: 720px) {
+  .wizard-page {
+    padding: 14px;
+  }
+
+  .page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .application-card {
+    min-width: 0;
+  }
+
   .hero-band,
   .actions {
     flex-direction: column;
