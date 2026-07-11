@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import bcrypt from 'bcryptjs';
 import initSqlJs from 'sql.js';
 import type { Database, SqlValue } from 'sql.js';
 import { AppNotification, AuditLogRecord, DatabaseShape, FinanceAccount, FinanceExpense, FinanceInvoice, FinancePayment, RefreshTokenRecord, StaffRecord, StudentRecord, UploadedFileRecord, UserRecord } from './types.js';
@@ -840,6 +841,7 @@ function runMigrations(): void {
   });
 
   ensureDefaultChartOfAccountsIfEmpty();
+  ensureDefaultUsers();
   persistSqlite();
 }
 
@@ -867,6 +869,31 @@ function ensureDefaultChartOfAccountsIfEmpty(): void {
     END
     WHERE normal_balance IS NULL OR normal_balance = ''
   `);
+}
+
+function ensureDefaultUsers(): void {
+  if (!tableExists('users')) return;
+
+  const now = new Date().toISOString();
+  const defaultUsers = [
+    { username: 'admin', password: 'admin123', displayName: 'Super Admin', role: 'Super Admin' },
+    { username: 'admissions', password: 'admit123', displayName: 'Admissions Officer', role: 'Admissions' },
+    { username: 'finance', password: 'finance123', displayName: 'Finance Officer', role: 'Finance' },
+    { username: 'finmanager', password: 'finance123', displayName: 'Finance Manager', role: 'Finance Manager' },
+    { username: 'chiefaccountant', password: 'account123', displayName: 'Chief Accountant', role: 'Chief Accountant' },
+    { username: 'accountant', password: 'account123', displayName: 'Accountant', role: 'Accountant' },
+    { username: 'auditor', password: 'auditor123', displayName: 'Auditor', role: 'Auditor' },
+    { username: 'principal', password: 'principal123', displayName: 'Principal', role: 'Principal' },
+    { username: 'registrar', password: 'registrar123', displayName: 'Registrar', role: 'Registrar' }
+  ] as const;
+
+  defaultUsers.forEach((user) => {
+    sqlite.run(
+      `INSERT OR IGNORE INTO users (id, username, password_hash, display_name, role, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+      [crypto.randomUUID(), user.username, bcrypt.hashSync(user.password, 10), user.displayName, user.role, now, now]
+    );
+  });
 }
 
 function readLegacyCollections(): Partial<DatabaseShape> | null {
