@@ -2,6 +2,8 @@
 
 Decision: **CONDITIONAL NO-GO for production cutover; PostgreSQL runtime migration deployment is ready**.
 
+Latest deployment trigger: `main` after completion of the PostgreSQL migration and production verification.
+
 ## Ready in implementation
 
 - PostgreSQL is the only runtime persistence driver.
