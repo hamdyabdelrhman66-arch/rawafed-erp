@@ -21,7 +21,7 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
       if (!(error instanceof HttpErrorResponse)) return throwError(() => error);
 
       const mapped = mapHttpError(error);
-      if (!req.url.includes('/auth/login')) {
+      if (!req.url.includes('/auth/login') && !isPublicShellPage()) {
         feedback.error(mapped.message, mapped.requestId ? `Request ID: ${mapped.requestId}` : '');
       }
       return throwError(() => new ApiSafeError(mapped.message, error.status, mapped.errorCode, mapped.requestId));
@@ -55,6 +55,10 @@ function mapHttpError(error: HttpErrorResponse): { message: string; errorCode: s
     errorCode,
     requestId
   };
+}
+
+function isPublicShellPage(): boolean {
+  return ['/login', '/register'].includes(window.location.pathname);
 }
 
 function statusCodeToErrorCode(status: number): string {

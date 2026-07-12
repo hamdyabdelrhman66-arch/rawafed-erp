@@ -45,12 +45,10 @@ export class AppComponent {
     private readonly router: Router
   ) {
     this.currentUrl.set(this.router.url);
-    void this.storage.syncFromApi();
-    this.syncOperationalNotifications();
+    this.syncProtectedData();
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       this.currentUrl.set(event.urlAfterRedirects);
-      void this.storage.syncFromApi();
-      this.syncOperationalNotifications();
+      this.syncProtectedData();
       this.localizePageAfterRender();
     });
     this.localizePageAfterRender();
@@ -100,6 +98,7 @@ export class AppComponent {
   }
 
   private syncOperationalNotifications(): void {
+    if (!this.auth.session()) return;
     this.finance.ensureAccountsFromRegistrations(this.storage.registrations());
 
     this.storage.registrations()
@@ -135,6 +134,11 @@ export class AppComponent {
           );
         });
     });
+  }
+
+  private syncProtectedData(): void {
+    if (this.shellHidden() || !this.auth.session()) return;
+    void this.storage.syncFromApi().then(() => this.syncOperationalNotifications());
   }
 
   private localizePageAfterRender(): void {
