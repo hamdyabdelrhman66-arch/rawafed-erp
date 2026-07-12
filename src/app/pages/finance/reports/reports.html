@@ -15,8 +15,15 @@
   <section class="report-controls">
     <label>
       <span>Report Type</span>
-      <select [(ngModel)]="reportKind">
+      <select [ngModel]="reportKind" (ngModelChange)="setReportKind($event)">
         <option *ngFor="let option of reportOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <label *ngIf="reportKind === 'account-ledger'">
+      <span>Account</span>
+      <select [(ngModel)]="selectedAccount">
+        <option *ngFor="let account of accountOptions" [value]="account.value">{{ account.label }}</option>
       </select>
     </label>
 

@@ -1,7 +1,7 @@
 <div class="invoice-scroll">
-  <article class="invoice-sheet" #invoiceSheet dir="rtl">
+  <article class="invoice-sheet" [class.no-vat]="!hasVat()" #invoiceSheet dir="rtl">
     <header class="invoice-head">
-      <div class="invoice-title">فاتورة ضريبية مبسطة</div>
+      <div class="invoice-title">{{ hasVat() ? 'فاتورة ضريبية مبسطة' : 'فاتورة' }}</div>
 
       <img class="print-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
 
@@ -9,7 +9,7 @@
     </header>
 
     <section class="invoice-meta">
-      <div>
+      <div *ngIf="hasVat()">
         <span>الرقم الضريبي</span>
         <strong>{{ invoice.taxNumber || '-' }}</strong>
         <small>Tax No.</small>
@@ -61,7 +61,7 @@
           <th>العدد<br /><small>Count</small></th>
           <th>المبلغ قبل الضريبة<br /><small>Amount Before VAT</small></th>
           <th>الخصم<br /><small>Discount</small></th>
-          <th>ضريبة القيمة المضافة<br /><small>VAT</small></th>
+          <th *ngIf="hasVat()">ضريبة القيمة المضافة<br /><small>VAT</small></th>
           <th>الإجمالي<br /><small>Total</small></th>
         </tr>
       </thead>
@@ -71,14 +71,14 @@
           <td>{{ invoice.count || 1 }}</td>
           <td>{{ formatMoney(invoice.amount) }}</td>
           <td>{{ formatMoney(invoice.discount) }}</td>
-          <td>{{ formatMoney(invoice.vat) }}</td>
+          <td *ngIf="hasVat()">{{ formatMoney(invoice.vat) }}</td>
           <td>{{ formatMoney(invoice.total) }}</td>
         </tr>
       </tbody>
     </table>
 
     <section class="invoice-body">
-      <div class="qr-panel">
+      <div class="qr-panel" *ngIf="hasVat()">
         <img *ngIf="qrImageDataUrl" [src]="qrImageDataUrl" alt="School invoice QR code" />
         <span>رمز الاستجابة السريع للفاتورة</span>
       </div>
@@ -122,12 +122,12 @@
         <span>المبلغ قبل الضريبة</span>
         <strong>{{ formatMoney(invoice.amount) }} SAR</strong>
       </div>
-      <div>
+      <div *ngIf="hasVat()">
         <span>ضريبة القيمة المضافة</span>
         <strong>{{ formatMoney(invoice.vat) }} SAR</strong>
       </div>
       <div class="grand">
-        <span>الإجمالي شامل الضريبة</span>
+        <span>{{ hasVat() ? 'الإجمالي شامل الضريبة' : 'الإجمالي' }}</span>
         <strong>{{ formatMoney(invoice.total) }} SAR</strong>
       </div>
     </section>

@@ -25,6 +25,22 @@
   font-weight:600;
 }
 
+.link-btn{
+  border:1px solid #bfdbfe;
+  background:#eff6ff;
+  color:#0b5ed7;
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:700;
+}
+
+.empty-cell{
+  text-align:center;
+  color:#64748b;
+  font-weight:700;
+}
+
 .stats-grid{
   display:grid;
   grid-template-columns:repeat(4,1fr);

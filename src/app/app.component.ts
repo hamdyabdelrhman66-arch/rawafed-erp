@@ -1,5 +1,5 @@
-import { DOCUMENT, CommonModule } from '@angular/common';
-import { Component, Inject, computed, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,24 +9,29 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { UserRole } from './core/auth/auth.models';
 import { AuthService } from './core/auth/auth.service';
 import { FinanceStorageService } from './core/finance/finance-storage.service';
-import { Direction } from './core/models/admission.models';
+import { I18nService } from './core/i18n/i18n.service';
+import { TranslatePipe } from './core/i18n/translate.pipe';
 import { StorageService } from './core/services/storage.service';
+import { ConfirmDialogComponent } from './core/feedback/confirm-dialog.component';
+import { ToastHostComponent } from './core/feedback/toast-host.component';
 
 @Component({
   selector: 'raw-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, MatIconModule, MatBadgeModule, MatSlideToggleModule],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, MatIconModule, MatBadgeModule, MatSlideToggleModule, TranslatePipe, ToastHostComponent, ConfirmDialogComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']})
 export class AppComponent {
-  readonly direction = signal<Direction>('ltr');
+  public readonly i18n = inject(I18nService);
+  readonly direction = this.i18n.direction;
   readonly darkMode = signal(false);
+  readonly sidebarCollapsed = signal(false);
   readonly currentUrl = signal('');
   readonly notificationsOpen = signal(false);
   readonly shellHidden = computed(() => ['/login', '/register'].includes(this.currentUrl().split('?')[0]));
   readonly visibleNotifications = computed(() => this.storage.notificationsFor(this.auth.session()?.role));
   readonly unreadNotifications = computed(() => this.storage.unreadNotificationsFor(this.auth.session()?.role));
-  readonly currentDate = computed(() => new Intl.DateTimeFormat(this.direction() === 'rtl' ? 'ar-SA' : 'en-US', {
+  readonly currentDate = computed(() => new Intl.DateTimeFormat(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US', {
     weekday: 'short',
     year: 'numeric',
     month: 'short',
@@ -34,21 +39,18 @@ export class AppComponent {
   }).format(new Date()));
 
   constructor(
-    @Inject(DOCUMENT) private readonly document: Document,
     public readonly storage: StorageService,
     public readonly auth: AuthService,
     private readonly finance: FinanceStorageService,
     private readonly router: Router
   ) {
-    this.applyDirection('ltr');
     this.currentUrl.set(this.router.url);
-    void this.storage.syncFromApi();
-    this.syncOperationalNotifications();
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       this.currentUrl.set(event.urlAfterRedirects);
-      void this.storage.syncFromApi();
-      this.syncOperationalNotifications();
+      this.syncProtectedData();
+      this.localizePageAfterRender();
     });
+    this.localizePageAfterRender();
   }
 
   canAccess(roles?: UserRole[]): boolean {
@@ -60,11 +62,32 @@ export class AppComponent {
   }
 
   toggleDirection(): void {
-    this.applyDirection(this.direction() === 'ltr' ? 'rtl' : 'ltr');
+    this.i18n.toggleLanguage();
+    this.localizePageAfterRender();
   }
 
   toggleDarkMode(): void {
     this.darkMode.set(!this.darkMode());
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed.set(!this.sidebarCollapsed());
+  }
+
+  isActive(path: string): boolean {
+    const current = this.currentUrl().split('?')[0];
+    return current === path || current.startsWith(`${path}/`);
+  }
+
+  isQueryTabActive(path: string, tab: string): boolean {
+    const url = new URL(this.currentUrl(), 'http://rawafed.local');
+    const defaultTab = path.includes('inventory') ? 'dashboard' : 'overview';
+    return url.pathname === path && (url.searchParams.get('tab') || defaultTab) === tab;
+  }
+
+  isQueryParamActive(path: string, param: string, value: string, defaultValue: string): boolean {
+    const url = new URL(this.currentUrl(), 'http://rawafed.local');
+    return url.pathname === path && (url.searchParams.get(param) || defaultValue) === value;
   }
 
   toggleNotifications(): void {
@@ -73,13 +96,8 @@ export class AppComponent {
     if (next) this.storage.markNotificationsRead(this.auth.session()?.role);
   }
 
-  private applyDirection(direction: Direction): void {
-    this.direction.set(direction);
-    this.document.documentElement.dir = direction;
-    this.document.documentElement.lang = direction === 'rtl' ? 'ar' : 'en';
-  }
-
   private syncOperationalNotifications(): void {
+    if (!this.auth.session()) return;
     this.finance.ensureAccountsFromRegistrations(this.storage.registrations());
 
     this.storage.registrations()
@@ -115,5 +133,19 @@ export class AppComponent {
           );
         });
     });
+  }
+
+  private syncProtectedData(): void {
+    const session = this.auth.session();
+    if (this.shellHidden() || !session) return;
+    void this.storage
+      .syncFromApi(session.role)
+      .then(() => this.syncOperationalNotifications())
+      .catch((error) => console.error('Protected data sync failed', error));
+  }
+
+  private localizePageAfterRender(): void {
+    setTimeout(() => this.i18n.localizeStaticContent());
+    setTimeout(() => this.i18n.localizeStaticContent(), 250);
   }
 }

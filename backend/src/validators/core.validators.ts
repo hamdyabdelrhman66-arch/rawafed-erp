@@ -1,0 +1,107 @@
+import { z } from "zod";
+
+export const login = z.object({ username: z.string(), password: z.string() });
+export const strongPassword = z.string().min(12).max(128);
+const role = z.enum([
+  "Super Admin",
+  "Admissions",
+  "Finance",
+  "Principal",
+  "Registrar",
+  "Finance Manager",
+  "Chief Accountant",
+  "Accountant",
+  "Auditor",
+]);
+export const createUser = z.object({
+  username: z
+    .string()
+    .min(3)
+    .max(60)
+    .transform((v) => v.trim().toLowerCase()),
+  password: strongPassword,
+  displayName: z.string().min(2).max(120),
+  role,
+});
+export const updateUser = z
+  .object({
+    displayName: z.string().min(2).max(120).optional(),
+    role: role.optional(),
+  })
+  .strict();
+export const password = z.object({ password: strongPassword }).strict();
+export const activeStatus = z.object({ active: z.boolean() }).strict();
+export const studentPatch = z
+  .object({
+    englishName: z.string().min(1).max(160).optional(),
+    arabicName: z.string().max(160).optional(),
+    grade: z.string().min(1).max(40).optional(),
+    nationalId: z.string().max(40).optional(),
+    passportNumber: z.string().max(40).optional(),
+    parentName: z.string().max(160).optional(),
+    parentPhone: z.string().max(40).optional(),
+    parentEmail: z.string().email().optional().or(z.literal("")),
+    status: z.enum(["active", "inactive", "archived"]).optional(),
+  })
+  .strict();
+export const settings = z.record(z.string().max(100), z.unknown());
+export const refresh = z.object({ refreshToken: z.string().min(20) });
+export const registration = z
+  .object({
+    id: z.string().uuid().optional(),
+    registrationNumber: z.string().optional(),
+    status: z
+      .enum(["draft", "pending", "approved", "rejected", "archived"])
+      .optional(),
+    submittedAt: z.string().optional(),
+    createdAt: z.string().optional(),
+    student: z
+      .object({
+        englishName: z.string().optional().default(""),
+        arabicName: z.string().optional().default(""),
+        applyingGrade: z.string().optional().default(""),
+        nationalId: z.string().optional().default(""),
+        passportNumber: z.string().optional().default(""),
+      })
+      .passthrough(),
+    father: z.record(z.any()).optional(),
+    mother: z.record(z.any()).optional(),
+    financial: z.record(z.any()).optional(),
+  })
+  .passthrough();
+export const status = z.object({
+  status: z.enum(["draft", "pending", "approved", "rejected", "archived"]),
+});
+export const payment = z
+  .object({
+    accountId: z.string().uuid(),
+    invoiceId: z.string().uuid().optional(),
+    receiptNumber: z.string().max(80).optional(),
+    paymentItem: z.string().max(160).default("School Fees"),
+    amount: z.coerce.number().positive().max(10000000),
+    method: z.string().max(60).default("Cash"),
+    paidAt: z.string().datetime().optional(),
+    referenceNumber: z.string().max(120).optional(),
+    notes: z.string().max(2000).optional(),
+  })
+  .strict();
+export const invoice = z.object({
+  id: z.union([z.string().uuid(), z.number()]).optional(),
+  accountId: z.union([z.string().uuid(), z.number()]).optional(),
+  registrationId: z.string().uuid().optional(),
+  registrationNumber: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  patient: z.string().optional(),
+  studentName: z.string().optional(),
+  feeItem: z.string().optional(),
+  service: z.string().optional(),
+  amountBeforeVat: z.coerce.number().optional(),
+  amount: z.coerce.number().optional(),
+  vat: z.coerce.number().optional(),
+  total: z.coerce.number().optional(),
+  paid: z.coerce.number().optional(),
+  remaining: z.coerce.number().optional(),
+  paymentMethod: z.string().optional(),
+  status: z.enum(["Pending", "Paid"]).optional(),
+  date: z.string().optional(),
+});

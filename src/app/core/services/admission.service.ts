@@ -3,7 +3,6 @@ import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { AdmissionLetterRequest, AdmissionRegistration, PersonInfo, UploadedDocument } from '../models/admission.models';
 import { ContractService } from '../contract-engine/contract.service';
-import { FinanceStorageService } from '../finance/finance-storage.service';
 import { ApiService } from '../api/api.service';
 import { StorageService } from './storage.service';
 
@@ -27,7 +26,6 @@ export class AdmissionService {
   constructor(
     private readonly storage: StorageService,
     private readonly contract: ContractService,
-    private readonly finance: FinanceStorageService,
     private readonly api: ApiService
   ) {}
 
@@ -58,31 +56,13 @@ export class AdmissionService {
       contractPdf: undefined,
       registrationInfoPdf: undefined
     };
-    try {
-      const saved = await this.api.post<AdmissionRegistration>('/registrations', submitted);
-      this.storage.upsertRegistration(saved);
-      this.storage.clearDraft();
-      return saved;
-    } catch {
-      this.finance.ensureAccountFromRegistration(submitted);
-      this.storage.upsertRegistration(submitted);
-      this.storage.clearDraft();
-      this.storage.notify(
-        `New registration submitted: ${submitted.student.englishName || registrationNumber}`,
-        ['Admissions', 'Registrar', 'Principal', 'Super Admin'],
-        'registration',
-        '/applications',
-        `registration-approval:${submitted.id}`
-      );
-      this.storage.notify(
-        `Finance account created for ${submitted.student.englishName || registrationNumber}. Expected total: ${submitted.financial.grandTotal.toLocaleString('en-US')} SAR`,
-        ['Finance', 'Super Admin'],
-        'finance',
-        '/finance/patient-packages',
-        `finance-account:${submitted.id}`
-      );
-      return submitted;
+    const saved = await this.api.post<AdmissionRegistration>('/public/registrations', submitted);
+    if (!saved?.id || !saved.registrationNumber) {
+      throw new Error('The school system did not confirm the saved registration. No success message was shown.');
     }
+    this.storage.upsertRegistration(saved);
+    this.storage.clearDraft();
+    return saved;
   }
 
   duplicate(registration: AdmissionRegistration): AdmissionRegistration {
@@ -110,9 +90,9 @@ export class AdmissionService {
     };
   }
 
-  setStatus(registration: AdmissionRegistration, status: AdmissionRegistration['status']): void {
+  async setStatus(registration: AdmissionRegistration, status: AdmissionRegistration['status']): Promise<void> {
     const now = new Date().toISOString();
-    this.storage.upsertRegistration({
+    const next = {
       ...registration,
       status,
       timeline: [
@@ -124,7 +104,14 @@ export class AdmissionService {
           description: `Admission status changed to ${status}.`
         }
       ]
-    });
+    };
+
+    try {
+      const saved = await this.api.patch<AdmissionRegistration>(`/registrations/${registration.id}/status`, { status });
+      this.storage.upsertRegistration({ ...next, ...saved });
+    } catch {
+      this.storage.upsertRegistration(next);
+    }
   }
 
   exportExcel(): void {
@@ -239,7 +226,7 @@ export class AdmissionService {
       const form = new FormData();
       form.append('file', file);
       form.append('label', label);
-      upload = await this.api.postForm<BackendUpload>('/uploads', form);
+      upload = await this.api.postForm<BackendUpload>('/public/uploads', form);
     } catch {
       upload = undefined;
     }
@@ -257,11 +244,15 @@ export class AdmissionService {
     };
   }
 
-  calculateGrandTotal(value: AdmissionRegistration['financial']): number {
+  calculateGrandTotal(value: AdmissionRegistration['financial'], nationalId = ''): number {
     const transportation = value.transportationRequired ? value.transportationFee : 0;
     const subtotal = value.registrationFee + value.tuition + transportation + value.books + value.uniform + value.activities;
-    const vatAmount = subtotal * (value.vat / 100);
+    const vatAmount = this.isSaudiNationalId(nationalId) ? 0 : subtotal * (value.vat / 100);
     return subtotal + vatAmount;
+  }
+
+  isSaudiNationalId(value: string): boolean {
+    return value.replace(/\D/g, '').startsWith('1');
   }
 
   private async downloadRegistrationPdf(registration: AdmissionRegistration, kind: PdfKind): Promise<void> {
@@ -325,6 +316,7 @@ export class AdmissionService {
       ['Special Notes', registration.medical.specialNotes]
     ]);
     await this.studentFileSection(context, 'Documents', registration.documents.map((doc) => [doc.label, `${doc.fileName} | ${doc.verified ? 'Verified' : 'Needs review'}`]));
+    await this.addStudentFileDocumentPreviews(context, registration.documents);
     await this.studentFileSection(context, 'Financial Summary', [
       ['Registration Fee', this.currency(registration.financial.registrationFee)],
       ['Tuition', this.currency(registration.financial.tuition)],
@@ -464,6 +456,67 @@ export class AdmissionService {
       context.y += Math.max(22, lines.length * 14);
     }
     context.y += 18;
+  }
+
+  private async addStudentFileDocumentPreviews(context: StudentFileContext, documents: UploadedDocument[]): Promise<void> {
+    const imageDocuments = documents.filter((document) => this.isImageDocument(document));
+    const otherDocuments = documents.filter((document) => !this.isImageDocument(document));
+
+    for (const document of imageDocuments) {
+      await this.addStudentFileImageDocumentPage(context, document);
+    }
+
+    if (otherDocuments.length) {
+      await this.studentFileSection(
+        context,
+        'Attached Non-image Files',
+        otherDocuments.map((document) => [
+          document.label,
+          `${document.fileName} | ${document.uploadUrl || 'Stored with application'}`
+        ])
+      );
+    }
+  }
+
+  private async addStudentFileImageDocumentPage(context: StudentFileContext, document: UploadedDocument): Promise<void> {
+    context.pdf.addPage();
+    await this.addStudentFilePage(context, `Document: ${document.label}`);
+
+    await this.drawStudentFileText(context, document.fileName, 64, context.y - 4, 467, 16, 'left', 10, false, '#50566a');
+    context.y += 22;
+
+    const image = await this.loadImage(document.dataUrl);
+    const maxWidth = 467;
+    const maxHeight = 500;
+    const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight, 1);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const x = 64 + (maxWidth - width) / 2;
+    const y = context.y;
+
+    context.pdf.setDrawColor(224, 226, 232);
+    context.pdf.roundedRect(58, y - 8, 479, height + 16, 4, 4);
+    context.pdf.addImage(document.dataUrl, this.imageFormat(document), x, y, width, height);
+    context.y = y + height + 28;
+  }
+
+  private isImageDocument(document: UploadedDocument): boolean {
+    return Boolean(document.dataUrl) && ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(document.mimeType.toLowerCase());
+  }
+
+  private imageFormat(document: UploadedDocument): 'PNG' | 'JPEG' | 'WEBP' {
+    if (document.mimeType.includes('jpeg') || document.mimeType.includes('jpg')) return 'JPEG';
+    if (document.mimeType.includes('webp')) return 'WEBP';
+    return 'PNG';
+  }
+
+  private loadImage(dataUrl: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Could not load uploaded document image.'));
+      image.src = dataUrl;
+    });
   }
 
   private async ensureStudentFileSpace(context: StudentFileContext, needed: number): Promise<void> {

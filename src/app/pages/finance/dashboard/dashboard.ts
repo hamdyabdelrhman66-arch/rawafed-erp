@@ -1,17 +1,25 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
 import { forkJoin } from 'rxjs';
 import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
 import { PaymentsService } from '../../../core/finance/payments.service';
 import { InvoicesService } from '../../../core/finance/invoices.service';
+import { AccountingService } from '../../../core/finance/accounting.service';
+import { I18nService } from '../../../core/i18n/i18n.service';
+import { StatusLabelPipe } from '../../../core/i18n/status-label.pipe';
+import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [
     CommonModule,
-    RouterLink
+    RouterLink,
+    MatIconModule,
+    TranslatePipe,
+    StatusLabelPipe
   ],
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.css', '../../../shared/finance/finance-ui.scss']
@@ -21,6 +29,7 @@ export class Dashboard implements OnInit {
   packages:any[] = [];
   payments:any[] = [];
   invoices:any[] = [];
+  accountingDashboard:any;
 
   recentPayments:any[] = [];
   recentInvoices:any[] = [];
@@ -39,7 +48,9 @@ export class Dashboard implements OnInit {
   constructor(
     private patientPackagesService: PatientPackagesService,
     private paymentsService: PaymentsService,
-    private invoicesService: InvoicesService
+    private invoicesService: InvoicesService,
+    private accountingService: AccountingService,
+    public readonly i18n: I18nService
   ) {}
 
   ngOnInit(){
@@ -53,12 +64,14 @@ export class Dashboard implements OnInit {
     forkJoin({
       packages: this.patientPackagesService.getPackages(),
       payments: this.paymentsService.getPayments(),
-      invoices: this.invoicesService.getInvoices()
-    }).subscribe(({ packages, payments, invoices }) => {
+      invoices: this.invoicesService.getInvoices(),
+      accounting: this.accountingService.getDashboard().catch(() => null)
+    }).subscribe(({ packages, payments, invoices, accounting }) => {
 
     this.packages = packages;
     this.payments = payments;
     this.invoices = invoices;
+    this.accountingDashboard = accounting;
 
     this.totalRevenue =
       this.payments.reduce(
@@ -127,6 +140,28 @@ export class Dashboard implements OnInit {
 
     });
 
+  }
+
+  get kpiCards(): any[] {
+    const kpis = this.accountingDashboard?.kpis || {};
+    return [
+      { label: this.i18n.t('finance.kpi.total_revenue'), value: this.totalRevenue, suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.total_revenue_note'), icon: 'payments', tone: 'positive', route: '/finance/payments' },
+      { label: this.i18n.t('finance.kpi.collections_today'), value: this.todayCollection, suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.collections_today_note'), icon: 'today', tone: 'neutral', route: '/finance/payments' },
+      { label: this.i18n.t('finance.kpi.outstanding_receivables'), value: this.outstanding || Number(kpis.accountsReceivable || 0), suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.outstanding_receivables_note'), icon: 'account_balance_wallet', tone: 'warning', route: '/finance/patient-packages' },
+      { label: this.i18n.t('finance.kpi.accounts_payable'), value: Number(kpis.accountsPayable || 0), suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.accounts_payable_note'), icon: 'request_quote', tone: 'negative', route: '/finance/suppliers' },
+      { label: this.i18n.t('finance.kpi.cash_balance'), value: Number(kpis.cashBalance || 0), suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.cash_balance_note'), icon: 'point_of_sale', tone: 'neutral', route: '/finance/cashboxes' },
+      { label: this.i18n.t('finance.kpi.bank_balance'), value: Number(kpis.bankBalance || 0), suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.bank_balance_note'), icon: 'account_balance', tone: 'neutral', route: '/finance/banks' },
+      { label: this.i18n.t('finance.kpi.net_profit'), value: Number(kpis.netProfit || 0), suffix: this.i18n.t('currency.SAR'), note: this.i18n.t('finance.kpi.net_profit_note'), icon: 'trending_up', tone: Number(kpis.netProfit || 0) >= 0 ? 'positive' : 'negative', route: '/finance/accounting' },
+      { label: this.i18n.t('nav.student_accounts'), value: this.activePackages, suffix: '', note: this.i18n.t('finance.kpi.student_accounts_note', { unpaid: this.unpaidPackages, partial: this.partialPackages }), icon: 'school', tone: 'neutral', route: '/finance/patient-packages' }
+    ];
+  }
+
+  get revenueExpenseRows(): any[] {
+    return (this.accountingDashboard?.charts?.revenueVsExpense || []).slice(-6);
+  }
+
+  get pendingApprovals(): number {
+    return Number(this.accountingDashboard?.workflow?.pendingApprovals || 0);
   }
 
   loadAlerts(){

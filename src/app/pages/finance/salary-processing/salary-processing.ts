@@ -1,15 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ExpensesService } from '../../../core/finance/expenses.service';
+import { RouterLink } from '@angular/router';
 import { StaffService } from '../../../core/finance/staff.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector:'app-salary-processing',
   standalone:true,
   imports:[
     CommonModule,
-    FormsModule
+    FormsModule,
+    RouterLink
   ],
   templateUrl:'./salary-processing.html',
   styleUrls: ['./salary-processing.css', '../../../shared/finance/finance-ui.scss']
@@ -17,10 +19,16 @@ import { StaffService } from '../../../core/finance/staff.service';
 export class SalaryProcessing implements OnInit {
 
   employees:any[] = [];
+  payrollRuns:any[] = [];
+  period = new Date().toISOString().slice(0, 7);
+  paymentDate = new Date().toISOString().slice(0, 10);
+  message = '';
+  isProcessing = false;
+  progressSteps: string[] = [];
 
   constructor(
-    private expensesService: ExpensesService,
-    private staffService: StaffService
+    private staffService: StaffService,
+    private feedback: FeedbackService
   ) {}
 
   ngOnInit(){
@@ -35,44 +43,100 @@ export class SalaryProcessing implements OnInit {
 
     position: emp.position,
 
-    salary: Number(emp.salary),
+    basicSalary: Number(emp.basicSalary ?? emp.salary ?? 0),
+    housingAllowance: Number(emp.housingAllowance || 0),
+    transportationAllowance: Number(emp.transportationAllowance || 0),
+    otherAllowances: Number(emp.otherAllowances || 0),
 
-    deduction: 0,
+    absenceDeduction: 0,
+    lateDeduction: 0,
+    loanDeduction: 0,
+    advanceDeduction: 0,
+    gosiEmployee: 0,
+    gosiEmployer: 0,
+    otherDeductions: 0,
 
     bonus: 0,
+    overtime: 0,
 
     status: emp.status || 'Pending'
 
   })
 );
     });
+    this.staffService.getPayrollRuns().subscribe((runs) => this.payrollRuns = runs);
 
   }
 
-processSalaries(){
+  gross(employee:any): number {
+    return Number(employee.basicSalary || 0) + Number(employee.housingAllowance || 0) + Number(employee.transportationAllowance || 0) + Number(employee.otherAllowances || 0) + Number(employee.overtime || 0) + Number(employee.bonus || 0);
+  }
 
-  this.employees.forEach((employee:any)=>{
+  deductions(employee:any): number {
+    return Number(employee.absenceDeduction || 0) + Number(employee.lateDeduction || 0) + Number(employee.loanDeduction || 0) + Number(employee.advanceDeduction || 0) + Number(employee.gosiEmployee || 0) + Number(employee.otherDeductions || 0);
+  }
 
-    this.expensesService.addExpense({
+  net(employee:any): number {
+    return this.gross(employee) - this.deductions(employee);
+  }
 
-      id: Date.now(),
+  async processSalaries(): Promise<void> {
+    if (this.isProcessing) return;
+    if (!this.employees.length) {
+      this.feedback.validation('Add staff first before processing salaries.');
+      return;
+    }
+    const incomplete = this.employees.filter((employee) => !employee.name || Number(employee.basicSalary || 0) <= 0);
+    if (incomplete.length) {
+      this.feedback.error('Payroll could not be processed.', `${incomplete.length} employees have incomplete salary data.`);
+      return;
+    }
+    const confirmed = await this.feedback.confirm({
+      title: 'Post Payroll Run?',
+      message: `Payroll for ${this.period} will be posted and a salary journal will be created.`,
+      confirmText: 'Post Payroll',
+      tone: 'primary'
+    });
+    if (!confirmed) return;
 
-      title: 'Salary - ' + employee.name,
-
-      amount: employee.salary,
-
-      category:'Payroll',
-
-      date: new Date()
-        .toISOString()
-        .split('T')[0]
-
-    }).subscribe();
-employee.status = 'Paid';
-this.staffService.updateStaff(employee.id, employee).subscribe();
-  });
-
-  alert('All Salaries Processed');
-
-}
+    this.message = '';
+    this.isProcessing = true;
+    this.progressSteps = ['Validating employees', 'Calculating salary', 'Creating payroll run', 'Creating journal'];
+    this.staffService.createPayrollRun({
+      period: this.period,
+      paymentDate: this.paymentDate,
+      status: 'Posted',
+      employees: this.employees.map((employee:any) => ({
+        employeeId: employee.id,
+        employeeName: employee.name,
+        basicSalary: Number(employee.basicSalary || 0),
+        housingAllowance: Number(employee.housingAllowance || 0),
+        transportationAllowance: Number(employee.transportationAllowance || 0),
+        otherAllowances: Number(employee.otherAllowances || 0),
+        overtime: Number(employee.overtime || 0),
+        bonus: Number(employee.bonus || 0),
+        absenceDeduction: Number(employee.absenceDeduction || 0),
+        lateDeduction: Number(employee.lateDeduction || 0),
+        loanDeduction: Number(employee.loanDeduction || 0),
+        advanceDeduction: Number(employee.advanceDeduction || 0),
+        gosiEmployee: Number(employee.gosiEmployee || 0),
+        gosiEmployer: Number(employee.gosiEmployer || 0),
+        otherDeductions: Number(employee.otherDeductions || 0)
+      }))
+    }).subscribe({
+      next: (run) => {
+        this.payrollRuns = [run, ...this.payrollRuns];
+        this.message = `Payroll posted successfully. Journal: ${run.journalEntryNo}`;
+        this.progressSteps = ['Completed'];
+        this.feedback.success(`Payroll for ${this.period} processed successfully.`, `Journal ${run.journalEntryNo} was created.`);
+        this.isProcessing = false;
+      },
+      error: (error) => {
+        this.message = safeErrorMessage(error);
+        this.progressSteps = [];
+        this.feedback.error('Payroll could not be processed.', this.message);
+        this.isProcessing = false;
+      }
+    });
+  }
 }

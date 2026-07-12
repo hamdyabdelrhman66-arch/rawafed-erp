@@ -1,0 +1,72 @@
+<section class="customers-page">
+  <header class="page-header">
+    <div>
+      <span>Accounts Receivable</span>
+      <h1>Customers AR</h1>
+      <p>Every approved student is synced as an accounting customer with a dedicated receivable account.</p>
+    </div>
+  </header>
+
+  <section class="summary-grid">
+    <article><span>Customers</span><strong>{{ customers.length }}</strong></article>
+    <article><span>Outstanding</span><strong>{{ money(totals.outstanding) }}</strong></article>
+    <article><span>Credit</span><strong>{{ money(totals.credit) }}</strong></article>
+    <article><span>Invoices</span><strong>{{ money(totals.invoices) }}</strong></article>
+    <article><span>Payments</span><strong>{{ money(totals.payments) }}</strong></article>
+  </section>
+
+  <section class="table-card">
+    <div class="table-title">
+      <div>
+        <h2>Customer Directory</h2>
+        <p>{{ filteredCustomers.length }} records</p>
+      </div>
+      <input type="search" placeholder="Search student, parent, ID, phone, invoice..." [(ngModel)]="searchText" />
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Student / Parent</th>
+            <th>Registration</th>
+            <th>Contact</th>
+            <th>AR Account</th>
+            <th>Outstanding</th>
+            <th>Credit</th>
+            <th>Invoices</th>
+            <th>Payments</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let customer of filteredCustomers">
+            <td>{{ customer.customerCode }}</td>
+            <td>
+              <strong>{{ customer.nameEn }}</strong>
+              <small>{{ customer.nameAr || customer.parentLink }}</small>
+            </td>
+            <td>
+              {{ customer.registrationNumber || '-' }}
+              <small>{{ customer.grade || '-' }}</small>
+            </td>
+            <td>
+              {{ customer.phone || '-' }}
+              <small>{{ customer.email || customer.nationalId || '-' }}</small>
+            </td>
+            <td>{{ customer.receivableCode || '-' }}</td>
+            <td>{{ money(customer.summary?.outstanding) }}</td>
+            <td>{{ money(customer.summary?.credit) }}</td>
+            <td>{{ customer.summary?.invoicesCount || 0 }}</td>
+            <td>{{ customer.summary?.paymentsCount || 0 }}</td>
+            <td><a class="button-link" [routerLink]="['/finance/customers', customer.id]">Open</a></td>
+          </tr>
+          <tr *ngIf="!filteredCustomers.length">
+            <td colspan="10" class="empty-cell">No AR customers found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

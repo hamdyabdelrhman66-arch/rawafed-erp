@@ -1,0 +1,170 @@
+.suppliers-page {
+  display: grid;
+  gap: 20px;
+}
+
+.page-header span {
+  color: #b4232c;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.page-header h1 {
+  margin: 4px 0;
+  color: #07336b;
+  font-size: 34px;
+}
+
+.page-header p {
+  margin: 0;
+  color: #64748b;
+  font-weight: 650;
+}
+
+.supplier-form,
+.table-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+}
+
+.supplier-form h2,
+.table-title h2 {
+  margin: 0;
+  color: #07336b;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #07336b;
+  font-weight: 850;
+}
+
+input,
+select,
+textarea {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+}
+
+textarea {
+  padding-top: 10px;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+footer,
+.table-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+button {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #07336b;
+  padding: 0 12px;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+button.primary {
+  border-color: #0b5ed7;
+  background: #0b5ed7;
+  color: #fff;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  border: 1px solid #0b5ed7;
+  border-radius: 9px;
+  background: #0b5ed7;
+  color: #fff;
+  padding: 0 12px;
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.table-scroll {
+  overflow: auto;
+  margin-top: 14px;
+}
+
+table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+}
+
+th {
+  background: #eaf2ff;
+  color: #07336b;
+  padding: 12px;
+  text-align: left;
+  font-size: 12px;
+}
+
+td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px;
+  color: #0f172a;
+}
+
+td small {
+  display: block;
+  color: #64748b;
+}
+
+.status {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 850;
+}
+
+.status.inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.empty-cell {
+  text-align: center;
+  color: #64748b;
+}
+
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  footer,
+  .table-title {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

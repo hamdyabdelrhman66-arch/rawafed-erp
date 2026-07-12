@@ -1,4 +1,13 @@
-export type UserRole = 'Super Admin' | 'Admissions' | 'Finance' | 'Principal' | 'Registrar';
+export type UserRole =
+  | 'Super Admin'
+  | 'Admissions'
+  | 'Finance'
+  | 'Principal'
+  | 'Registrar'
+  | 'Finance Manager'
+  | 'Chief Accountant'
+  | 'Accountant'
+  | 'Auditor';
 
 export interface AuthUser {
   username: string;

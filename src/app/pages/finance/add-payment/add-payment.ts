@@ -2,11 +2,14 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { InvoicesService } from '../../../core/finance/invoices.service';
 import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
 import { PaymentsService } from '../../../core/finance/payments.service';
 import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { StorageService } from '../../../core/services/storage.service';
+import { SearchableSelectComponent } from '../../../shared/components/searchable-select/searchable-select.component';
 
 interface PaymentLine {
   feeItem: string;
@@ -17,7 +20,7 @@ interface PaymentLine {
 @Component({
   selector: 'app-add-payment',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SearchableSelectComponent],
   templateUrl: './add-payment.html',
   styleUrls: ['./add-payment.css', '../../../shared/finance/finance-ui.scss']
 })
@@ -31,6 +34,11 @@ export class AddPayment implements OnInit {
   notes = '';
   previousPayments: any[] = [];
   paymentLines: PaymentLine[] = [];
+  saving = false;
+  readonly accountLabel = (account: any) =>
+    account
+      ? `${account.patient} - ${account.registrationNumber || account.fileNo || '-'} - Grade ${account.grade || '-'} - Remaining ${Number(account.remaining || 0).toLocaleString('en-US')} SAR`
+      : '';
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -39,7 +47,8 @@ export class AddPayment implements OnInit {
     private readonly paymentsService: PaymentsService,
     private readonly invoicesService: InvoicesService,
     private readonly zatcaInvoice: ZatcaInvoiceService,
-    private readonly storage: StorageService
+    private readonly storage: StorageService,
+    private readonly feedback: FeedbackService
   ) {}
 
   ngOnInit(): void {
@@ -68,6 +77,11 @@ export class AddPayment implements OnInit {
     this.loadPreviousPayments();
   }
 
+  selectAccount(account: any): void {
+    this.selectedAccount = account;
+    this.onAccountChange();
+  }
+
   payHalf(): void {
     this.allocateAmount(this.outstanding / 2);
   }
@@ -80,106 +94,111 @@ export class AddPayment implements OnInit {
     this.paymentLines = this.paymentLines.map((line) => ({ ...line, amount: 0 }));
   }
 
-  savePayment(): void {
+  async savePayment(): Promise<void> {
+    if (this.saving) return;
     const payableLines = this.paymentLines
       .map((line) => ({ ...line, amount: Number(line.amount || 0) }))
       .filter((line) => line.amount > 0);
 
     if (!this.selectedAccount || !payableLines.length) {
-      alert('Please select student account and enter at least one payment amount.');
+      this.feedback.validation('Please select student account and enter at least one payment amount.');
       return;
     }
 
     const amount = this.totalPaymentAmount;
     if (amount > this.outstanding) {
-      alert('Payment amount cannot be more than the remaining balance.');
+      this.feedback.validation('Payment amount cannot be more than the remaining balance.');
       return;
     }
 
+    const confirmed = await this.feedback.confirm({
+      title: 'Record Student Payment?',
+      message: `This will record ${amount.toLocaleString('en-US')} SAR, generate a receipt, update the student balance, and create an invoice.`,
+      confirmText: 'Record Payment',
+      tone: 'primary'
+    });
+    if (!confirmed) return;
+
+    this.saving = true;
     const receiptBatchId = Date.now();
     const receiptNumber = `REC-${receiptBatchId}`;
     const studentName = this.selectedAccount.patient;
 
-    payableLines.forEach((line, index) => {
-      const paymentId = receiptBatchId + index;
-      this.paymentsService.addPayment({
-        id: paymentId,
-        receipt: receiptNumber,
+    try {
+      await Promise.all(payableLines.map((line, index) => firstValueFrom(this.paymentsService.addPayment({
+          id: receiptBatchId + index,
+          receipt: receiptNumber,
+          patient: studentName,
+          package: line.feeItem,
+          feeItem: line.feeItem,
+          amount: line.amount,
+          method: this.paymentMethod,
+          date: this.paymentDate,
+          collectedBy: this.collectedBy,
+          referenceNumber: this.referenceNumber,
+          notes: this.notes,
+          status: 'Completed',
+          accountId: this.selectedAccount.backendId || this.selectedAccount.id,
+          registrationNumber: this.selectedAccount.registrationNumber
+        }))));
+
+      const invoiceTotals = this.zatcaInvoice.fromVatInclusive(amount);
+      const invoiceId = receiptBatchId;
+      await firstValueFrom(this.invoicesService.addInvoice({
+        id: invoiceId,
+        invoiceNumber: `INV-${invoiceId}`,
         patient: studentName,
-        package: line.feeItem,
-        feeItem: line.feeItem,
-        amount: line.amount,
-        method: this.paymentMethod,
+        service: payableLines.map((line) => line.feeItem).join(' + '),
+        amount: invoiceTotals.amountBeforeVat,
+        discount: 0,
+        vat: invoiceTotals.vat,
+        total: invoiceTotals.total,
         date: this.paymentDate,
-        collectedBy: this.collectedBy,
-        referenceNumber: this.referenceNumber,
+        status: 'Paid',
+        paid: invoiceTotals.total,
+        remaining: Math.max(this.outstanding - amount, 0),
+        paymentMethod: this.paymentMethod,
+        receipt: receiptNumber,
+        taxNumber: this.zatcaInvoice.taxNumber,
+        accountId: this.selectedAccount.id,
+        feeItem: payableLines.map((line) => line.feeItem).join(' + '),
+        registrationNumber: this.selectedAccount.registrationNumber,
+        patientId: this.selectedAccount.registrationNumber,
+        fileNo: this.selectedAccount.registrationNumber,
         notes: this.notes,
-        status: 'Completed',
-        accountId: this.selectedAccount.backendId || this.selectedAccount.id,
-        registrationNumber: this.selectedAccount.registrationNumber
-      }).subscribe();
-    });
+        user: this.collectedBy
+      }));
 
-    const invoiceTotals = this.zatcaInvoice.fromVatInclusive(amount);
-    const invoiceId = receiptBatchId;
-    this.invoicesService.addInvoice({
-      id: invoiceId,
-      invoiceNumber: `INV-${invoiceId}`,
-      patient: studentName,
-      service: payableLines.map((line) => line.feeItem).join(' + '),
-      amount: invoiceTotals.amountBeforeVat,
-      discount: 0,
-      vat: invoiceTotals.vat,
-      total: invoiceTotals.total,
-      date: this.paymentDate,
-      status: 'Paid',
-      paid: invoiceTotals.total,
-      remaining: Math.max(this.outstanding - amount, 0),
-      paymentMethod: this.paymentMethod,
-      receipt: receiptNumber,
-      taxNumber: this.zatcaInvoice.taxNumber,
-      accountId: this.selectedAccount.id,
-      feeItem: payableLines.map((line) => line.feeItem).join(' + '),
-      registrationNumber: this.selectedAccount.registrationNumber,
-      patientId: this.selectedAccount.registrationNumber,
-      fileNo: this.selectedAccount.registrationNumber,
-      notes: this.notes,
-      user: this.collectedBy
-    }).subscribe();
+      const paid = Number(this.selectedAccount.paid || 0) + amount;
+      const remaining = Math.max(Number(this.selectedAccount.total || 0) - paid, 0);
+      const nextAccount = {
+        ...this.selectedAccount,
+        paid,
+        remaining,
+        status: remaining <= 0 ? 'Paid' : 'Partial',
+        notificationStatus: 'seen'
+      };
 
-    const paid = Number(this.selectedAccount.paid || 0) + amount;
-    const remaining = Math.max(Number(this.selectedAccount.total || 0) - paid, 0);
-    const nextAccount = {
-      ...this.selectedAccount,
-      paid,
-      remaining,
-      status: remaining <= 0 ? 'Paid' : 'Partial',
-      notificationStatus: 'seen'
-    };
-
-    this.accountService.updatePackage(nextAccount.id, nextAccount).subscribe(() => {
+      await firstValueFrom(this.accountService.updatePackage(nextAccount.id, nextAccount));
       this.selectedAccount = nextAccount;
       this.loadPreviousPayments();
-    });
 
-    if (nextAccount.remaining > 0) {
       this.storage.notify(
-        `${studentName} has ${nextAccount.remaining.toLocaleString()} SAR remaining after payment.`,
+        nextAccount.remaining > 0
+          ? `${studentName} has ${nextAccount.remaining.toLocaleString()} SAR remaining after payment.`
+          : `${studentName} is fully paid.`,
         ['Admissions', 'Finance', 'Super Admin'],
         'finance',
         '/finance/patient-packages'
       );
-    } else {
-      this.storage.notify(
-        `${studentName} is fully paid.`,
-        ['Admissions', 'Finance', 'Super Admin'],
-        'finance',
-        '/finance/patient-packages'
-      );
+
+      this.feedback.success(`Payment ${receiptNumber} recorded successfully.`, 'Receipt, invoice, and student balance were updated.');
+      void this.router.navigate(['/finance/invoice-details', invoiceId]);
+    } catch (error) {
+      this.feedback.error('Payment was not recorded.', safeErrorMessage(error));
+    } finally {
+      this.saving = false;
     }
-
-    alert('Payment saved successfully. School invoice generated automatically.');
-    this.router.navigate(['/finance/invoice-details', invoiceId]);
   }
 
   private buildPaymentLines(): PaymentLine[] {

@@ -5,7 +5,9 @@
     <p>Select a student, review the grade fees, then record one or more paid items in the same receipt.</p>
   </div>
 
-  <button class="save-btn" type="button" (click)="savePayment()">Save Payment</button>
+  <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving">
+    {{ saving ? 'Saving...' : 'Save Payment' }}
+  </button>
 </header>
 
 <section class="info-card">
@@ -14,12 +16,15 @@
   <div class="info-grid">
     <div class="form-group wide">
       <label>Student</label>
-      <select [(ngModel)]="selectedAccount" (change)="onAccountChange()">
-        <option [ngValue]="null">Select student account</option>
-        <option *ngFor="let account of accounts" [ngValue]="account">
-          {{ account.patient }} - Grade {{ account.grade || '-' }} - Remaining {{ account.remaining | number }} SAR
-        </option>
-      </select>
+      <app-searchable-select
+        [options]="accounts"
+        [value]="selectedAccount"
+        (valueChange)="selectAccount($event)"
+        [labelWith]="accountLabel"
+        placeholder="Select student account"
+        searchPlaceholder="Search by student, grade, registration, or balance..."
+        emptyText="No student accounts found">
+      </app-searchable-select>
     </div>
 
     <div class="form-group">

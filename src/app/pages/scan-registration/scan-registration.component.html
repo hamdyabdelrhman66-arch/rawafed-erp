@@ -1,0 +1,171 @@
+<section class="scan-page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Admissions</span>
+      <h1>Scan Registration</h1>
+      <p>Upload a manually filled paper form, review the captured details, then create a normal application.</p>
+    </div>
+  </header>
+
+  <section class="scan-layout">
+    <article class="upload-panel">
+      <header>
+        <h2>Manual Form Scan</h2>
+        <p>Upload a clear PDF, PNG, JPG, or WEBP scan. The original file will be saved with the student application.</p>
+      </header>
+
+      <label class="drop-zone">
+        <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" (change)="selectScan($event)" />
+        <mat-icon>document_scanner</mat-icon>
+        <strong>{{ fileName() || 'Choose scanned form' }}</strong>
+        <span>Use one complete scan per application</span>
+      </label>
+
+      <button mat-stroked-button type="button" [disabled]="!canPreviewImage() || isReading()" (click)="readScan()">
+        <mat-icon>auto_fix_high</mat-icon>
+        {{ isReading() ? 'Reading scan...' : 'Read Image Scan' }}
+      </button>
+
+      <p class="ocr-progress" *ngIf="ocrProgress()">{{ ocrProgress() }}</p>
+
+      <div class="preview-frame" *ngIf="previewUrl(); else emptyPreview">
+        <img *ngIf="canPreviewImage()" [src]="previewUrl()" alt="Uploaded registration scan preview" />
+        <iframe *ngIf="canPreviewPdf()" [src]="safePreviewUrl()" title="Uploaded registration PDF preview"></iframe>
+        <p *ngIf="!canPreviewImage() && !canPreviewPdf()">Preview is not available for this file type.</p>
+      </div>
+
+      <ng-template #emptyPreview>
+        <div class="preview-empty">
+          <mat-icon>image_search</mat-icon>
+          <p>No scan uploaded yet.</p>
+        </div>
+      </ng-template>
+    </article>
+
+    <article class="review-panel">
+      <header>
+        <h2>Review Extracted Details</h2>
+        <p>Check the fields against the scan before creating the application.</p>
+      </header>
+
+      <div class="notice">
+        <mat-icon>rule</mat-icon>
+        <span>Handwriting must be reviewed manually before saving, especially ID and mobile numbers.</span>
+      </div>
+
+      <details class="ocr-text" *ngIf="scannedText()">
+        <summary>OCR text</summary>
+        <pre>{{ scannedText() }}</pre>
+      </details>
+
+      <div class="form-grid">
+        <mat-form-field>
+          <mat-label>Student English Name</mat-label>
+          <input matInput [(ngModel)]="fields.englishName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Student Arabic Name</mat-label>
+          <input matInput dir="rtl" [(ngModel)]="fields.arabicName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Applying Grade</mat-label>
+          <mat-select [(ngModel)]="fields.applyingGrade">
+            <mat-option *ngFor="let grade of grades" [value]="grade">{{ grade }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Nationality</mat-label>
+          <input matInput [(ngModel)]="fields.nationality" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>National ID / Iqama</mat-label>
+          <input matInput inputmode="numeric" [(ngModel)]="fields.nationalId" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Passport Number</mat-label>
+          <input matInput [(ngModel)]="fields.passportNumber" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Date of Birth</mat-label>
+          <input matInput type="date" [(ngModel)]="fields.dateOfBirth" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Previous School</mat-label>
+          <input matInput [(ngModel)]="fields.previousSchool" />
+        </mat-form-field>
+      </div>
+
+      <h3>Parent Details</h3>
+      <div class="form-grid">
+        <mat-form-field>
+          <mat-label>Father / Guardian Name</mat-label>
+          <input matInput [(ngModel)]="fields.fatherName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Father / Guardian ID</mat-label>
+          <input matInput inputmode="numeric" [(ngModel)]="fields.fatherId" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Mobile Number</mat-label>
+          <input matInput inputmode="tel" [(ngModel)]="fields.fatherPhone" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Email</mat-label>
+          <input matInput type="email" [(ngModel)]="fields.fatherEmail" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Mother Name</mat-label>
+          <input matInput [(ngModel)]="fields.motherName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Mother Mobile</mat-label>
+          <input matInput inputmode="tel" [(ngModel)]="fields.motherPhone" />
+        </mat-form-field>
+      </div>
+
+      <h3>Emergency & Medical</h3>
+      <div class="form-grid">
+        <mat-form-field>
+          <mat-label>Emergency Contact</mat-label>
+          <input matInput [(ngModel)]="fields.emergencyName" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Emergency Phone</mat-label>
+          <input matInput inputmode="tel" [(ngModel)]="fields.emergencyPhone" />
+        </mat-form-field>
+
+        <mat-form-field class="wide">
+          <mat-label>Medical Notes</mat-label>
+          <textarea matInput rows="3" [(ngModel)]="fields.medicalNotes"></textarea>
+        </mat-form-field>
+      </div>
+
+      <section class="success" *ngIf="lastCreated() as created">
+        <mat-icon>check_circle</mat-icon>
+        <span>Created application {{ created.registrationNumber }}</span>
+        <button mat-button type="button" (click)="viewApplications()">View Applications</button>
+      </section>
+
+      <footer class="actions">
+        <button mat-stroked-button type="button" (click)="clear()">Clear</button>
+        <button mat-flat-button color="primary" type="button" [disabled]="isSubmitting()" (click)="createRegistration()">
+          <mat-icon>post_add</mat-icon>
+          {{ isSubmitting() ? 'Creating...' : 'Create Application' }}
+        </button>
+      </footer>
+    </article>
+  </section>
+</section>

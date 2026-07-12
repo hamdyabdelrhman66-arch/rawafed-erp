@@ -28,6 +28,7 @@ interface InvoiceTemplateData {
   notes: string;
   user: string;
   insuranceAmount: number;
+  vatExempt: boolean;
 }
 
 @Component({
@@ -56,7 +57,7 @@ export class InvoiceDetails implements OnInit {
       if (!foundInvoice) return;
 
       this.invoice = this.mapInvoice(foundInvoice);
-      this.qrData = this.zatcaInvoice.qrData({
+      this.qrData = this.invoice.vatExempt ? '' : this.zatcaInvoice.qrData({
         taxNumber: this.invoice.taxNumber,
         date: this.invoice.date,
         total: this.invoice.total,
@@ -84,6 +85,7 @@ export class InvoiceDetails implements OnInit {
     const total = legacyInclusiveTotals?.total ?? this.toNumber(this.firstValue(foundInvoice, 'total', 'totalAmount'), this.roundMoney(taxableAmount + vat));
     const paid = this.toNumber(this.firstValue(foundInvoice, 'paid', 'paidAmount'), this.isPaid(foundInvoice.status) ? total : 0);
     const remaining = this.toNumber(this.firstValue(foundInvoice, 'remaining', 'remainingAmount'), this.roundMoney(Math.max(total - paid, 0)));
+    const vatExempt = Boolean(foundInvoice?.vatExempt) || vat <= 0;
 
     return {
       no: this.toText(this.firstValue(foundInvoice, 'no', 'invoiceNumber', 'invoiceNo', 'id')),
@@ -107,7 +109,8 @@ export class InvoiceDetails implements OnInit {
       fileNo: this.toText(this.firstValue(foundInvoice, 'fileNo', 'fileNumber', 'registrationNumber')),
       notes: this.toText(this.firstValue(foundInvoice, 'notes')),
       user: this.toText(this.firstValue(foundInvoice, 'user', 'createdBy'), 'Finance'),
-      insuranceAmount: this.toNumber(this.firstValue(foundInvoice, 'insuranceAmount'), 0)
+      insuranceAmount: this.toNumber(this.firstValue(foundInvoice, 'insuranceAmount'), 0),
+      vatExempt
     };
   }
 

@@ -1,62 +1,59 @@
-import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ExpensesService } from '../../../core/finance/expenses.service';
 
 @Component({
   selector: 'app-expenses',
   standalone: true,
-  imports: [
-    CommonModule,
-    RouterLink
-  ],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './expenses.html',
   styleUrls: ['./expenses.css', '../../../shared/finance/finance-ui.scss']
 })
+export class Expenses implements OnInit {
+  expenses: any[] = [];
+  searchText = '';
 
-export class Expenses {
+  totalExpenses = 0;
+  paidExpenses = 0;
+  unpaidExpenses = 0;
+  vatTotal = 0;
 
-  expenses:any[] = [];
+  constructor(private readonly expensesService: ExpensesService) {}
 
-totalExpenses = 0;
-approvedExpenses = 0;
-pendingExpenses = 0;
-
-constructor(
-  private expensesService: ExpensesService
-) {}
-
-ngOnInit(){
-
-  this.expensesService
-    .getExpenses()
-    .subscribe((expenses:any[]) => {
-
+  ngOnInit(): void {
+    this.expensesService.getExpenses().subscribe((expenses: any[]) => {
       this.expenses = expenses;
-
-  this.totalExpenses =
-    this.expenses.reduce(
-      (sum:number, e:any) => sum + Number(e.amount),
-      0
-    );
-
-  this.approvedExpenses =
-    this.expenses
-      .filter((e:any)=>e.status === 'Approved')
-      .reduce(
-        (sum:number,e:any)=>sum + Number(e.amount),
-        0
-      );
-
-  this.pendingExpenses =
-    this.expenses
-      .filter((e:any)=>e.status !== 'Approved')
-      .reduce(
-        (sum:number,e:any)=>sum + Number(e.amount),
-        0
-      );
-
+      this.totalExpenses = expenses.reduce((sum, expense) => sum + Number(expense.totalAmount ?? expense.amount ?? 0), 0);
+      this.paidExpenses = expenses
+        .filter((expense) => expense.paymentStatus === 'Paid' || expense.status === 'Paid')
+        .reduce((sum, expense) => sum + Number(expense.totalAmount ?? expense.amount ?? 0), 0);
+      this.unpaidExpenses = expenses
+        .filter((expense) => expense.paymentStatus === 'Unpaid' || expense.status === 'Unpaid')
+        .reduce((sum, expense) => sum + Number(expense.totalAmount ?? expense.amount ?? 0), 0);
+      this.vatTotal = expenses.reduce((sum, expense) => sum + Number(expense.vatAmount || 0), 0);
     });
+  }
 
-}
+  get filteredExpenses(): any[] {
+    const query = this.searchText.trim().toLowerCase();
+    return this.expenses.filter((expense) =>
+      !query ||
+      [
+        expense.expenseNo,
+        expense.no,
+        expense.supplierName,
+        expense.category,
+        expense.invoiceType,
+        expense.paymentStatus,
+        expense.paymentFrom,
+        expense.journalEntryNo
+      ].join(' ').toLowerCase().includes(query)
+    );
+  }
+
+  money(value: unknown): string {
+    return `${Number(value || 0).toLocaleString('en-US')} SAR`;
+  }
 }

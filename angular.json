@@ -25,8 +25,8 @@
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
-              {"glob": "**/*", "input": "public"},
-              {"glob": "**/*", "input": "src/assets", "output": "assets"}
+              { "glob": "**/*", "input": "public" },
+              { "glob": "**/*", "input": "src/assets", "output": "assets" }
             ],
             "styles": ["src/styles.scss"],
             "scripts": [],
@@ -37,15 +37,25 @@
               "canvg",
               "core-js",
               "raf",
-              "rgbcolor"
+              "rgbcolor",
+              "pako",
+              "tesseract.js"
             ],
             "serviceWorker": "ngsw-config.json"
           },
           "configurations": {
             "production": {
               "budgets": [
-                {"type": "initial", "maximumWarning": "1.4MB", "maximumError": "1.8MB"},
-                {"type": "anyComponentStyle", "maximumWarning": "12kB", "maximumError": "24kB"}
+                {
+                  "type": "initial",
+                  "maximumWarning": "1.4MB",
+                  "maximumError": "1.8MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "12kB",
+                  "maximumError": "24kB"
+                }
               ],
               "outputHashing": "all"
             },
@@ -61,13 +71,17 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
-            "production": {"buildTarget": "rawafed-admission-management:build:production"},
-            "development": {"buildTarget": "rawafed-admission-management:build:development"}
+            "production": {
+              "buildTarget": "rawafed-admission-management:build:production"
+            },
+            "development": {
+              "buildTarget": "rawafed-admission-management:build:development"
+            }
           },
           "defaultConfiguration": "development"
         }
       }
     }
   },
-  "cli": {"analytics": false}
+  "cli": { "analytics": false }
 }

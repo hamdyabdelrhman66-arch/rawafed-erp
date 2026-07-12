@@ -1,5 +1,4 @@
 <div class="page-header">
-
   <div>
     <h1>Payroll</h1>
     <p>Manage employee salaries</p>
@@ -7,12 +6,10 @@
 
   <button
     class="add-btn"
+    type="button"
     routerLink="/finance/salary-processing">
-
     Process Salaries
-
   </button>
-
 </div>
 
 <div class="stats-grid">
@@ -77,19 +74,17 @@
         <td>{{employee.startDate}}</td>
 
         <td>
+          <span [style.color]="employee.status === 'Paid' ? 'green' : '#f59e0b'">
+            {{ employee.status }}
+          </span>
+        </td>
+        <td>
+          <button class="link-btn" type="button" routerLink="/finance/salary-processing">Process</button>
+        </td>
 
-          <span
-            [style.color]="employee.status === 'Paid' ? 'green' : '#f59e0b'">
-
-            {{employee.status}}
-
-          <td>
-
-</span>
-
-
-</td>
-
+      </tr>
+      <tr *ngIf="!employees.length">
+        <td colspan="8" class="empty-cell">No staff found. Add staff first, then process salaries.</td>
       </tr>
 
     </tbody>

@@ -1,0 +1,25 @@
+.supplier-profile { display: grid; gap: 18px; }
+.page-header a { color: #0b5ed7; text-decoration: none; font-weight: 850; }
+.page-header span { display: block; margin-top: 8px; color: #b4232c; font-weight: 900; text-transform: uppercase; }
+.page-header h1 { margin: 4px 0; color: #07336b; font-size: 34px; }
+.page-header p { margin: 0; color: #64748b; font-weight: 650; }
+.summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.summary-grid article, .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
+.summary-grid span { display: block; color: #64748b; font-weight: 850; text-transform: uppercase; font-size: 12px; }
+.summary-grid strong { display: block; margin-top: 8px; color: #07336b; font-size: 22px; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+button { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #07336b; padding: 0 12px; cursor: pointer; font-weight: 850; }
+button.primary, .tabs button.active { border-color: #0b5ed7; background: #0b5ed7; color: #fff; }
+.panel h2 { margin: 0 0 14px; color: #07336b; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+label { display: flex; flex-direction: column; gap: 7px; color: #07336b; font-weight: 850; }
+.wide { grid-column: 1 / -1; }
+input, select { min-height: 42px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fff; }
+footer { margin-top: 14px; }
+.table-scroll { overflow: auto; }
+table { width: 100%; min-width: 940px; border-collapse: collapse; }
+th { background: #eaf2ff; color: #07336b; padding: 12px; text-align: left; font-size: 12px; }
+td { border-bottom: 1px solid #e5e7eb; padding: 12px; color: #0f172a; }
+.empty-cell { color: #64748b; text-align: center; }
+@media (max-width: 1000px) { .summary-grid, .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .summary-grid, .form-grid { grid-template-columns: 1fr; } }

@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-07-12T19:38:16.141Z",
+  "mode": "validate-only",
+  "source": "backend/data/rawafed.sqlite",
+  "sourceCounts": {
+    "users": 9,
+    "registrations": 3,
+    "students": 3,
+    "financeAccounts": 3,
+    "financeInvoices": 2,
+    "financePayments": 2,
+    "financeExpenses": 0,
+    "auditLogs": 49,
+    "notifications": 9
+  },
+  "targetCounts": null,
+  "diagnostics": {
+    "duplicateIds": [],
+    "missingForeignKeys": [],
+    "orphanPayments": [],
+    "orphanInvoices": [],
+    "financeAccountsWithoutStudents": [],
+    "registrationsWithoutStudents": [],
+    "unusedStudentIds": [
+      "051b01a3-ad4d-4517-b901-98e1004f6259",
+      "7393afe0-fddb-455c-9554-6d62139973e3",
+      "42e0e5b2-c4ae-4551-80cd-ae8611ce97a8"
+    ]
+  },
+  "countDifferences": null,
+  "sourceUnchanged": true,
+  "success": true
+}

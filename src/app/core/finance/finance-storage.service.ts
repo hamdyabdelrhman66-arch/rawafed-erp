@@ -114,7 +114,10 @@ export class FinanceStorageService {
         referenceNumber: payment.referenceNumber,
         notes: payment.notes
       })).pipe(
-        map((result) => this.backendPaymentToPayment(result.payment))
+        map((result) => {
+          window.dispatchEvent(new CustomEvent(FINANCE_UPDATED_EVENT));
+          return this.backendPaymentToPayment(result.payment);
+        })
       );
     }
     return this.addPaymentLocal(payment);

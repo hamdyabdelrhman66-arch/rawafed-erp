@@ -1,0 +1,3 @@
+# Developer guide
+
+Use Node 22. Run `npm ci`, Prisma generation/validation, backend build/tests, and Angular build before proposing changes. Controllers validate/map HTTP only; services own business rules and transactions; repositories own Prisma queries. Multi-table operations use one interactive transaction and stable idempotency keys. Never dual-write or call SQLite from PostgreSQL modules. Add migrations through Prisma, preserve endpoint/response contracts, use pagination, redact logs, and add unit/integration/contract tests. Local PostgreSQL is defined in the repository Docker Compose file.

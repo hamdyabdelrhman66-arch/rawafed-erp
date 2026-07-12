@@ -1,36 +1,114 @@
 <router-outlet *ngIf="shellHidden()" />
+<app-toast-host />
+<app-confirm-dialog />
 
-<div class="app-shell" [class.dark-mode]="darkMode()" *ngIf="!shellHidden()">
+<div class="app-shell" [class.dark-mode]="darkMode()" [class.sidebar-collapsed]="sidebarCollapsed()" *ngIf="!shellHidden()">
   <aside class="sidebar">
-    <a class="brand" routerLink="/admin" aria-label="Go to dashboard">
-      <img class="logo brand-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
-      <span><strong>Rawafed</strong><small>International School</small></span>
-    </a>
-    <nav aria-label="Main navigation">
-     <a
-  routerLink="/admin"
-  routerLinkActive="active"
-  [routerLinkActiveOptions]="{ exact: true }"><mat-icon aria-hidden="false" [matBadge]="storage.pendingCount()" matBadgeColor="warn">dashboard</mat-icon><span>Dashboard</span></a>
-      <a routerLink="/register" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar'])"><mat-icon>app_registration</mat-icon><span>New Registration</span></a>
-      <a routerLink="/students" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Principal'])"><mat-icon>school</mat-icon><span>Students</span></a>
-      <a routerLink="/applications" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar', 'Principal'])"><mat-icon>folder_open</mat-icon><span>Applications</span></a>
-      <a routerLink="/reports" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Principal'])"><mat-icon>bar_chart</mat-icon><span>Reports</span></a>
-      <a routerLink="/finance" routerLinkActive="active" *ngIf="canAccess(['Super Admin', 'Finance'])"><mat-icon>payments</mat-icon><span>Finance</span></a>
-      <div class="finance-shortcuts" *ngIf="canAccess(['Super Admin', 'Finance'])">
-        <a routerLink="/finance/patient-packages" routerLinkActive="active"><mat-icon>account_balance_wallet</mat-icon><span>Accounts</span></a>
-        <a routerLink="/finance/add-payment" routerLinkActive="active"><mat-icon>add_card</mat-icon><span>Add Payment</span></a>
-        <a routerLink="/finance/generate-invoice" routerLinkActive="active"><mat-icon>receipt_long</mat-icon><span>Invoice</span></a>
-        <a routerLink="/finance/expenses" routerLinkActive="active"><mat-icon>payments</mat-icon><span>Expenses</span></a>
-        <a routerLink="/finance/reports" routerLinkActive="active"><mat-icon>monitoring</mat-icon><span>Reports</span></a>
-      </div>
-      <a routerLink="/admission-letter" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions'])"><mat-icon>description</mat-icon><span>Admission Letter</span></a>
-      <a routerLink="/settings" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin'])"><mat-icon>settings</mat-icon><span>Settings</span></a>
+    <div class="sidebar-header">
+      <a class="brand" routerLink="/admin" [attr.aria-label]="'nav.dashboard' | t" [title]="'app.school_full' | t">
+        <img class="logo brand-logo" src="/assets/rawafed-logo.png" [alt]="'app.school_full' | t" />
+        <span><strong>{{ 'app.brand' | t }}</strong><small>{{ 'app.school' | t }}</small></span>
+      </a>
+      <button class="sidebar-toggle" type="button" (click)="toggleSidebar()" [attr.aria-label]="'nav.dashboard' | t">
+        <mat-icon>{{ sidebarCollapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+      </button>
+    </div>
+    <nav [attr.aria-label]="'nav.dashboard' | t">
+      <a class="nav-link" routerLink="/admin" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" [title]="'nav.dashboard' | t">
+        <mat-icon aria-hidden="false" [matBadge]="storage.pendingCount()" matBadgeColor="warn">dashboard</mat-icon><span>{{ 'nav.dashboard' | t }}</span>
+      </a>
+
+      <details class="nav-group" open *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar', 'Principal'])">
+        <summary><mat-icon>folder_open</mat-icon><span>{{ 'nav.admission' | t }}</span></summary>
+        <div class="nav-submenu">
+          <a routerLink="/register" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar'])"><mat-icon>app_registration</mat-icon><span>{{ 'nav.new_registration' | t }}</span></a>
+          <a routerLink="/scan-registration" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar'])"><mat-icon>document_scanner</mat-icon><span>{{ 'nav.scan_registration' | t }}</span></a>
+          <a routerLink="/applications" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Registrar', 'Principal'])"><mat-icon>folder_open</mat-icon><span>{{ 'nav.applications' | t }}</span></a>
+          <a routerLink="/students" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions', 'Principal'])"><mat-icon>school</mat-icon><span>{{ 'nav.students' | t }}</span></a>
+          <a routerLink="/admission-letter" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Admissions'])"><mat-icon>description</mat-icon><span>{{ 'nav.admission_letter' | t }}</span></a>
+        </div>
+      </details>
+
+      <ng-container *ngIf="canAccess(['Super Admin', 'Finance', 'Finance Manager', 'Chief Accountant', 'Accountant', 'Auditor'])">
+        <a class="nav-link" routerLink="/finance" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" title="Finance Overview">
+          <mat-icon>payments</mat-icon><span>{{ 'nav.finance_overview' | t }}</span>
+        </a>
+
+        <details class="nav-group" [open]="isActive('/finance/accounting') || isActive('/finance/chart-of-accounts')" [class.active-group]="isActive('/finance/accounting') || isActive('/finance/chart-of-accounts')">
+          <summary><mat-icon>account_balance</mat-icon><span>{{ 'nav.accounting' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/accounting" [queryParams]="{ tab: 'overview' }" [class.active]="isQueryTabActive('/finance/accounting', 'overview')"><mat-icon>dashboard</mat-icon><span>{{ 'nav.accounting_dashboard' | t }}</span></a>
+            <a routerLink="/finance/chart-of-accounts" routerLinkActive="active"><mat-icon>schema</mat-icon><span>{{ 'nav.chart_of_accounts' | t }}</span></a>
+            <a routerLink="/finance/accounting" [queryParams]="{ tab: 'journal' }" [class.active]="isQueryTabActive('/finance/accounting', 'journal')"><mat-icon>receipt_long</mat-icon><span>{{ 'nav.general_journal' | t }}</span></a>
+            <a routerLink="/finance/accounting" [queryParams]="{ tab: 'ledger' }" [class.active]="isQueryTabActive('/finance/accounting', 'ledger')"><mat-icon>menu_book</mat-icon><span>{{ 'nav.general_ledger' | t }}</span></a>
+            <a routerLink="/finance/accounting" [queryParams]="{ tab: 'trial' }" [class.active]="isQueryTabActive('/finance/accounting', 'trial')"><mat-icon>balance</mat-icon><span>{{ 'nav.trial_balance' | t }}</span></a>
+          </div>
+        </details>
+
+        <details class="nav-group" [open]="isActive('/finance/customers') || isActive('/finance/patient-packages') || isActive('/finance/payments') || isActive('/finance/add-payment') || isActive('/finance/invoices') || isActive('/finance/generate-invoice')" [class.active-group]="isActive('/finance/customers') || isActive('/finance/patient-packages') || isActive('/finance/payments') || isActive('/finance/add-payment') || isActive('/finance/invoices') || isActive('/finance/generate-invoice')">
+          <summary><mat-icon>groups</mat-icon><span>{{ 'nav.receivables' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/customers" routerLinkActive="active"><mat-icon>groups</mat-icon><span>{{ 'nav.customers_students' | t }}</span></a>
+            <a routerLink="/finance/patient-packages" routerLinkActive="active"><mat-icon>account_balance_wallet</mat-icon><span>{{ 'nav.student_accounts' | t }}</span></a>
+            <a routerLink="/finance/invoices" routerLinkActive="active"><mat-icon>receipt_long</mat-icon><span>{{ 'nav.invoices' | t }}</span></a>
+            <a routerLink="/finance/add-payment" routerLinkActive="active"><mat-icon>add_card</mat-icon><span>{{ 'nav.payments_receipts' | t }}</span></a>
+            <a routerLink="/finance/payments" routerLinkActive="active"><mat-icon>payments</mat-icon><span>{{ 'nav.payment_history' | t }}</span></a>
+          </div>
+        </details>
+
+        <details class="nav-group" [open]="isActive('/finance/suppliers') || isActive('/finance/expenses') || isActive('/finance/add-expense')" [class.active-group]="isActive('/finance/suppliers') || isActive('/finance/expenses') || isActive('/finance/add-expense')">
+          <summary><mat-icon>storefront</mat-icon><span>{{ 'nav.payables' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/suppliers" routerLinkActive="active"><mat-icon>storefront</mat-icon><span>{{ 'nav.suppliers' | t }}</span></a>
+            <a routerLink="/finance/expenses" routerLinkActive="active"><mat-icon>request_quote</mat-icon><span>{{ 'nav.expenses' | t }}</span></a>
+          </div>
+        </details>
+
+        <details class="nav-group" [open]="isActive('/finance/cashboxes') || isActive('/finance/banks')" [class.active-group]="isActive('/finance/cashboxes') || isActive('/finance/banks')">
+          <summary><mat-icon>account_balance_wallet</mat-icon><span>{{ 'nav.treasury' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/cashboxes" routerLinkActive="active"><mat-icon>point_of_sale</mat-icon><span>{{ 'nav.cashboxes' | t }}</span></a>
+            <a routerLink="/finance/banks" routerLinkActive="active"><mat-icon>account_balance</mat-icon><span>{{ 'nav.banks' | t }}</span></a>
+          </div>
+        </details>
+
+        <details class="nav-group" [open]="isActive('/finance/inventory')" [class.active-group]="isActive('/finance/inventory')">
+          <summary><mat-icon>inventory_2</mat-icon><span>{{ 'nav.purchasing_inventory' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/inventory" [queryParams]="{ tab: 'dashboard' }" [class.active]="isQueryTabActive('/finance/inventory', 'dashboard')"><mat-icon>inventory_2</mat-icon><span>{{ 'nav.inventory_dashboard' | t }}</span></a>
+            <a routerLink="/finance/inventory" [queryParams]="{ tab: 'items' }" [class.active]="isQueryTabActive('/finance/inventory', 'items')"><mat-icon>category</mat-icon><span>{{ 'nav.items' | t }}</span></a>
+            <a routerLink="/finance/inventory" [queryParams]="{ tab: 'warehouses' }" [class.active]="isQueryTabActive('/finance/inventory', 'warehouses')"><mat-icon>warehouse</mat-icon><span>{{ 'nav.warehouses' | t }}</span></a>
+            <a routerLink="/finance/inventory" [queryParams]="{ tab: 'movements' }" [class.active]="isQueryTabActive('/finance/inventory', 'movements')"><mat-icon>sync_alt</mat-icon><span>{{ 'nav.stock_movements' | t }}</span></a>
+          </div>
+        </details>
+
+        <details class="nav-group" [open]="isActive('/finance/doctors') || isActive('/finance/payroll') || isActive('/finance/salary-processing')" [class.active-group]="isActive('/finance/doctors') || isActive('/finance/payroll') || isActive('/finance/salary-processing')">
+          <summary><mat-icon>badge</mat-icon><span>{{ 'nav.payroll' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/doctors" routerLinkActive="active"><mat-icon>badge</mat-icon><span>{{ 'nav.staff' | t }}</span></a>
+            <a routerLink="/finance/payroll" routerLinkActive="active"><mat-icon>payments</mat-icon><span>{{ 'nav.payroll_setup' | t }}</span></a>
+            <a routerLink="/finance/salary-processing" routerLinkActive="active"><mat-icon>price_check</mat-icon><span>{{ 'nav.salary_processing' | t }}</span></a>
+          </div>
+        </details>
+
+        <details class="nav-group" [open]="isActive('/finance/reports')" [class.active-group]="isActive('/finance/reports')">
+          <summary><mat-icon>monitoring</mat-icon><span>{{ 'nav.reports' | t }}</span></summary>
+          <div class="nav-submenu">
+            <a routerLink="/finance/reports" [queryParams]="{ report: 'finance-summary' }" [class.active]="isQueryParamActive('/finance/reports', 'report', 'finance-summary', 'finance-summary')"><mat-icon>monitoring</mat-icon><span>{{ 'nav.financial_reports' | t }}</span></a>
+            <a routerLink="/finance/reports" [queryParams]="{ report: 'vat-input' }" [class.active]="isQueryParamActive('/finance/reports', 'report', 'vat-input', 'finance-summary')"><mat-icon>receipt</mat-icon><span>{{ 'nav.vat_reports' | t }}</span></a>
+            <a routerLink="/finance/reports" [queryParams]="{ report: 'cash-expenses' }" [class.active]="isQueryParamActive('/finance/reports', 'report', 'cash-expenses', 'finance-summary')"><mat-icon>summarize</mat-icon><span>{{ 'nav.cash_bank_reports' | t }}</span></a>
+          </div>
+        </details>
+      </ng-container>
+
+      <a class="nav-link" routerLink="/reports" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin', 'Principal'])"><mat-icon>bar_chart</mat-icon><span>{{ 'nav.school_reports' | t }}</span></a>
+      <a class="nav-link" routerLink="/settings" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" *ngIf="canAccess(['Super Admin'])"><mat-icon>settings</mat-icon><span>{{ 'nav.settings' | t }}</span></a>
     </nav>
   </aside>
   <section class="workspace">
     <header class="topbar">
       <div class="school-meta">
-        <img class="mini-logo school-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
+        <img class="mini-logo school-logo" src="/assets/rawafed-logo.png" [alt]="'app.school_full' | t" />
         <div>
           <strong>{{ storage.settings().schoolName }}</strong>
           <small>{{ storage.settings().schoolNameAr }}</small>
@@ -39,33 +117,33 @@
       <div class="topbar-meta">
         <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
         <span class="pill"><mat-icon>calendar_month</mat-icon>{{ storage.settings().academicYear }}</span>
-        <span class="pill"><mat-icon>account_circle</mat-icon>{{ auth.session()?.displayName || 'User' }} · {{ auth.session()?.role || '' }}</span>
+        <span class="pill user-pill"><mat-icon>account_circle</mat-icon>{{ auth.session()?.displayName || ('common.user' | t) }} · {{ auth.session()?.role || '' }}</span>
         <div class="notification-center">
-          <button mat-stroked-button type="button" aria-label="Notifications" (click)="toggleNotifications()">
+          <button mat-stroked-button type="button" [attr.aria-label]="'nav.alerts' | t" (click)="toggleNotifications()">
             <mat-icon aria-hidden="false" [matBadge]="unreadNotifications()" [matBadgeHidden]="!unreadNotifications()" matBadgeColor="warn">notifications</mat-icon>
-            Alerts
+            {{ 'nav.alerts' | t }}
           </button>
           <div class="notification-panel" *ngIf="notificationsOpen()">
             <header>
-              <strong>Notification Center</strong>
-              <button type="button" (click)="storage.clearNotifications()">Clear</button>
+              <strong>{{ 'nav.notification_center' | t }}</strong>
+              <button type="button" (click)="storage.clearNotifications()">{{ 'common.clear' | t }}</button>
             </header>
             <a *ngFor="let note of visibleNotifications()" [routerLink]="note.link || currentUrl()" (click)="notificationsOpen.set(false)">
               <mat-icon>{{ note.category === 'finance' ? 'payments' : note.category === 'registration' ? 'app_registration' : 'campaign' }}</mat-icon>
               <span>{{ note.message }}</span>
               <small>{{ note.createdAt | date:'short' }}</small>
             </a>
-            <p *ngIf="!visibleNotifications().length">No notifications for your role.</p>
+            <p *ngIf="!visibleNotifications().length">{{ 'nav.no_notifications' | t }}</p>
           </div>
         </div>
-        <button mat-stroked-button type="button" aria-label="Switch language direction" (click)="toggleDirection()">
+        <button mat-stroked-button type="button" [attr.aria-label]="'common.arabic' | t" (click)="toggleDirection()">
           <mat-icon>translate</mat-icon>
-          {{ direction() === 'ltr' ? 'العربية' : 'English' }}
+          {{ i18n.language() === 'en' ? ('common.arabic' | t) : ('common.english' | t) }}
         </button>
-        <mat-slide-toggle [checked]="darkMode()" (change)="toggleDarkMode()" aria-label="Toggle dark mode">Dark</mat-slide-toggle>
-        <button mat-stroked-button type="button" aria-label="Logout" (click)="logout()">
+        <mat-slide-toggle [checked]="darkMode()" (change)="toggleDarkMode()" [attr.aria-label]="'nav.dark' | t">{{ 'nav.dark' | t }}</mat-slide-toggle>
+        <button mat-stroked-button type="button" [attr.aria-label]="'nav.logout' | t" (click)="logout()">
           <mat-icon>logout</mat-icon>
-          Logout
+          {{ 'nav.logout' | t }}
         </button>
       </div>
     </header>

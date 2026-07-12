@@ -1,17 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ApiService } from '../api/api.service';
-import { AuthSession, AuthUser, UserRole } from './auth.models';
+import { AuthSession, UserRole } from './auth.models';
 
 const AUTH_KEY = 'rawafed_auth';
-
-export const DEMO_USERS: AuthUser[] = [
-  { username: 'admin', password: 'admin123', displayName: 'Super Admin', role: 'Super Admin' },
-  { username: 'admissions', password: 'admit123', displayName: 'Admissions Officer', role: 'Admissions' },
-  { username: 'finance', password: 'finance123', displayName: 'Finance Officer', role: 'Finance' },
-  { username: 'principal', password: 'principal123', displayName: 'Principal', role: 'Principal' },
-  { username: 'registrar', password: 'registrar123', displayName: 'Registrar', role: 'Registrar' }
-];
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -20,7 +12,10 @@ export class AuthService {
   constructor(
     private readonly router: Router,
     private readonly api: ApiService
-  ) {}
+  ) {
+    const current = this.session();
+    if (current?.token) this.api.setToken(current.token);
+  }
 
   async login(username: string, password: string): Promise<boolean> {
     try {
@@ -33,7 +28,7 @@ export class AuthService {
         refreshToken: response.refreshToken
       };
       this.api.setToken(response.token);
-      localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+      sessionStorage.setItem(AUTH_KEY, JSON.stringify(session));
       this.session.set(session);
       return true;
     } catch {
@@ -45,7 +40,7 @@ export class AuthService {
     const refreshToken = this.session()?.refreshToken;
     if (refreshToken) void this.api.post('/auth/logout', { refreshToken }).catch(() => undefined);
     this.api.clearToken();
-    localStorage.removeItem(AUTH_KEY);
+    sessionStorage.removeItem(AUTH_KEY);
     this.session.set(null);
     this.router.navigate(['/login']);
   }
@@ -57,7 +52,7 @@ export class AuthService {
   }
 
   homeForRole(role: UserRole): string {
-    if (role === 'Finance') return '/finance';
+    if (['Finance', 'Finance Manager', 'Chief Accountant', 'Accountant', 'Auditor'].includes(role)) return '/finance';
     if (role === 'Registrar') return '/applications';
     if (role === 'Principal') return '/admin';
     return '/admin';
@@ -65,8 +60,14 @@ export class AuthService {
 
   private readSession(): AuthSession | null {
     try {
-      const raw = localStorage.getItem(AUTH_KEY);
-      return raw ? (JSON.parse(raw) as AuthSession) : null;
+      const raw = sessionStorage.getItem(AUTH_KEY);
+      const session = raw ? (JSON.parse(raw) as AuthSession) : null;
+      if (session?.token === 'demo-vercel-session') {
+        sessionStorage.removeItem(AUTH_KEY);
+        sessionStorage.removeItem('rawafed_api_token');
+        return null;
+      }
+      return session;
     } catch {
       return null;
     }

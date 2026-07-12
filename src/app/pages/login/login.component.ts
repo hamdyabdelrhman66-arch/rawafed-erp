@@ -5,11 +5,13 @@ import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/auth/auth.service';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 
 @Component({
   selector: 'raw-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatIconModule],
+  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatIconModule, TranslatePipe],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
@@ -21,7 +23,8 @@ export class LoginComponent {
 
   constructor(
     private readonly auth: AuthService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly i18n: I18nService
   ) {}
 
   async login(): Promise<void> {
@@ -30,7 +33,7 @@ export class LoginComponent {
 
     try {
       if (!(await this.auth.login(this.username, this.password))) {
-        this.error = 'Invalid username or password.';
+        this.error = this.i18n.t('login.invalid');
         return;
       }
 

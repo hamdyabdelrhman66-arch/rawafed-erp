@@ -7,12 +7,22 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
-    "seed": "tsx src/seed.ts",
-    "backup": "tsx src/backup.ts"
+    "seed": "prisma db seed",
+    "backup": "sh scripts/backup-database.sh",
+    "backup:database": "sh scripts/backup-database.sh",
+    "restore:database": "sh scripts/restore-database.sh",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:test:guard": "tsx scripts/test-database-guard.ts",
+    "db:validate": "prisma validate",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.7",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -20,19 +30,20 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
-    "sql.js": "^1.14.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/cookie-parser": "^1.4.10",
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.5",
-    "@types/sql.js": "^1.4.11",
+    "@vitest/coverage-v8": "^3.2.7",
+    "prisma": "^6.19.3",
     "tsx": "^4.19.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

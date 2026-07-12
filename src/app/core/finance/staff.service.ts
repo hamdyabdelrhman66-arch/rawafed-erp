@@ -30,4 +30,12 @@ export class StaffService {
   deleteStaff(id: string | number): Observable<void> {
     return from(this.api.delete<void>(`/staff/${id}`));
   }
+
+  getPayrollRuns(): Observable<any[]> {
+    return from(this.api.get<any[]>('/payroll/runs'));
+  }
+
+  createPayrollRun(payload: any): Observable<any> {
+    return from(this.api.post<any>('/payroll/runs', payload));
+  }
 }

@@ -5,13 +5,14 @@ import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 import { AdmissionRegistration, GRADE_LEVELS, GradeLevel, PaymentPlan, UploadedDocument, createEmptyRegistration } from '../../core/models/admission.models';
 import { AdmissionService } from '../../core/services/admission.service';
 import { StorageService } from '../../core/services/storage.service';
 import { duplicateValidator } from '../../core/validators/duplicate.validator';
+import { FeedbackService, safeErrorMessage } from '../../core/feedback/feedback.service';
 import {
   AgreementStepComponent,
   DocumentsStepComponent,
@@ -53,7 +54,7 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly storage = inject(StorageService);
   private readonly admission = inject(AdmissionService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly feedback = inject(FeedbackService);
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
 
@@ -230,14 +231,14 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     group.markAllAsTouched();
     
     if (requireSignature && !this.parentSignature()) {
-      this.snackBar.open('Parent signature is required before review.', 'OK', { duration: 2600 });
+      this.feedback.validation('Parent signature is required before review.');
       this.scrollToFirstInvalid();
       return;
       
     }
     
     if (group.invalid) {
-      this.snackBar.open('Please complete the highlighted fields before continuing.', 'OK', { duration: 2600 });
+      this.feedback.validation('Please complete the highlighted fields before continuing.');
       this.scrollToFirstInvalid();
       return;
     }
@@ -270,15 +271,15 @@ export class RegistrationComponent implements OnInit, OnDestroy {
 
   saveDraft(showMessage = true): void {
     this.storage.saveDraft(this.composeRegistration());
-    if (showMessage) this.snackBar.open('Draft saved on this iPad.', 'OK', { duration: 1800 });
+    if (showMessage) this.feedback.success('Draft saved successfully.', 'Your entered registration data was kept.');
   }
 
-  async submit(): Promise<void> {
+  async submit(stepper?: MatStepper): Promise<void> {
     if (this.isSubmitting() || this.submittedRegistration()) return;
 
     this.form.markAllAsTouched();
     if (this.form.invalid || !this.parentSignature()) {
-      this.snackBar.open('Please complete required fields, agreement, and parent signature.', 'OK', { duration: 3000 });
+      this.feedback.validation('Please complete required fields, agreement, and parent signature.');
       this.scrollToFirstInvalid();
       return;
     }
@@ -288,17 +289,40 @@ export class RegistrationComponent implements OnInit, OnDestroy {
 
     try {
       const submitted = await this.admission.submit(this.composeRegistration());
-      this.submittedRegistration.set(submitted);
-      this.draft.set(submitted);
       this.admission.downloadSubmittedPdfs(submitted);
-      this.snackBar.open(`Registration submitted successfully: ${submitted.registrationNumber}`, 'OK', { duration: 5000 });
+      this.feedback.success(`Registration ${submitted.registrationNumber} submitted successfully.`, 'Finance account and admission review were updated.');
+      this.resetForNextRegistration(stepper);
     } catch (error) {
       console.error('Registration submit failed', error);
-      this.submitError.set('Registration was not submitted. Please try again.');
-      this.snackBar.open('Registration was not submitted. Please try again.', 'OK', { duration: 5000 });
+      const message = safeErrorMessage(error);
+      this.submitError.set(message);
+      this.feedback.error('Registration was not submitted.', message);
     } finally {
       this.isSubmitting.set(false);
     }
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty && !this.isSubmitting() && !this.submittedRegistration();
+  }
+
+  private resetForNextRegistration(stepper?: MatStepper): void {
+    const next = createEmptyRegistration();
+    this.submittedRegistration.set(null);
+    this.submitError.set('');
+    this.draft.set(next);
+    this.documents.set([]);
+    this.agreementScrolled.set(false);
+    this.parentSignature.set('');
+    this.studentSignature.set('');
+    this.storage.clearDraft();
+    this.form.reset(this.registrationToFormValue(next));
+    this.applyGradeFees(next.student.applyingGrade);
+    this.applyTransportationSelection(false, '');
+    this.recalculate();
+    if (stepper) stepper.selectedIndex = 0;
+    this.activeStep.set(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   goToApplications(): void {
@@ -372,8 +396,15 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   }
 
   private recalculate(): void {
-    const financial = this.financialGroup.getRawValue() as AdmissionRegistration['financial'];
-    const grandTotal = this.admission.calculateGrandTotal(financial);
+    const rawFinancial = this.financialGroup.getRawValue() as AdmissionRegistration['financial'];
+    const nationalId = String(this.studentGroup.controls['nationalId'].value || '');
+    const vat = this.admission.isSaudiNationalId(nationalId) ? 0 : this.currentGradeVat();
+    if (rawFinancial.vat !== vat) {
+      this.financialGroup.controls['vat'].setValue(vat, { emitEvent: false });
+    }
+
+    const financial = { ...rawFinancial, vat };
+    const grandTotal = this.admission.calculateGrandTotal(financial, nationalId);
     this.financialGroup.controls['grandTotal'].setValue(grandTotal, { emitEvent: false });
   }
 
@@ -405,6 +436,12 @@ export class RegistrationComponent implements OnInit, OnDestroy {
 
   private isGradeLevel(value: string | null | undefined): value is GradeLevel {
     return GRADE_LEVELS.includes(value as GradeLevel);
+  }
+
+  private currentGradeVat(): number {
+    const grade = this.studentGroup.controls['applyingGrade'].value;
+    if (!this.isGradeLevel(grade)) return this.storage.settings().vat;
+    return this.storage.settings().gradeFees[grade]?.vat ?? this.storage.settings().vat;
   }
 
   private syncSignatureSignals(): void {

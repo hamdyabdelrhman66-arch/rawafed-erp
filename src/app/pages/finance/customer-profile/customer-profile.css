@@ -1,0 +1,28 @@
+.profile-page { display: grid; gap: 18px; }
+.page-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.page-header a { color: #0b5ed7; text-decoration: none; font-weight: 850; }
+.page-header span { display: block; margin-top: 8px; color: #b4232c; font-weight: 900; text-transform: uppercase; }
+.page-header h1 { margin: 4px 0; color: #07336b; font-size: 34px; }
+.page-header p { margin: 0; color: #64748b; font-weight: 650; }
+button { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #07336b; padding: 0 12px; cursor: pointer; font-weight: 850; }
+button.primary, .tabs button.active { border-color: #0b5ed7; background: #0b5ed7; color: #fff; }
+.summary-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.summary-grid article, .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
+.summary-grid span, .info-grid span { display: block; color: #64748b; font-weight: 850; text-transform: uppercase; font-size: 12px; }
+.summary-grid strong { display: block; margin-top: 8px; color: #07336b; font-size: 22px; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.panel h2 { margin: 0 0 14px; color: #07336b; }
+.info-grid, .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.info-grid p { margin: 0; color: #0f172a; font-weight: 800; }
+label { display: flex; flex-direction: column; gap: 7px; color: #07336b; font-weight: 850; }
+input, select { min-height: 42px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fff; }
+footer { margin: 14px 0; }
+.table-scroll { overflow: auto; }
+table { width: 100%; min-width: 900px; border-collapse: collapse; }
+th { background: #eaf2ff; color: #07336b; padding: 12px; text-align: left; font-size: 12px; }
+td { border-bottom: 1px solid #e5e7eb; padding: 12px; color: #0f172a; }
+.status { display: inline-flex; border-radius: 999px; padding: 5px 10px; background: #eaf2ff; color: #07336b; font-weight: 850; }
+.empty-cell, .muted { color: #64748b; text-align: center; }
+@media print { .tabs, .page-header button, .form-grid, footer { display: none; } }
+@media (max-width: 1000px) { .summary-grid, .info-grid, .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .summary-grid, .info-grid, .form-grid { grid-template-columns: 1fr; } .page-header { flex-direction: column; } }

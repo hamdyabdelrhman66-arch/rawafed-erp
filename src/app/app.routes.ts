@@ -1,10 +1,17 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { unsavedChangesGuard } from './core/feedback/unsaved-changes.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', loadComponent: () => import('./pages/login/login.component').then((m) => m.LoginComponent) },
-  { path: 'register', loadComponent: () => import('./pages/registration/registration.component').then((m) => m.RegistrationComponent) },
+  { path: 'register', canDeactivate: [unsavedChangesGuard], loadComponent: () => import('./pages/registration/registration.component').then((m) => m.RegistrationComponent) },
+  {
+    path: 'scan-registration',
+    canActivate: [authGuard],
+    data: { roles: ['Super Admin', 'Admissions', 'Registrar'] },
+    loadComponent: () => import('./pages/scan-registration/scan-registration.component').then((m) => m.ScanRegistrationComponent)
+  },
   {
     path: 'admin',
     canActivate: [authGuard],
@@ -32,7 +39,7 @@ export const routes: Routes = [
   {
     path: 'finance',
     canActivate: [authGuard],
-    data: { roles: ['Super Admin', 'Finance'] },
+    data: { roles: ['Super Admin', 'Finance', 'Finance Manager', 'Chief Accountant', 'Accountant', 'Auditor'] },
     loadChildren: () => import('./pages/finance/finance.routes').then((m) => m.financeRoutes)
   },
   {

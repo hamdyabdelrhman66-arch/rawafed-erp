@@ -1,0 +1,82 @@
+openapi: 3.0.3
+info:
+  title: Rawafed ERP API
+  version: 1.0.0
+  description: Baseline production contract. Full 109-route schema coverage remains a cutover gate.
+servers:
+  - url: /api
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      required: [success, errorCode, safeMessage, requestId]
+      properties:
+        success: { type: boolean, enum: [false] }
+        errorCode: { type: string }
+        safeMessage: { type: string }
+        requestId: { type: string }
+paths:
+  /live:
+    get:
+      responses:
+        '200': { description: Process is alive }
+  /ready:
+    get:
+      responses:
+        '200': { description: Dependencies are ready }
+        '503': { description: Dependency unavailable }
+  /health:
+    get:
+      responses:
+        '200': { description: Operational health }
+        '503': { description: Unhealthy }
+  /auth/login:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200': { description: Authenticated }
+        '401': { description: Invalid credentials, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /registrations:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { in: query, name: offset, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200': { description: Registration list }
+    post:
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Registration created }
+  /finance/invoices:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Invoice list } }
+    post:
+      security: [{ bearerAuth: [] }]
+      responses: { '201': { description: Invoice created } }
+  /finance/payments:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Payment list } }
+    post:
+      security: [{ bearerAuth: [] }]
+      responses: { '201': { description: Payment recorded } }
+  /accounting/reconciliation:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Report-only reconciliation result } }

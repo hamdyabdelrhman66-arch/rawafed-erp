@@ -65,6 +65,10 @@ export class InvoiceTemplate implements OnChanges {
     return this.roundMoney(value).toFixed(2);
   }
 
+  hasVat(): boolean {
+    return !this.invoice?.vatExempt && this.roundMoney(this.invoice?.vat) > 0;
+  }
+
   private roundMoney(value: number): number {
     const numberValue = Number(value);
     const safeValue = Number.isFinite(numberValue) ? numberValue : 0;

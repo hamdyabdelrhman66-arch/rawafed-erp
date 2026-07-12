@@ -13,7 +13,7 @@
         <h2>{{ item.student.englishName || 'Unnamed Student' }}</h2>
         <p>{{ item.student.applyingGrade }} · {{ item.registrationNumber }} · {{ item.father.phone || item.mother.phone }}</p>
       </div>
-      <strong>{{ item.financial.paymentStatus }}</strong>
+      <strong>{{ paymentStatus(item) }}</strong>
     </article>
 
     <p class="empty" *ngIf="!students().length">No approved students yet.</p>

@@ -51,7 +51,7 @@
 
 .report-controls {
   display: grid;
-  grid-template-columns: 1.2fr repeat(3, 1fr);
+  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(150px, 1fr));
   gap: 14px;
   background: #fff;
   border: 1px solid #e2e8f0;
