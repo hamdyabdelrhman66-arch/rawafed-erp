@@ -11,7 +11,7 @@
       "root": "backend",
       "framework": "express",
       "installCommand": "npm ci",
-      "buildCommand": "npm run build"
+      "buildCommand": "npm run db:generate && npm run build"
     }
   },
   "rewrites": [
