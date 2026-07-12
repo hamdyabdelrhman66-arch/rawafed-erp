@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { InventoryService } from '../../../core/inventory/inventory.service';
 
 type InventoryTab = 'dashboard' | 'items' | 'warehouses' | 'movements' | 'pr' | 'po' | 'grn' | 'students' | 'reports';
@@ -46,7 +47,8 @@ export class InventoryErp implements OnInit {
     private readonly inventory: InventoryService,
     private readonly accounting: AccountingService,
     private readonly route: ActivatedRoute,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly feedback: FeedbackService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -128,55 +130,60 @@ export class InventoryErp implements OnInit {
   }
 
   async saveItem(): Promise<void> {
-    await this.inventory.createItem(this.itemForm);
-    this.itemForm = this.emptyItem();
-    await this.load();
+    await this.runInventoryAction('Item created successfully.', async () => {
+      await this.inventory.createItem(this.itemForm);
+      this.itemForm = this.emptyItem();
+    });
   }
 
   async saveWarehouse(): Promise<void> {
-    await this.inventory.createWarehouse(this.warehouseForm);
-    this.warehouseForm = this.emptyWarehouse();
-    await this.load();
+    await this.runInventoryAction('Warehouse created successfully.', async () => {
+      await this.inventory.createWarehouse(this.warehouseForm);
+      this.warehouseForm = this.emptyWarehouse();
+    });
   }
 
   async saveMovement(): Promise<void> {
-    await this.inventory.createMovement(this.movementForm);
-    this.movementForm = this.emptyMovement();
-    await this.load();
+    await this.runInventoryAction('Stock movement saved successfully.', async () => {
+      await this.inventory.createMovement(this.movementForm);
+      this.movementForm = this.emptyMovement();
+    });
   }
 
   async savePurchaseRequest(): Promise<void> {
-    await this.inventory.createPurchaseRequest(this.prForm);
-    this.prForm = this.emptyPurchaseRequest();
-    await this.load();
+    await this.runInventoryAction('Purchase request created successfully.', async () => {
+      await this.inventory.createPurchaseRequest(this.prForm);
+      this.prForm = this.emptyPurchaseRequest();
+    });
   }
 
   async setPurchaseRequestStatus(request: any, status: string): Promise<void> {
-    await this.inventory.updatePurchaseRequestStatus(request.id, status);
-    await this.load();
+    await this.runInventoryAction(`Purchase request ${status.toLowerCase()} successfully.`, () => this.inventory.updatePurchaseRequestStatus(request.id, status));
   }
 
   async savePurchaseOrder(): Promise<void> {
-    await this.inventory.createPurchaseOrder(this.poForm);
-    this.poForm = this.emptyPurchaseOrder();
-    await this.load();
+    await this.runInventoryAction('Purchase order created successfully.', async () => {
+      await this.inventory.createPurchaseOrder(this.poForm);
+      this.poForm = this.emptyPurchaseOrder();
+    });
   }
 
   async setPurchaseOrderStatus(order: any, status: string): Promise<void> {
-    await this.inventory.updatePurchaseOrderStatus(order.id, status);
-    await this.load();
+    await this.runInventoryAction(`Purchase order ${status.toLowerCase()} successfully.`, () => this.inventory.updatePurchaseOrderStatus(order.id, status));
   }
 
   async saveGoodsReceipt(): Promise<void> {
-    await this.inventory.createGoodsReceipt(this.grnForm);
-    this.grnForm = this.emptyGoodsReceipt();
-    await this.load();
+    await this.runInventoryAction('Goods received, stock updated, and journal created successfully.', async () => {
+      await this.inventory.createGoodsReceipt(this.grnForm);
+      this.grnForm = this.emptyGoodsReceipt();
+    });
   }
 
   async issueToStudent(): Promise<void> {
-    await this.inventory.issueToStudent(this.issueForm);
-    this.issueForm = this.emptyIssue();
-    await this.load();
+    await this.runInventoryAction('Items issued to student successfully.', async () => {
+      await this.inventory.issueToStudent(this.issueForm);
+      this.issueForm = this.emptyIssue();
+    });
   }
 
   addPrLine(): void {
@@ -223,6 +230,16 @@ export class InventoryErp implements OnInit {
     this.movementForm.warehouseId ||= warehouseId;
     this.grnForm.warehouseId ||= warehouseId;
     this.issueForm.warehouseId ||= warehouseId;
+  }
+
+  private async runInventoryAction(message: string, work: () => Promise<unknown>): Promise<void> {
+    try {
+      await work();
+      await this.load();
+      this.feedback.success(message);
+    } catch (error) {
+      this.feedback.error('Inventory action failed.', safeErrorMessage(error));
+    }
   }
 
   private emptyItem(): any {

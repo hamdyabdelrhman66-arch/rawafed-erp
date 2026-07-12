@@ -5,7 +5,9 @@
     <p>Select a student, review the grade fees, then record one or more paid items in the same receipt.</p>
   </div>
 
-  <button class="save-btn" type="button" (click)="savePayment()">Save Payment</button>
+  <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving">
+    {{ saving ? 'Saving...' : 'Save Payment' }}
+  </button>
 </header>
 
 <section class="info-card">

@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AccountingAccount, AccountingService } from '../../../core/finance/accounting.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 interface AccountRow extends AccountingAccount {
   level: number;
@@ -38,7 +39,8 @@ export class ChartOfAccounts implements OnInit {
 
   constructor(
     private readonly accounting: AccountingService,
-    private readonly auth: AuthService
+    private readonly auth: AuthService,
+    private readonly feedback: FeedbackService
   ) {}
 
   get canWrite(): boolean {
@@ -176,26 +178,47 @@ export class ChartOfAccounts implements OnInit {
       else await this.accounting.createAccount(payload);
       this.closeModal();
       await this.load();
+      this.feedback.success('Account saved successfully.');
     } catch (error: any) {
-      this.errorMessage = error?.error?.message || error?.message || 'Could not save account.';
+      this.errorMessage = safeErrorMessage(error);
+      this.feedback.error('Account could not be saved.', this.errorMessage);
     }
   }
 
   async archiveSelected(): Promise<void> {
     if (!this.selectedAccount || !this.canFullAccess) return;
+    const accountCode = this.selectedAccount.code;
+    const confirmed = await this.feedback.confirm({
+      title: 'Archive Account?',
+      message: `Account ${accountCode} will be archived and hidden from active account lists.`,
+      confirmText: 'Archive',
+      tone: 'warning'
+    });
+    if (!confirmed) return;
     await this.accounting.archiveAccount(this.selectedAccount.id);
     await this.load();
+    this.feedback.success(`Account ${accountCode} archived successfully.`);
   }
 
   async deleteSelected(): Promise<void> {
     if (!this.selectedAccount || !this.canFullAccess) return;
+    const accountCode = this.selectedAccount.code;
+    const confirmed = await this.feedback.confirm({
+      title: 'Delete Account?',
+      message: `Account ${accountCode} will be deleted only if no journal entries exist.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
     this.errorMessage = '';
     try {
       await this.accounting.deleteAccount(this.selectedAccount.id);
       this.selectedId = '';
       await this.load();
+      this.feedback.success(`Account ${accountCode} deleted successfully.`);
     } catch (error: any) {
-      this.errorMessage = error?.error?.message || 'This account cannot be deleted because accounting transactions already exist.';
+      this.errorMessage = safeErrorMessage(error) || 'This account cannot be deleted because accounting transactions already exist.';
+      this.feedback.error('Account could not be deleted.', this.errorMessage);
       this.modalOpen = false;
     }
   }
@@ -223,10 +246,12 @@ export class ChartOfAccounts implements OnInit {
     link.download = 'chart-of-accounts.csv';
     link.click();
     URL.revokeObjectURL(url);
+    this.feedback.success('Chart of Accounts exported successfully.');
   }
 
   importPlaceholder(): void {
     this.errorMessage = 'Import is ready for the Excel template workflow. Use Export Excel as the current template.';
+    this.feedback.info('Import template workflow is ready.', 'Use Export Excel as the current template.');
   }
 
   downloadTemplate(): void {
@@ -240,6 +265,7 @@ export class ChartOfAccounts implements OnInit {
     link.download = 'chart-of-accounts-import-template.csv';
     link.click();
     URL.revokeObjectURL(url);
+    this.feedback.success('Chart of Accounts template downloaded successfully.');
   }
 
   closeModal(): void {

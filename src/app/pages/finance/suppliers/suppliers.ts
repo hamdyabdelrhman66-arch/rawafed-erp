@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
 import { ExpensesService } from '../../../core/finance/expenses.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector: 'app-suppliers',
@@ -23,7 +24,8 @@ export class Suppliers implements OnInit {
 
   constructor(
     private readonly accounting: AccountingService,
-    private readonly expensesService: ExpensesService
+    private readonly expensesService: ExpensesService,
+    private readonly feedback: FeedbackService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -76,15 +78,32 @@ export class Suppliers implements OnInit {
       status: this.form.status,
       notes: this.form.notes
     };
-    if (this.editingId) await this.accounting.updateSupplier(this.editingId, payload);
-    else await this.accounting.createSupplier(payload);
-    this.cancel();
-    await this.load();
+    try {
+      if (this.editingId) await this.accounting.updateSupplier(this.editingId, payload);
+      else await this.accounting.createSupplier(payload);
+      this.cancel();
+      await this.load();
+      this.feedback.success('Supplier saved successfully.');
+    } catch (error) {
+      this.feedback.error('Supplier could not be saved.', safeErrorMessage(error));
+    }
   }
 
   async deactivate(id: string): Promise<void> {
-    await this.accounting.deactivateSupplier(id);
-    await this.load();
+    const confirmed = await this.feedback.confirm({
+      title: 'Deactivate Supplier?',
+      message: 'This supplier will no longer appear as an active supplier for new transactions.',
+      confirmText: 'Deactivate',
+      tone: 'warning'
+    });
+    if (!confirmed) return;
+    try {
+      await this.accounting.deactivateSupplier(id);
+      await this.load();
+      this.feedback.success('Supplier deactivated successfully.');
+    } catch (error) {
+      this.feedback.error('Supplier could not be deactivated.', safeErrorMessage(error));
+    }
   }
 
   cancel(): void {

@@ -204,8 +204,8 @@
         <button type="button" (click)="openNewChildAccount(selectedAccount)" [disabled]="!selectedAccount">{{ 'accounting.add_child_account' | t }}</button>
       </div>
     </div>
-    <div class="table-scroll">
-      <table>
+    <div class="table-scroll accounts-table-wrap">
+      <table class="accounts-table">
         <thead>
           <tr>
             <th>{{ 'common.code' | t }}</th>

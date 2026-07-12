@@ -1,6 +1,7 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { catchError, firstValueFrom, throwError } from 'rxjs';
+import { ApiSafeError } from '../feedback/http-error.interceptor';
 
 const TOKEN_KEY = 'rawafed_api_token';
 const API_OVERRIDE_KEY = 'rawafed_api_base_url';
@@ -67,12 +68,19 @@ export class ApiService {
   }
 
   private handleError(error: unknown) {
+    if (error instanceof ApiSafeError) {
+      if (error.status === 401) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem('rawafed_auth');
+      }
+      return throwError(() => error);
+    }
     if (error instanceof HttpErrorResponse) {
       if (error.status === 401) {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem('rawafed_auth');
       }
-      const message = error.error?.message || error.message || 'Could not reach backend.';
+      const message = error.error?.safeMessage || error.error?.message || error.message || 'Could not reach backend.';
       return throwError(() => new Error(`${message} (${error.status})`));
     }
     return throwError(() => error);

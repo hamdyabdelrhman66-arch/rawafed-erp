@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AccountingAccount, AccountingService } from '../../../core/finance/accounting.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector: 'app-banks',
@@ -16,7 +17,7 @@ export class Banks implements OnInit {
   form = { bankName: '', iban: '', accountNumber: '', openingBalance: 0, notes: '', status: 'active' };
   transfer = { fromAccountId: '', toAccountId: '', amount: 0, date: new Date().toISOString().slice(0, 10), description: '' };
 
-  constructor(private readonly accounting: AccountingService) {}
+  constructor(private readonly accounting: AccountingService, private readonly feedback: FeedbackService) {}
 
   async ngOnInit(): Promise<void> { await this.load(); }
 
@@ -33,16 +34,26 @@ export class Banks implements OnInit {
   }
 
   async saveBank(): Promise<void> {
-    await this.accounting.createBank(this.form);
-    this.form = { bankName: '', iban: '', accountNumber: '', openingBalance: 0, notes: '', status: 'active' };
-    await this.load();
+    try {
+      await this.accounting.createBank(this.form);
+      this.form = { bankName: '', iban: '', accountNumber: '', openingBalance: 0, notes: '', status: 'active' };
+      await this.load();
+      this.feedback.success('Bank account created successfully.');
+    } catch (error) {
+      this.feedback.error('Bank account could not be saved.', safeErrorMessage(error));
+    }
   }
 
   async saveTransfer(): Promise<void> {
-    await this.accounting.createTransfer(this.transfer);
-    this.transfer.amount = 0;
-    this.transfer.description = '';
-    await this.load();
+    try {
+      await this.accounting.createTransfer(this.transfer);
+      this.transfer.amount = 0;
+      this.transfer.description = '';
+      await this.load();
+      this.feedback.success('Bank transfer posted successfully.');
+    } catch (error) {
+      this.feedback.error('Bank transfer could not be posted.', safeErrorMessage(error));
+    }
   }
 
   money(value: unknown): string {

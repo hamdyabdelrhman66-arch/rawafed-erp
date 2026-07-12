@@ -5,13 +5,14 @@ import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 import { AdmissionRegistration, GRADE_LEVELS, GradeLevel, PaymentPlan, UploadedDocument, createEmptyRegistration } from '../../core/models/admission.models';
 import { AdmissionService } from '../../core/services/admission.service';
 import { StorageService } from '../../core/services/storage.service';
 import { duplicateValidator } from '../../core/validators/duplicate.validator';
+import { FeedbackService, safeErrorMessage } from '../../core/feedback/feedback.service';
 import {
   AgreementStepComponent,
   DocumentsStepComponent,
@@ -53,7 +54,7 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly storage = inject(StorageService);
   private readonly admission = inject(AdmissionService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly feedback = inject(FeedbackService);
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
 
@@ -230,14 +231,14 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     group.markAllAsTouched();
     
     if (requireSignature && !this.parentSignature()) {
-      this.snackBar.open('Parent signature is required before review.', 'OK', { duration: 2600 });
+      this.feedback.validation('Parent signature is required before review.');
       this.scrollToFirstInvalid();
       return;
       
     }
     
     if (group.invalid) {
-      this.snackBar.open('Please complete the highlighted fields before continuing.', 'OK', { duration: 2600 });
+      this.feedback.validation('Please complete the highlighted fields before continuing.');
       this.scrollToFirstInvalid();
       return;
     }
@@ -270,7 +271,7 @@ export class RegistrationComponent implements OnInit, OnDestroy {
 
   saveDraft(showMessage = true): void {
     this.storage.saveDraft(this.composeRegistration());
-    if (showMessage) this.snackBar.open('Draft saved on this iPad.', 'OK', { duration: 1800 });
+    if (showMessage) this.feedback.success('Draft saved successfully.', 'Your entered registration data was kept.');
   }
 
   async submit(stepper?: MatStepper): Promise<void> {
@@ -278,7 +279,7 @@ export class RegistrationComponent implements OnInit, OnDestroy {
 
     this.form.markAllAsTouched();
     if (this.form.invalid || !this.parentSignature()) {
-      this.snackBar.open('Please complete required fields, agreement, and parent signature.', 'OK', { duration: 3000 });
+      this.feedback.validation('Please complete required fields, agreement, and parent signature.');
       this.scrollToFirstInvalid();
       return;
     }
@@ -289,15 +290,20 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     try {
       const submitted = await this.admission.submit(this.composeRegistration());
       this.admission.downloadSubmittedPdfs(submitted);
-      this.snackBar.open(`Registration submitted successfully: ${submitted.registrationNumber}`, 'OK', { duration: 5000 });
+      this.feedback.success(`Registration ${submitted.registrationNumber} submitted successfully.`, 'Finance account and admission review were updated.');
       this.resetForNextRegistration(stepper);
     } catch (error) {
       console.error('Registration submit failed', error);
-      this.submitError.set('Registration was not submitted. Please try again.');
-      this.snackBar.open('Registration was not submitted. Please try again.', 'OK', { duration: 5000 });
+      const message = safeErrorMessage(error);
+      this.submitError.set(message);
+      this.feedback.error('Registration was not submitted.', message);
     } finally {
       this.isSubmitting.set(false);
     }
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty && !this.isSubmitting() && !this.submittedRegistration();
   }
 
   private resetForNextRegistration(stepper?: MatStepper): void {

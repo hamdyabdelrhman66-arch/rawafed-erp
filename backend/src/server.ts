@@ -2,7 +2,7 @@ import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import helmet from 'helmet';
-import express from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
@@ -11,7 +11,7 @@ import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { AuthRequest, createOpaqueToken, hashToken, requireAuth, requireRole, signRefreshToken, signUser, verifyRefreshToken } from './auth.js';
-import { accountIdBySystemKey, accountingDashboard, archiveAccount, cashAccountForMethod, createAccount, createAccountingExpense, createBank, createCashBankTransfer, createCashbox, createInstallmentPlan, createJournalEntry, createSupplier, createSupplierPayment, createSystemJournal, customerById, customerInstallments, customerStatement, deactivateAccount, deactivateSupplier, deleteAccount, deleteJournalEntry, ensureCustomerForStudent, expenseAccountForCategory, globalAccountingSearch, ledger, listAccountingExpenses, listAccounts, listBanks, listCashboxes, listCostCenters, listCustomers, listExpenseAccounts, listJournalEntries, listPayableAccounts, listPaymentAccounts, listReceivableAccounts, listRevenueAccounts, listSuppliers, moveAccount, receivableAccountForStudentContext, revenueAccountForItem, suggestAccountCode, supplierAging, supplierProfile, supplierStatement, syncCustomersFromStudents, trialBalance, updateAccount, updateBank, updateCashbox, updateJournalEntry, updateSupplier } from './accounting.js';
+import { accountIdBySystemKey, accountingDashboard, archiveAccount, cashAccountForMethod, createAccount, createAccountingExpense, createBank, createCashBankTransfer, createCashbox, createInstallmentPlan, createJournalEntry, createSupplier, createSupplierPayment, createSystemJournal, customerById, customerInstallments, customerStatement, deactivateAccount, deactivateSupplier, deleteAccount, ensureCustomerForStudent, expenseAccountForCategory, globalAccountingSearch, ledger, listAccountingExpenses, listAccounts, listBanks, listCashboxes, listCostCenters, listCustomers, listExpenseAccounts, listJournalEntries, listPayableAccounts, listPaymentAccounts, listReceivableAccounts, listRevenueAccounts, listSuppliers, moveAccount, receivableAccountForStudentContext, revenueAccountForItem, suggestAccountCode, supplierAging, supplierProfile, supplierStatement, syncCustomersFromStudents, trialBalance, updateAccount, updateBank, updateCashbox, updateSupplier } from './accounting.js';
 import { logAudit, readDb, updateDb } from './db.js';
 import { applyPaymentToAccount, ensureFinanceAccount, isVatExemptRegistration, money } from './finance.js';
 import { createGoodsReceipt, createItem, createPurchaseOrder, createPurchaseRequest, createStockMovement, createWarehouse, inventoryDashboard, inventoryReports, issueItemToStudent, listGoodsReceipts, listInventoryCategories, listItems, listPurchaseOrders, listPurchaseRequests, listStockMovements, listWarehouses, updateItem, updatePurchaseOrderStatus, updatePurchaseRequestStatus, updateWarehouse } from './inventory.js';
@@ -56,20 +56,13 @@ const loginLimiter = rateLimit({
   legacyHeaders: false
 });
 
-const publicRegistrationLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 25,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: 'Too many registration submissions. Please try again later.' }
-});
-
 app.use(helmet({
   crossOriginResourcePolicy: false
 }));
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '25mb' }));
 app.use('/uploads', express.static(uploadDir));
+app.use(standardizeApiResponses);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -387,7 +380,7 @@ app.get('/api/registrations', requireAuth, requireRole(['Admissions', 'Registrar
   res.json(withFinancePaymentStatuses(db.registrations, db.financeAccounts));
 });
 
-const submitRegistration = (req: AuthRequest, res: express.Response) => {
+app.post('/api/registrations', requireAuth, requireRole(['Admissions', 'Registrar']), (req: AuthRequest, res) => {
   const body = registrationSchema.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ message: 'Invalid registration payload.', errors: body.error.flatten() });
@@ -419,13 +412,10 @@ const submitRegistration = (req: AuthRequest, res: express.Response) => {
     });
     ensureFinanceAccount(db, submitted);
   });
-  logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: req.user ? 'create registration' : 'public registration submission', entityType: 'registration', entityId: submitted.id });
+  logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'create registration', entityType: 'registration', entityId: submitted.id });
 
   res.status(201).json(submitted);
-};
-
-app.post('/api/registrations', publicRegistrationLimiter, submitRegistration);
-app.post('/api/public/registrations', publicRegistrationLimiter, submitRegistration);
+});
 
 app.patch('/api/registrations/:id/status', requireAuth, requireRole(['Admissions', 'Registrar', 'Principal']), (req, res) => {
   const status = z.enum(['draft', 'pending', 'approved', 'rejected', 'archived']).safeParse(req.body.status);
@@ -906,53 +896,6 @@ app.post('/api/accounting/journal-entries', requireAuth, requireRole(['Finance']
     res.status(201).json(entry);
   } catch (error) {
     res.status(400).json({ message: error instanceof Error ? error.message : 'Could not create journal entry.' });
-  }
-});
-
-app.patch('/api/accounting/journal-entries/:id', requireAuth, requireRole(['Finance']), (req: AuthRequest, res) => {
-  const body = z.object({
-    referenceNumber: z.string().optional(),
-    postingDate: z.string().min(8),
-    description: z.string().min(3),
-    status: z.enum(['draft', 'posted']).optional(),
-    lines: z.array(z.object({
-      accountId: z.string().min(1),
-      costCenterId: z.string().optional(),
-      description: z.string().optional(),
-      debit: z.coerce.number().nonnegative().optional(),
-      credit: z.coerce.number().nonnegative().optional()
-    })).min(2)
-  }).safeParse(req.body);
-
-  if (!body.success) {
-    res.status(400).json({ message: 'Invalid journal entry payload.', errors: body.error.flatten() });
-    return;
-  }
-
-  try {
-    const entry = updateJournalEntry(String(req.params.id), body.data, { id: req.user?.id, name: req.user?.displayName });
-    if (!entry) {
-      res.status(404).json({ message: 'Journal entry not found.' });
-      return;
-    }
-    logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'update journal entry', entityType: 'accounting_journal_entry', entityId: entry.id, details: { entryNumber: entry.entryNumber } });
-    res.json(entry);
-  } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Could not update journal entry.' });
-  }
-});
-
-app.delete('/api/accounting/journal-entries/:id', requireAuth, requireRole(['Finance']), (req: AuthRequest, res) => {
-  try {
-    const deleted = deleteJournalEntry(String(req.params.id));
-    if (!deleted) {
-      res.status(404).json({ message: 'Journal entry not found.' });
-      return;
-    }
-    logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'delete journal entry', entityType: 'accounting_journal_entry', entityId: String(req.params.id), details: { entryNumber: deleted.entryNumber } });
-    res.json(deleted);
-  } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Could not delete journal entry.' });
   }
 });
 
@@ -1441,35 +1384,11 @@ app.get('/api/finance/invoices', requireAuth, requireRole(['Finance']), (_req, r
 
 app.get('/api/finance/expenses', requireAuth, requireRole(['Finance']), (_req, res) => {
   const erpExpenses = listAccountingExpenses();
-  const payrollExpenses = (((readDb().settings as any).payrollRuns || []) as any[]).map((run) => ({
-    id: `payroll-${run.id}`,
-    expenseNo: `PAY-${run.period}`,
-    date: run.paymentDate,
-    expenseDate: run.paymentDate,
-    supplierName: 'Payroll',
-    category: 'Salaries Expense',
-    invoiceType: 'Payroll',
-    description: `Payroll run ${run.period}`,
-    amountBeforeVat: Number(run.grossTotal || 0) + Number(run.employerGosiTotal || 0),
-    vatRate: 0,
-    vatAmount: 0,
-    totalAmount: Number(run.grossTotal || 0) + Number(run.employerGosiTotal || 0),
-    amount: Number(run.grossTotal || 0) + Number(run.employerGosiTotal || 0),
-    paymentStatus: run.status === 'Paid' || run.status === 'Posted' ? 'Paid' : 'Unpaid',
-    status: run.status,
-    paymentMethod: 'Payroll',
-    paymentFrom: 'Salaries Payable',
-    journalEntryId: run.journalEntryId,
-    journalEntryNo: run.journalEntryNo,
-    notes: `System payroll expense for ${run.period}`,
-    sourceType: 'payroll_run',
-    sourceId: run.id
-  }));
   if (erpExpenses.length) {
-    res.json([...payrollExpenses, ...erpExpenses]);
+    res.json(erpExpenses);
     return;
   }
-  res.json([...payrollExpenses, ...readDb().financeExpenses]);
+  res.json(readDb().financeExpenses);
 });
 
 app.post('/api/finance/invoices', requireAuth, requireRole(['Finance']), (req, res) => {
@@ -1843,9 +1762,85 @@ app.put('/api/settings', requireAuth, requireRole(['Super Admin']), (req, res) =
   res.json(readDb().settings);
 });
 
+app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const safeMessage = safeErrorMessage(error);
+  const status = safeMessage === 'Unsupported file type.' ? 400 : 500;
+  logAudit({
+    actorId: (req as AuthRequest).user?.id,
+    actorRole: (req as AuthRequest).user?.role,
+    action: 'request failed',
+    entityType: 'api',
+    entityId: req.path,
+    details: { success: false, requestId: requestId(req), reason: safeMessage }
+  });
+  res.status(status).json({
+    success: false,
+    errorCode: status === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+    safeMessage,
+    requestId: requestId(req)
+  });
+});
+
 app.listen(port, () => {
   console.log(`Rawafed backend listening on http://127.0.0.1:${port}`);
 });
+
+function standardizeApiResponses(req: Request, res: Response, next: NextFunction): void {
+  const id = `REQ-${randomUUID()}`;
+  (req as any).requestId = id;
+  res.setHeader('X-Request-Id', id);
+
+  const originalJson = res.json.bind(res);
+  res.json = (body?: any) => {
+    if (res.statusCode >= 400 && !body?.success) {
+      return originalJson({
+        success: false,
+        errorCode: body?.errorCode || statusToErrorCode(res.statusCode),
+        safeMessage: safeErrorMessage(body?.safeMessage || body?.message || body),
+        fieldErrors: body?.fieldErrors || body?.errors?.fieldErrors || undefined,
+        requestId: id,
+        details: body?.details
+      });
+    }
+    return originalJson(body);
+  };
+  next();
+}
+
+function requestId(req: Request): string {
+  return String((req as any).requestId || req.header('x-request-id') || `REQ-${randomUUID()}`);
+}
+
+function statusToErrorCode(status: number): string {
+  const map: Record<number, string> = {
+    400: 'VALIDATION_ERROR',
+    401: 'SESSION_EXPIRED',
+    403: 'PERMISSION_DENIED',
+    404: 'NOT_FOUND',
+    409: 'CONFLICT',
+    422: 'BUSINESS_RULE_FAILED',
+    429: 'RATE_LIMITED',
+    500: 'SERVER_ERROR',
+    503: 'SERVICE_UNAVAILABLE'
+  };
+  return map[status] || 'REQUEST_FAILED';
+}
+
+function safeErrorMessage(error: unknown): string {
+  const raw = typeof error === 'string'
+    ? error
+    : error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error && 'message' in error
+        ? String((error as { message?: unknown }).message || '')
+        : '';
+  const message = raw.trim();
+  if (!message) return 'The server could not complete the request. Please try again.';
+  if (/sql|sqlite|stack|\/opt\/|\/users\/|token|secret|password hash/i.test(message)) {
+    return 'The server could not complete the request. Please try again.';
+  }
+  return message;
+}
 
 function safeUser(user: any): any {
   return {

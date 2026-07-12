@@ -16,6 +16,10 @@
   </header>
 
   <p class="notice" *ngIf="message">{{ message }}</p>
+  <section class="notice" *ngIf="isProcessing && progressSteps.length">
+    <strong>Processing payroll...</strong>
+    <span *ngFor="let step of progressSteps">{{ step }}</span>
+  </section>
   <div class="empty-state" *ngIf="!employees.length">
     <strong>No staff available for payroll.</strong>
     <span>Add staff members first, then return here to post the payroll run.</span>

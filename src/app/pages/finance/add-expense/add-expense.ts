@@ -10,6 +10,7 @@ import { StatusLabelPipe } from '../../../core/i18n/status-label.pipe';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { UploadedDocument } from '../../../core/models/admission.models';
 import { AdmissionService } from '../../../core/services/admission.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector: 'app-add-expense',
@@ -67,7 +68,8 @@ export class AddExpense implements OnInit {
     private readonly expensesService: ExpensesService,
     private readonly accounting: AccountingService,
     private readonly admission: AdmissionService,
-    private readonly i18n: I18nService
+    private readonly i18n: I18nService,
+    private readonly feedback: FeedbackService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -146,7 +148,12 @@ export class AddExpense implements OnInit {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    this.invoiceDocument = await this.admission.fileToDocument(file, 'Purchase Invoice');
+    try {
+      this.invoiceDocument = await this.admission.fileToDocument(file, 'Purchase Invoice');
+      this.feedback.success(`${file.name} uploaded successfully.`);
+    } catch (error) {
+      this.feedback.error('Upload failed.', safeErrorMessage(error));
+    }
   }
 
   clearInvoiceDocument(): void {
@@ -156,26 +163,38 @@ export class AddExpense implements OnInit {
   }
 
   async saveSupplier(): Promise<void> {
-    if (!this.newSupplier.name.trim()) return;
-    const supplier = await this.accounting.createSupplier({
-      name: this.newSupplier.name.trim(),
-      vatNumber: this.newSupplier.vatNumber,
-      commercialRegistration: this.newSupplier.commercialRegistration,
-      phone: this.newSupplier.phone,
-      email: this.newSupplier.email,
-      address: this.newSupplier.address,
-      contactPerson: this.newSupplier.contactPerson,
-      openingBalance: this.newSupplier.openingBalance
-    });
-    await this.loadMasterData();
-    this.selectSupplier(supplier.id);
-    this.supplierSearch = supplier.nameEn;
-    this.showSupplierModal = false;
-    this.newSupplier = { name: '', vatNumber: '', commercialRegistration: '', phone: '', email: '', address: '', contactPerson: '', openingBalance: 0 };
+    if (!this.newSupplier.name.trim()) {
+      this.feedback.validation('Supplier name is required.');
+      return;
+    }
+    try {
+      const supplier = await this.accounting.createSupplier({
+        name: this.newSupplier.name.trim(),
+        vatNumber: this.newSupplier.vatNumber,
+        commercialRegistration: this.newSupplier.commercialRegistration,
+        phone: this.newSupplier.phone,
+        email: this.newSupplier.email,
+        address: this.newSupplier.address,
+        contactPerson: this.newSupplier.contactPerson,
+        openingBalance: this.newSupplier.openingBalance
+      });
+      await this.loadMasterData();
+      this.selectSupplier(supplier.id);
+      this.supplierSearch = supplier.nameEn;
+      this.showSupplierModal = false;
+      this.newSupplier = { name: '', vatNumber: '', commercialRegistration: '', phone: '', email: '', address: '', contactPerson: '', openingBalance: 0 };
+      this.feedback.success(`Supplier ${supplier.nameEn || supplier.nameAr || this.supplierSearch} created successfully.`);
+    } catch (error) {
+      this.feedback.error('Supplier could not be created.', safeErrorMessage(error));
+    }
   }
 
   async saveExpense(): Promise<void> {
     if (this.saving) return;
+    if (!this.expense.expenseAccountId || !this.expense.description.trim() || this.totalAmount <= 0) {
+      this.feedback.validation('Expense account, description, and amount are required.');
+      return;
+    }
     this.saving = true;
     try {
       await this.expensesService.addExpense({
@@ -199,9 +218,10 @@ export class AddExpense implements OnInit {
         attachmentUrl: this.invoiceDocument?.uploadUrl,
         notes: this.expense.notes
       }).toPromise();
+      this.feedback.success('Expense saved and accounting journal created successfully.');
       this.router.navigate(['/finance/expenses']);
-    } catch {
-      alert(this.i18n.t('expense.save_error'));
+    } catch (error) {
+      this.feedback.error(this.i18n.t('expense.save_error'), safeErrorMessage(error));
       this.saving = false;
     }
   }

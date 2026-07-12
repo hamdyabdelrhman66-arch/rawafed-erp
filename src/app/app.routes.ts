@@ -1,10 +1,11 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { unsavedChangesGuard } from './core/feedback/unsaved-changes.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', loadComponent: () => import('./pages/login/login.component').then((m) => m.LoginComponent) },
-  { path: 'register', loadComponent: () => import('./pages/registration/registration.component').then((m) => m.RegistrationComponent) },
+  { path: 'register', canDeactivate: [unsavedChangesGuard], loadComponent: () => import('./pages/registration/registration.component').then((m) => m.RegistrationComponent) },
   {
     path: 'scan-registration',
     canActivate: [authGuard],

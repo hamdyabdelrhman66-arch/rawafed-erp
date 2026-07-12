@@ -12,11 +12,13 @@ import { FinanceStorageService } from './core/finance/finance-storage.service';
 import { I18nService } from './core/i18n/i18n.service';
 import { TranslatePipe } from './core/i18n/translate.pipe';
 import { StorageService } from './core/services/storage.service';
+import { ConfirmDialogComponent } from './core/feedback/confirm-dialog.component';
+import { ToastHostComponent } from './core/feedback/toast-host.component';
 
 @Component({
   selector: 'raw-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, MatIconModule, MatBadgeModule, MatSlideToggleModule, TranslatePipe],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, MatIconModule, MatBadgeModule, MatSlideToggleModule, TranslatePipe, ToastHostComponent, ConfirmDialogComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']})
 export class AppComponent {

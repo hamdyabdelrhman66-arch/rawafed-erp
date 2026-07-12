@@ -8,6 +8,7 @@ import { I18nService } from '../../../core/i18n/i18n.service';
 import { StatusLabelPipe } from '../../../core/i18n/status-label.pipe';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { SearchableSelectComponent } from '../../../shared/components/searchable-select/searchable-select.component';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 type AccountingTab = 'overview' | 'accounts' | 'journal' | 'ledger' | 'trial';
 type AccountFormMode = 'details' | 'create' | 'edit';
@@ -91,7 +92,8 @@ export class AccountingErp implements OnInit {
     private readonly accounting: AccountingService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    public readonly i18n: I18nService
+    public readonly i18n: I18nService,
+    private readonly feedback: FeedbackService
   ) {}
 
   ngOnInit(): void {
@@ -262,7 +264,7 @@ export class AccountingErp implements OnInit {
       this.selectedAccountId ||= accounts.find((account) => account.systemKey === 'main-cashbox')?.id || accounts[0]?.id || '';
       await this.loadLedger();
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Could not load accounting data.';
+      this.error = safeErrorMessage(error) || 'Could not load accounting data.';
     } finally {
       this.loading = false;
     }
@@ -362,8 +364,10 @@ export class AccountingErp implements OnInit {
       this.selectedAccount = this.findAccount(saved.id) || saved;
       this.accountModalMode = 'details';
       await this.openAccountDetails(this.selectedAccount);
+      this.feedback.success(`${this.accountDisplayName(this.selectedAccount)} saved successfully.`);
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Could not save account.';
+      this.error = safeErrorMessage(error);
+      this.feedback.error('Account could not be saved.', this.error);
     }
   }
 
@@ -437,7 +441,7 @@ export class AccountingErp implements OnInit {
     try {
       this.trialBalance = await this.loadTrialBalance();
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Could not load trial balance.';
+      this.error = safeErrorMessage(error) || 'Could not load trial balance.';
     } finally {
       this.loading = false;
     }
@@ -492,6 +496,11 @@ export class AccountingErp implements OnInit {
 
   async saveJournal(): Promise<void> {
     this.error = '';
+    if (Math.abs(this.debitTotal - this.creditTotal) > 0.01) {
+      this.error = 'Debit and credit totals must be equal.';
+      this.feedback.validation(this.error);
+      return;
+    }
     const payload = {
       ...this.draftEntry,
       lines: this.draftEntry.lines.map((line) => ({
@@ -502,13 +511,16 @@ export class AccountingErp implements OnInit {
       }))
     };
     try {
+      const isEdit = Boolean(this.editingJournalId);
       if (this.editingJournalId) await this.accounting.updateJournalEntry(this.editingJournalId, payload);
       else await this.accounting.createJournalEntry(payload);
       this.resetJournalForm();
       await this.load();
       this.setActiveTab('journal');
+      this.feedback.success(isEdit ? 'Journal entry updated successfully.' : 'Journal entry posted successfully.');
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Could not save journal entry.';
+      this.error = safeErrorMessage(error);
+      this.feedback.error('Journal entry could not be saved.', this.error);
     }
   }
 
@@ -536,17 +548,26 @@ export class AccountingErp implements OnInit {
   async deleteJournal(entry: JournalEntry): Promise<void> {
     if (entry.sourceType || entry.sourceId) {
       this.error = 'Only manual journal entries can be deleted from here.';
+      this.feedback.warning(this.error);
       return;
     }
-    if (!confirm(`Delete journal entry ${entry.entryNumber}?`)) return;
+    const confirmed = await this.feedback.confirm({
+      title: 'Delete Journal Entry?',
+      message: `Journal ${entry.entryNumber} will be deleted. This action cannot be undone.`,
+      confirmText: 'Delete Journal',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
     this.error = '';
     try {
       await this.accounting.deleteJournalEntry(entry.id);
       if (this.editingJournalId === entry.id) this.resetJournalForm();
       await this.load();
       this.setActiveTab('journal');
+      this.feedback.success(`Journal ${entry.entryNumber} deleted successfully.`);
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Could not delete journal entry.';
+      this.error = safeErrorMessage(error);
+      this.feedback.error('Journal entry could not be deleted.', this.error);
     }
   }
 
@@ -592,9 +613,11 @@ export class AccountingErp implements OnInit {
     link.download = `trial-balance-${this.fromDate}-to-${this.toDate}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    this.feedback.success('Trial balance exported successfully.');
   }
 
   exportTrialPdf(): void {
+    this.feedback.info('Preparing report...', 'The print dialog will open with the current filters.');
     window.print();
   }
 }

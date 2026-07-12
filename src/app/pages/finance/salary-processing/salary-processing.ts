@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { StaffService } from '../../../core/finance/staff.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector:'app-salary-processing',
@@ -23,9 +24,11 @@ export class SalaryProcessing implements OnInit {
   paymentDate = new Date().toISOString().slice(0, 10);
   message = '';
   isProcessing = false;
+  progressSteps: string[] = [];
 
   constructor(
-    private staffService: StaffService
+    private staffService: StaffService,
+    private feedback: FeedbackService
   ) {}
 
   ngOnInit(){
@@ -77,9 +80,28 @@ export class SalaryProcessing implements OnInit {
     return this.gross(employee) - this.deductions(employee);
   }
 
-  processSalaries(){
+  async processSalaries(): Promise<void> {
+    if (this.isProcessing) return;
+    if (!this.employees.length) {
+      this.feedback.validation('Add staff first before processing salaries.');
+      return;
+    }
+    const incomplete = this.employees.filter((employee) => !employee.name || Number(employee.basicSalary || 0) <= 0);
+    if (incomplete.length) {
+      this.feedback.error('Payroll could not be processed.', `${incomplete.length} employees have incomplete salary data.`);
+      return;
+    }
+    const confirmed = await this.feedback.confirm({
+      title: 'Post Payroll Run?',
+      message: `Payroll for ${this.period} will be posted and a salary journal will be created.`,
+      confirmText: 'Post Payroll',
+      tone: 'primary'
+    });
+    if (!confirmed) return;
+
     this.message = '';
     this.isProcessing = true;
+    this.progressSteps = ['Validating employees', 'Calculating salary', 'Creating payroll run', 'Creating journal'];
     this.staffService.createPayrollRun({
       period: this.period,
       paymentDate: this.paymentDate,
@@ -105,10 +127,14 @@ export class SalaryProcessing implements OnInit {
       next: (run) => {
         this.payrollRuns = [run, ...this.payrollRuns];
         this.message = `Payroll posted successfully. Journal: ${run.journalEntryNo}`;
+        this.progressSteps = ['Completed'];
+        this.feedback.success(`Payroll for ${this.period} processed successfully.`, `Journal ${run.journalEntryNo} was created.`);
         this.isProcessing = false;
       },
       error: (error) => {
-        this.message = error?.error?.message || 'Could not process payroll.';
+        this.message = safeErrorMessage(error);
+        this.progressSteps = [];
+        this.feedback.error('Payroll could not be processed.', this.message);
         this.isProcessing = false;
       }
     });

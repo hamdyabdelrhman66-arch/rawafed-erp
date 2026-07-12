@@ -1,4 +1,6 @@
 <router-outlet *ngIf="shellHidden()" />
+<app-toast-host />
+<app-confirm-dialog />
 
 <div class="app-shell" [class.dark-mode]="darkMode()" [class.sidebar-collapsed]="sidebarCollapsed()" *ngIf="!shellHidden()">
   <aside class="sidebar">
