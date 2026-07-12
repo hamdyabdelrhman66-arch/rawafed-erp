@@ -184,6 +184,52 @@ app.post('/api/auth/logout', requireAuth, (req: AuthRequest, res) => {
   res.status(204).send();
 });
 
+app.post('/api/public/uploads', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ message: 'No file uploaded.' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const record = {
+    id: randomUUID(),
+    originalName: req.file.originalname,
+    fileName: req.file.filename,
+    mimeType: req.file.mimetype,
+    size: req.file.size,
+    url: `${baseUrl}/uploads/${encodeURIComponent(req.file.filename)}`,
+    label: req.body.label ? String(req.body.label) : undefined,
+    ownerId: req.body.ownerId ? String(req.body.ownerId) : undefined,
+    uploadedBy: 'public-registration',
+    createdAt: now
+  };
+
+  updateDb((db) => db.uploads.unshift(record));
+  logAudit({ action: 'public upload document', entityType: 'upload', entityId: record.id, details: { label: record.label, mimeType: record.mimeType } });
+  res.status(201).json(record);
+});
+
+app.post('/api/public/registrations', (req, res) => {
+  const body = registrationSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({
+      message: 'Invalid registration payload.',
+      fieldErrors: body.error.flatten().fieldErrors
+    });
+    return;
+  }
+
+  const submitted = persistRegistration(body.data);
+  logAudit({
+    action: 'public create registration',
+    entityType: 'registration',
+    entityId: submitted.id,
+    details: { registrationNumber: submitted.registrationNumber, success: true }
+  });
+  res.status(201).json(submitted);
+});
+
 const roleSchema = z.enum(['Super Admin', 'Admissions', 'Finance', 'Principal', 'Registrar', 'Finance Manager', 'Chief Accountant', 'Accountant', 'Auditor']);
 const coaReadRoles = ['Finance', 'Finance Manager', 'Chief Accountant', 'Accountant', 'Auditor'] as const;
 const coaWriteRoles = ['Finance', 'Finance Manager', 'Chief Accountant'] as const;
@@ -387,31 +433,7 @@ app.post('/api/registrations', requireAuth, requireRole(['Admissions', 'Registra
     return;
   }
 
-  const now = new Date().toISOString();
-  const submitted = {
-    ...body.data,
-    id: body.data.id || randomUUID(),
-    registrationNumber: body.data.registrationNumber || nextRegistrationNumber(),
-    status: body.data.status || 'pending',
-    submittedAt: body.data.submittedAt || now,
-    createdAt: body.data.createdAt || now,
-    updatedAt: now
-  };
-
-  updateDb((db) => {
-    db.registrations = [submitted, ...db.registrations.filter((item) => item.id !== submitted.id)];
-    db.notifications.unshift({
-      id: randomUUID(),
-      message: `New application waiting approval: ${submitted.student?.englishName || submitted.registrationNumber}`,
-      targetRoles: ['Admissions', 'Registrar', 'Principal', 'Super Admin'],
-      category: 'registration',
-      createdAt: now,
-      readBy: [],
-      link: '/applications',
-      sourceId: `registration-approval:${submitted.id}`
-    });
-    ensureFinanceAccount(db, submitted);
-  });
+  const submitted = persistRegistration(body.data);
   logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'create registration', entityType: 'registration', entityId: submitted.id });
 
   res.status(201).json(submitted);
@@ -2077,4 +2099,34 @@ function nextRegistrationNumber(): string {
     .filter((value) => Number.isFinite(value))
     .reduce((max, value) => Math.max(max, value), 124);
   return `${prefix}${String(highest + 1).padStart(6, '0')}`;
+}
+
+function persistRegistration(registration: z.infer<typeof registrationSchema>): any {
+  const now = new Date().toISOString();
+  const submitted = {
+    ...registration,
+    id: registration.id || randomUUID(),
+    registrationNumber: registration.registrationNumber || nextRegistrationNumber(),
+    status: registration.status || 'pending',
+    submittedAt: registration.submittedAt || now,
+    createdAt: registration.createdAt || now,
+    updatedAt: now
+  };
+
+  updateDb((db) => {
+    db.registrations = [submitted, ...db.registrations.filter((item) => item.id !== submitted.id)];
+    db.notifications.unshift({
+      id: randomUUID(),
+      message: `New application waiting approval: ${submitted.student?.englishName || submitted.registrationNumber}`,
+      targetRoles: ['Admissions', 'Registrar', 'Principal', 'Super Admin'],
+      category: 'registration',
+      createdAt: now,
+      readBy: [],
+      link: '/applications',
+      sourceId: `registration-approval:${submitted.id}`
+    });
+    ensureFinanceAccount(db, submitted);
+  });
+
+  return submitted;
 }

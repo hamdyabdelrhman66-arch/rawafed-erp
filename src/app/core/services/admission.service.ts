@@ -250,7 +250,7 @@ export class AdmissionService {
       const form = new FormData();
       form.append('file', file);
       form.append('label', label);
-      upload = await this.api.postForm<BackendUpload>('/uploads', form);
+      upload = await this.api.postForm<BackendUpload>('/public/uploads', form);
     } catch {
       upload = undefined;
     }
