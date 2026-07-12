@@ -1,12 +1,15 @@
 services:
   - type: web
     name: rawafed-erp-backend
+    repo: https://github.com/hamdyabdelrhman66-arch/rawafed-erp.git
+    branch: main
+    autoDeployTrigger: commit
     runtime: node
     plan: free
     rootDir: backend
     buildCommand: npm ci && npm run db:generate && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/health
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/ready
     envVars:
       - key: NODE_VERSION
         value: "22"
