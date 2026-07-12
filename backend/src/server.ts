@@ -56,6 +56,14 @@ const loginLimiter = rateLimit({
   legacyHeaders: false
 });
 
+const publicRegistrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 25,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many registration submissions. Please try again later.' }
+});
+
 app.use(helmet({
   crossOriginResourcePolicy: false
 }));
@@ -416,8 +424,8 @@ const submitRegistration = (req: AuthRequest, res: express.Response) => {
   res.status(201).json(submitted);
 };
 
-app.post('/api/registrations', submitRegistration);
-app.post('/api/public/registrations', submitRegistration);
+app.post('/api/registrations', publicRegistrationLimiter, submitRegistration);
+app.post('/api/public/registrations', publicRegistrationLimiter, submitRegistration);
 
 app.patch('/api/registrations/:id/status', requireAuth, requireRole(['Admissions', 'Registrar', 'Principal']), (req, res) => {
   const status = z.enum(['draft', 'pending', 'approved', 'rejected', 'archived']).safeParse(req.body.status);
