@@ -13,6 +13,7 @@ import { StaffService } from '../../../core/finance/staff.service';
 export class Payroll implements OnInit {
 
   employees:any[] = [];
+  payrollRuns:any[] = [];
 
   totalEmployees = 0;
   monthlySalaries = 0;
@@ -46,6 +47,10 @@ export class Payroll implements OnInit {
 
     this.calculateStats();
     });
+    this.staffService.getPayrollRuns().subscribe((runs) => {
+      this.payrollRuns = runs;
+      this.calculateStats();
+    });
 
   }
 
@@ -61,20 +66,15 @@ export class Payroll implements OnInit {
       );
 
     this.paidSalaries =
-      this.employees
-      .filter(emp => emp.status === 'Paid')
+      this.payrollRuns
+      .filter(run => run.status === 'Paid' || run.status === 'Posted')
       .reduce(
-        (sum, emp) => sum + Number(emp.net),
+        (sum, run) => sum + Number(run.netTotal || 0),
         0
       );
 
     this.pendingSalaries =
-      this.employees
-      .filter(emp => emp.status === 'Pending')
-      .reduce(
-        (sum, emp) => sum + Number(emp.net),
-        0
-      );
+      Math.max(0, this.monthlySalaries - this.paidSalaries);
 
   }
 

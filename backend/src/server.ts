@@ -1433,11 +1433,35 @@ app.get('/api/finance/invoices', requireAuth, requireRole(['Finance']), (_req, r
 
 app.get('/api/finance/expenses', requireAuth, requireRole(['Finance']), (_req, res) => {
   const erpExpenses = listAccountingExpenses();
+  const payrollExpenses = (((readDb().settings as any).payrollRuns || []) as any[]).map((run) => ({
+    id: `payroll-${run.id}`,
+    expenseNo: `PAY-${run.period}`,
+    date: run.paymentDate,
+    expenseDate: run.paymentDate,
+    supplierName: 'Payroll',
+    category: 'Salaries Expense',
+    invoiceType: 'Payroll',
+    description: `Payroll run ${run.period}`,
+    amountBeforeVat: Number(run.grossTotal || 0) + Number(run.employerGosiTotal || 0),
+    vatRate: 0,
+    vatAmount: 0,
+    totalAmount: Number(run.grossTotal || 0) + Number(run.employerGosiTotal || 0),
+    amount: Number(run.grossTotal || 0) + Number(run.employerGosiTotal || 0),
+    paymentStatus: run.status === 'Paid' || run.status === 'Posted' ? 'Paid' : 'Unpaid',
+    status: run.status,
+    paymentMethod: 'Payroll',
+    paymentFrom: 'Salaries Payable',
+    journalEntryId: run.journalEntryId,
+    journalEntryNo: run.journalEntryNo,
+    notes: `System payroll expense for ${run.period}`,
+    sourceType: 'payroll_run',
+    sourceId: run.id
+  }));
   if (erpExpenses.length) {
-    res.json(erpExpenses);
+    res.json([...payrollExpenses, ...erpExpenses]);
     return;
   }
-  res.json(readDb().financeExpenses);
+  res.json([...payrollExpenses, ...readDb().financeExpenses]);
 });
 
 app.post('/api/finance/invoices', requireAuth, requireRole(['Finance']), (req, res) => {
