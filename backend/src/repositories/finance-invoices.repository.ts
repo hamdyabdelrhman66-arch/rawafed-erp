@@ -74,7 +74,10 @@ export class FinanceInvoicesRepository {
       },
     });
   }
-  updateStatus(id: string, status: "ISSUED" | "PARTIALLY_PAID" | "PAID") {
+  updateStatus(
+    id: string,
+    status: "ISSUED" | "PARTIALLY_PAID" | "PAID" | "VOID",
+  ) {
     return this.db.financeInvoice.update({ where: { id }, data: { status } });
   }
 }

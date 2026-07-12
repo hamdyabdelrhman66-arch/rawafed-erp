@@ -7,6 +7,27 @@ import { VatService } from "./vat.service.js";
 export class ReconciliationService {
   constructor(private readonly prisma: PrismaClient) {}
   async report() {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.buildReport();
+      } catch (error: any) {
+        lastError = error;
+        const transient =
+          ["P1001", "P1002", "P2024"].includes(String(error?.code || "")) ||
+          /can't reach database|connection|timed out/i.test(
+            String(error?.message || ""),
+          );
+        if (!transient || attempt === 2) throw error;
+        await new Promise((resolve) =>
+          setTimeout(resolve, 300 * (attempt + 1)),
+        );
+        await this.prisma.$connect().catch(() => undefined);
+      }
+    }
+    throw lastError;
+  }
+  private async buildReport() {
     const journals = new JournalsRepository(this.prisma),
       ledger = new LedgerRepository(this.prisma),
       statements = new FinancialStatementsService(this.prisma);

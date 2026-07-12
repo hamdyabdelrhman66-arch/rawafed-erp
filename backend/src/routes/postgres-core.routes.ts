@@ -158,5 +158,23 @@ export function postgresCoreRoutes(
     validate(validators.payment),
     c.createPayment,
   );
+  r.post(
+    "/api/finance/payments/:id/refund",
+    ...secured,
+    requireRole(["Finance"]),
+    c.refundPayment,
+  );
+  r.post(
+    "/api/finance/payments/:id/cancel",
+    ...secured,
+    requireRole(["Finance"]),
+    c.cancelPayment,
+  );
+  r.post(
+    "/api/finance/invoices/:id/cancel",
+    ...secured,
+    requireRole(["Finance"]),
+    c.cancelInvoice,
+  );
   return r;
 }

@@ -89,8 +89,18 @@ export function requireAuth(
       token,
       jwtSecret,
       tokenOptions,
-    ) as AuthRequest["user"];
-    req.user = decoded;
+    ) as {
+      sub: string;
+      username: string;
+      displayName: string;
+      role: UserRole;
+    };
+    req.user = {
+      id: decoded.sub,
+      username: decoded.username,
+      displayName: decoded.displayName,
+      role: decoded.role,
+    };
     next();
   } catch {
     res.status(401).json({ message: "Invalid or expired token." });

@@ -1,14 +1,42 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '../src/prisma/client.js';
 import { FinanceService } from '../src/services/finance.service.js';
 
 class RollbackFixture extends Error {}
 
 describe('school fee accounting behavior', () => {
-  it('recognizes revenue and VAT once and clears AR after full payment', async () => {
-    const observed: Record<string, number> = {};
+  const observed: Record<string, number> = {};
+  const expected = {
+    cash: 29325,
+    receivable: 0,
+    revenue: 25500,
+    vat: 3825,
+    balanced: 1,
+    postedCount: 3,
+    activeInvoiceRejected: 1,
+    cancelPaymentCash: 10000,
+    cancelPaymentReceivable: 19325,
+    cancelPaymentRevenue: 25500,
+    cancelPaymentVat: 3825,
+    cancelPaymentJournals: 1,
+    invoiceAfterPaymentCancellation: 1,
+    refundCash: 0,
+    refundReceivable: 29325,
+    refundRevenue: 25500,
+    refundVat: 3825,
+    refundJournals: 1,
+    invoiceAfterRefund: 1,
+    cancelCash: 0,
+    cancelReceivable: 0,
+    cancelRevenue: 0,
+    cancelVat: 0,
+    invoiceVoid: 1,
+    invoiceVoidJournals: 1,
+  };
+
+  beforeAll(async () => {
 
     await expect(
       prisma.$transaction(
@@ -117,12 +145,22 @@ describe('school fee accounting behavior', () => {
             },
             {},
           );
-          await finance.createPayment(
+          const firstPayment = await finance.createPayment(
             {
               accountId: account.id,
               invoiceId: invoice.id,
-              receiptNumber: `REC-TEST-${suffix}`,
-              amount: 29325,
+              receiptNumber: `REC-TEST-${suffix}-A`,
+              amount: 10000,
+              method: 'Cash',
+            },
+            {},
+          );
+          const paymentResult = await finance.createPayment(
+            {
+              accountId: account.id,
+              invoiceId: invoice.id,
+              receiptNumber: `REC-TEST-${suffix}-B`,
+              amount: 19325,
               method: 'Cash',
             },
             {},
@@ -164,19 +202,106 @@ describe('school fee accounting behavior', () => {
             ? 1
             : 0;
           observed.postedCount = posted.length;
+          observed.activeInvoiceRejected = await finance
+            .cancelInvoice(invoice.id, {})
+            .then(() => 0, () => 1);
+          const cancelledPaymentJournal = await tx.journalEntry.findFirstOrThrow({
+            where: { sourceType: 'finance_payment', sourceId: paymentResult.payment.id },
+          });
+
+          await finance.cancelPayment(paymentResult.payment.id, {});
+          await finance.cancelPayment(paymentResult.payment.id, {});
+          const afterPaymentCancellation = await tx.journalLine.groupBy({
+            by: ['accountId'],
+            where: {
+              accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
+              journalEntry: { status: 'POSTED', deletedAt: null },
+            },
+            _sum: { debit: true, credit: true },
+          });
+          const paymentCancellationBalance = (id: string, normal: 'debit' | 'credit') => {
+            const row = afterPaymentCancellation.find((item) => item.accountId === id);
+            const debit = Number(row?._sum.debit || 0);
+            const credit = Number(row?._sum.credit || 0);
+            return normal === 'debit' ? debit - credit : credit - debit;
+          };
+          observed.cancelPaymentCash = paymentCancellationBalance(cash.id, 'debit');
+          observed.cancelPaymentReceivable = paymentCancellationBalance(receivable.id, 'debit');
+          observed.cancelPaymentRevenue = paymentCancellationBalance(revenue.id, 'credit');
+          observed.cancelPaymentVat = paymentCancellationBalance(vatPayable.id, 'credit');
+          observed.cancelPaymentJournals = await tx.journalEntry.count({
+            where: { sourceType: 'finance_payment_void', sourceId: cancelledPaymentJournal.id },
+          });
+          observed.invoiceAfterPaymentCancellation =
+            (await tx.financeInvoice.findUnique({ where: { id: invoice.id } }))?.status === 'PARTIALLY_PAID' ? 1 : 0;
+
+          const originalPaymentJournal = await tx.journalEntry.findFirstOrThrow({
+            where: { sourceType: 'finance_payment', sourceId: firstPayment.payment.id },
+          });
+
+          await finance.refundPayment(firstPayment.payment.id, {});
+          await finance.refundPayment(firstPayment.payment.id, {});
+          const afterRefund = await tx.journalLine.groupBy({
+            by: ['accountId'],
+            where: {
+              accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
+              journalEntry: { status: 'POSTED', deletedAt: null },
+            },
+            _sum: { debit: true, credit: true },
+          });
+          const refundedBalance = (id: string, normal: 'debit' | 'credit') => {
+            const row = afterRefund.find((item) => item.accountId === id);
+            const debit = Number(row?._sum.debit || 0);
+            const credit = Number(row?._sum.credit || 0);
+            return normal === 'debit' ? debit - credit : credit - debit;
+          };
+          observed.refundCash = refundedBalance(cash.id, 'debit');
+          observed.refundReceivable = refundedBalance(receivable.id, 'debit');
+          observed.refundRevenue = refundedBalance(revenue.id, 'credit');
+          observed.refundVat = refundedBalance(vatPayable.id, 'credit');
+          observed.refundJournals = await tx.journalEntry.count({
+            where: { sourceType: 'finance_payment_refund', sourceId: originalPaymentJournal.id },
+          });
+          observed.invoiceAfterRefund =
+            (await tx.financeInvoice.findUnique({ where: { id: invoice.id } }))?.status === 'ISSUED' ? 1 : 0;
+
+          const originalInvoiceJournal = await tx.journalEntry.findFirstOrThrow({
+            where: { sourceType: 'finance_invoice', sourceId: invoice.id },
+          });
+          await finance.cancelInvoice(invoice.id, {});
+          await finance.cancelInvoice(invoice.id, {});
+          const afterCancellation = await tx.journalLine.groupBy({
+            by: ['accountId'],
+            where: {
+              accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
+              journalEntry: { status: 'POSTED', deletedAt: null },
+            },
+            _sum: { debit: true, credit: true },
+          });
+          const cancelledBalance = (id: string, normal: 'debit' | 'credit') => {
+            const row = afterCancellation.find((item) => item.accountId === id);
+            const debit = Number(row?._sum.debit || 0);
+            const credit = Number(row?._sum.credit || 0);
+            return normal === 'debit' ? debit - credit : credit - debit;
+          };
+          observed.cancelCash = cancelledBalance(cash.id, 'debit');
+          observed.cancelReceivable = cancelledBalance(receivable.id, 'debit');
+          observed.cancelRevenue = cancelledBalance(revenue.id, 'credit');
+          observed.cancelVat = cancelledBalance(vatPayable.id, 'credit');
+          observed.invoiceVoid =
+            (await tx.financeInvoice.findUnique({ where: { id: invoice.id } }))?.status === 'VOID' ? 1 : 0;
+          observed.invoiceVoidJournals = await tx.journalEntry.count({
+            where: { sourceType: 'finance_invoice_void', sourceId: originalInvoiceJournal.id },
+          });
           throw new RollbackFixture();
         },
-        { timeout: 30_000 },
+        { timeout: 120_000 },
       ),
     ).rejects.toBeInstanceOf(RollbackFixture);
 
-    expect(observed).toMatchObject({
-      cash: 29325,
-      receivable: 0,
-      revenue: 25500,
-      vat: 3825,
-      balanced: 1,
-      postedCount: 2,
-    });
-  }, 30_000);
+  }, 120_000);
+
+  it.each(Object.entries(expected))('%s matches the authoritative ledger', (key, value) => {
+    expect(observed[key]).toBe(value);
+  });
 });

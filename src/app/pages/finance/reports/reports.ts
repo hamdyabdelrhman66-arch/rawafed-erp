@@ -1,466 +1,263 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
-import { ExpensesService } from '../../../core/finance/expenses.service';
-import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
-import { PaymentsService } from '../../../core/finance/payments.service';
-import { StaffService } from '../../../core/finance/staff.service';
-import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
-import { StorageService } from '../../../core/services/storage.service';
-
-type ReportKind = 'finance-summary' | 'account-ledger' | 'payments' | 'expenses' | 'expense-by-category' | 'expense-by-supplier' | 'vat-input' | 'cash-expenses' | 'bank-expenses' | 'unpaid-expenses' | 'cost-center-expenses' | 'payroll' | 'outstanding' | 'admissions';
-
-interface AccountOption {
-  value: string;
-  label: string;
-  type: 'revenue' | 'expense';
-  match: string[];
-}
-
-interface ExpenseDetail {
-  supplierName?: string;
-  supplierTaxNumber?: string;
-  invoiceNumber?: string;
-  method?: string;
-}
-
-interface ReportRow {
-  date: string;
-  search: string;
-  values: Array<string | number>;
-  amount?: number;
-}
+import { CommonModule } from "@angular/common";
+import { Component, OnInit } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { ActivatedRoute, Router } from "@angular/router";
+import { AuthService } from "../../../core/auth/auth.service";
+import { I18nService } from "../../../core/i18n/i18n.service";
+import {
+  EnterpriseReportApiService,
+  EnterpriseReportResult,
+  ReportDefinition,
+} from "../../../core/reports/enterprise-report.service";
+import {
+  ReportExportService,
+  ReportTable,
+} from "../../../core/reports/report-export.service";
 
 @Component({
-  selector: 'app-reports',
+  selector: "app-reports",
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './reports.html',
-  styleUrls: ['./reports.css', '../../../shared/finance/finance-ui.scss']
+  templateUrl: "./reports.html",
+  styleUrls: ["./reports.css", "../../../shared/finance/finance-ui.scss"],
 })
 export class Reports implements OnInit {
-  reportKind: ReportKind = 'finance-summary';
-  selectedAccount = 'revenue-cash';
-  fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-  toDate = new Date().toISOString().slice(0, 10);
-  searchText = '';
-
-  payments: any[] = [];
-  expenses: any[] = [];
-  accounts: any[] = [];
-  payroll: any[] = [];
-
-  readonly reportOptions: Array<{ value: ReportKind; label: string }> = [
-    { value: 'finance-summary', label: 'Finance Summary' },
-    { value: 'account-ledger', label: 'Account Ledger / Trial Balance' },
-    { value: 'payments', label: 'Payments Report' },
-    { value: 'expenses', label: 'Expenses Report' },
-    { value: 'expense-by-category', label: 'Expense by Category' },
-    { value: 'expense-by-supplier', label: 'Expense by Supplier' },
-    { value: 'vat-input', label: 'VAT Input Report' },
-    { value: 'cash-expenses', label: 'Cash Expenses Report' },
-    { value: 'bank-expenses', label: 'Bank Expenses Report' },
-    { value: 'unpaid-expenses', label: 'Unpaid Expenses' },
-    { value: 'cost-center-expenses', label: 'Cost Center Expense Report' },
-    { value: 'payroll', label: 'Payroll Report' },
-    { value: 'outstanding', label: 'Outstanding Balances' },
-    { value: 'admissions', label: 'Admissions Finance Report' }
-  ];
-
-  readonly accountOptions: AccountOption[] = [
-    { value: 'revenue-cash', label: 'Cash Revenue', type: 'revenue', match: ['cash'] },
-    { value: 'revenue-bank', label: 'Bank / Card Revenue', type: 'revenue', match: ['bank transfer', 'card', 'bank', 'transfer'] },
-    { value: 'revenue-registration', label: 'Registration Fee Revenue', type: 'revenue', match: ['registration'] },
-    { value: 'revenue-tuition', label: 'Tuition Revenue', type: 'revenue', match: ['tuition', 'school fees'] },
-    { value: 'revenue-books', label: 'Books Revenue', type: 'revenue', match: ['book'] },
-    { value: 'revenue-bus', label: 'Bus Revenue', type: 'revenue', match: ['bus', 'transport'] },
-    { value: 'revenue-uniform', label: 'Uniform Revenue', type: 'revenue', match: ['uniform'] },
-    { value: 'revenue-activities', label: 'Activities Revenue', type: 'revenue', match: ['activit'] },
-    { value: 'expense-purchases', label: 'Purchases / Expenses', type: 'expense', match: ['purchase', 'tax purchase invoice', 'non-tax purchase', 'supplies', 'maintenance', 'other'] },
-    { value: 'expense-salaries', label: 'Salaries Expense', type: 'expense', match: ['salary', 'salaries', 'payroll'] },
-    { value: 'expense-rent', label: 'Rent Expense', type: 'expense', match: ['rent'] },
-    { value: 'expense-utilities', label: 'Utilities Expense', type: 'expense', match: ['utilities', 'electricity', 'water', 'internet'] },
-    { value: 'expense-marketing', label: 'Marketing Expense', type: 'expense', match: ['marketing'] }
-  ];
+  catalog: ReportDefinition[] = [];
+  selectedType = "finance";
+  result: EnterpriseReportResult | null = null;
+  templates: any[] = [];
+  selectedTemplateId = "";
+  templateName = "";
+  chartType = "bar";
+  groupBy = "";
+  sortBy = "";
+  loading = false;
+  error = "";
+  visibleColumns = new Set<string>();
+  filters: Record<string, string> = {
+    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .slice(0, 10),
+    to: new Date().toISOString().slice(0, 10),
+    academicYearId: "",
+    branchId: "",
+    grade: "",
+    studentId: "",
+    accountId: "",
+    costCenterId: "",
+    supplierId: "",
+    warehouseId: "",
+    itemId: "",
+    paymentMethod: "",
+    status: "",
+    quarter: "",
+    month: "",
+    year: "",
+  };
+  readonly filterLabels: Record<string, string> = {
+    from: "Date from",
+    to: "Date to",
+    academicYearId: "Academic year",
+    branchId: "Branch",
+    grade: "Grade",
+    studentId: "Student",
+    accountId: "Account",
+    costCenterId: "Cost center",
+    supplierId: "Supplier",
+    warehouseId: "Warehouse",
+    itemId: "Item",
+    paymentMethod: "Payment method",
+    status: "Status",
+    quarter: "Quarter",
+    month: "Month",
+    year: "Year",
+  };
 
   constructor(
-    private readonly paymentsService: PaymentsService,
-    private readonly expensesService: ExpensesService,
-    private readonly accountService: PatientPackagesService,
-    private readonly staffService: StaffService,
-    private readonly storage: StorageService,
+    private readonly reports: EnterpriseReportApiService,
     private readonly exporter: ReportExportService,
     private readonly route: ActivatedRoute,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly auth: AuthService,
+    public readonly i18n: I18nService,
   ) {}
-
-  ngOnInit(): void {
-    this.route.queryParamMap.subscribe((params) => {
-      const report = params.get('report') as ReportKind | null;
-      if (report && this.reportOptions.some((option) => option.value === report)) {
-        this.reportKind = report;
-      } else {
-        this.reportKind = 'finance-summary';
-      }
-    });
-
-    forkJoin({
-      payments: this.paymentsService.getPayments(),
-      expenses: this.expensesService.getExpenses(),
-      accounts: this.accountService.getPackages(),
-      payroll: this.staffService.getStaff()
-    }).subscribe(({ payments, expenses, accounts, payroll }) => {
-      this.payments = payments;
-      this.expenses = expenses;
-      this.accounts = accounts;
-      this.payroll = payroll;
-    });
+  async ngOnInit(): Promise<void> {
+    [this.catalog, this.templates] = await Promise.all([
+      this.reports.catalog(),
+      this.reports.templates(),
+    ]);
+    const requested = this.route.snapshot.queryParamMap.get("report");
+    if (requested && this.catalog.some((item) => item.id === requested))
+      this.selectedType = requested;
+    await this.run();
   }
-
-  setReportKind(kind: ReportKind): void {
-    this.reportKind = kind;
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: kind === 'finance-summary' ? {} : { report: kind },
-      queryParamsHandling: 'replace'
-    });
+  get definition(): ReportDefinition | undefined {
+    return this.catalog.find((item) => item.id === this.selectedType);
   }
-
-  get reportTitle(): string {
-    return this.reportOptions.find((item) => item.value === this.reportKind)?.label || 'Finance Report';
-  }
-
-  get reportSubtitle(): string {
-    const account = this.reportKind === 'account-ledger' ? ` - ${this.selectedAccountLabel}` : '';
-    return `${this.fromDate || 'Start'} to ${this.toDate || 'Today'}${account}`;
-  }
-
-  get selectedAccountLabel(): string {
-    return this.accountOptions.find((item) => item.value === this.selectedAccount)?.label || 'Account';
-  }
-
   get columns(): string[] {
-    return {
-      'finance-summary': ['Section', 'Count', 'Expected', 'Paid', 'Remaining'],
-      'account-ledger': ['Date', 'Account', 'Description', 'Source', 'Method', 'Debit', 'Credit', 'Balance'],
-      payments: ['Date', 'Student', 'Fee Item', 'Method', 'Receipt', 'Amount'],
-      expenses: ['Date', 'Supplier', 'Category', 'Invoice Type', 'Payment Status', 'Total', 'Journal'],
-      'expense-by-category': ['Category', 'Transactions', 'Amount Before VAT', 'VAT', 'Total'],
-      'expense-by-supplier': ['Supplier', 'Transactions', 'Amount Before VAT', 'VAT', 'Total'],
-      'vat-input': ['Date', 'Supplier', 'Invoice', 'Invoice Type', 'Amount Before VAT', 'Input VAT', 'Total'],
-      'cash-expenses': ['Date', 'Supplier', 'Category', 'Payment From', 'Total', 'Journal'],
-      'bank-expenses': ['Date', 'Supplier', 'Category', 'Payment From', 'Total', 'Journal'],
-      'unpaid-expenses': ['Date', 'Supplier', 'Category', 'Invoice', 'Total', 'Journal'],
-      'cost-center-expenses': ['Cost Center', 'Transactions', 'Amount Before VAT', 'VAT', 'Total'],
-      payroll: ['Staff', 'Position', 'Start Date', 'Salary', 'Status'],
-      outstanding: ['Student', 'Registration', 'Grade', 'Expected', 'Paid', 'Remaining', 'Status'],
-      admissions: ['Submitted', 'Student', 'Grade', 'Registration', 'Parent Phone', 'Expected', 'Payment Status']
-    }[this.reportKind];
+    return (this.result?.columns || []).filter((column) =>
+      this.visibleColumns.has(column),
+    );
   }
-
-  get rows(): ReportRow[] {
-    const rows = this.buildRows();
-    const query = this.searchText.trim().toLowerCase();
-    return rows.filter((row) => this.inDateRange(row.date) && (!query || row.search.includes(query)));
+  get rows(): Array<Array<string | number | boolean | null>> {
+    return (this.result?.rows || []).map((row) =>
+      this.columns.map((column) => row[column]),
+    );
   }
-
-  get tableRows(): Array<Array<string | number>> {
-    return this.rows.map((row) => row.values);
+  get summaryEntries(): Array<{ label: string; value: string | number }> {
+    return Object.entries(this.result?.summary || {}).map(([label, value]) => ({
+      label,
+      value,
+    }));
   }
-
-  get totalAmount(): number {
-    return this.rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  get maxChartValue(): number {
+    return Math.max(...(this.result?.chart.values || []).map(Math.abs), 1);
   }
-
-  get totalRevenue(): number {
-    return this.payments.filter((item) => this.inDateRange(item.date)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  get linePoints(): string {
+    const values = this.result?.chart.values || [];
+    if (!values.length) return "";
+    return values
+      .map((value, index) => {
+        const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+        const y = 96 - (Math.abs(value) / this.maxChartValue) * 88;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      })
+      .join(" ");
   }
-
-  get totalExpenses(): number {
-    return this.expenses.filter((item) => this.inDateRange(item.date)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  get areaPoints(): string {
+    return this.linePoints ? `0,100 ${this.linePoints} 100,100` : "";
   }
-
-  get expectedTotal(): number {
-    return this.accounts.reduce((sum, item) => sum + Number(item.total || 0), 0);
-  }
-
-  get paidTotal(): number {
-    return this.accounts.reduce((sum, item) => sum + Number(item.paid || 0), 0);
-  }
-
-  get remainingTotal(): number {
-    return this.accounts.reduce((sum, item) => sum + Number(item.remaining || 0), 0);
-  }
-
-  get admissionsInPeriod(): number {
-    return this.storage.registrations().filter((item) => this.inDateRange(item.submittedAt || item.createdAt)).length;
-  }
-
-  get unpaidAdmissions(): number {
-    return this.storage.registrations().filter((item) => Number(item.financial.grandTotal || 0) > 0 && item.financial.paymentStatus !== 'Paid').length;
-  }
-
-  async downloadPdf(): Promise<void> {
-    await this.exporter.downloadPdf(this.currentReport());
-  }
-
-  downloadExcel(): void {
-    this.exporter.downloadExcel(this.currentReport());
-  }
-
-  private currentReport(): ReportTable {
-    return {
-      title: this.reportTitle,
-      subtitle: this.reportSubtitle,
-      columns: this.columns,
-      rows: this.tableRows,
-      summary: [
-        { label: 'Rows', value: this.rows.length },
-        { label: 'Report Amount', value: this.money(this.totalAmount) },
-        { label: 'Collections', value: this.money(this.totalRevenue) },
-        { label: 'Expenses', value: this.money(this.totalExpenses) },
-        { label: 'Outstanding', value: this.money(this.remainingTotal) },
-        { label: 'Admissions', value: this.admissionsInPeriod }
-      ],
-      fileName: `rawafed-${this.reportKind}-${this.fromDate}-to-${this.toDate}`
-    };
-  }
-
-  private buildRows(): ReportRow[] {
-    if (this.reportKind === 'payments') return this.paymentRows();
-    if (this.reportKind === 'account-ledger') return this.accountLedgerRows();
-    if (this.reportKind === 'expenses') return this.expenseRows();
-    if (this.reportKind === 'expense-by-category') return this.groupExpenseRows('category');
-    if (this.reportKind === 'expense-by-supplier') return this.groupExpenseRows('supplierName');
-    if (this.reportKind === 'vat-input') return this.vatInputRows();
-    if (this.reportKind === 'cash-expenses') return this.filteredExpenseRows((expense) => String(expense.paymentFrom || expense.paymentMethod || '').toLowerCase().includes('cash'));
-    if (this.reportKind === 'bank-expenses') return this.filteredExpenseRows((expense) => /bank|rajhi|ahli|riyad|transfer|card|online/i.test(String(expense.paymentFrom || expense.paymentMethod || '')));
-    if (this.reportKind === 'unpaid-expenses') return this.filteredExpenseRows((expense) => expense.paymentStatus === 'Unpaid');
-    if (this.reportKind === 'cost-center-expenses') return this.groupExpenseRows('costCenter');
-    if (this.reportKind === 'payroll') return this.payrollRows();
-    if (this.reportKind === 'outstanding') return this.outstandingRows();
-    if (this.reportKind === 'admissions') return this.admissionRows();
-    return this.summaryRows();
-  }
-
-  private summaryRows(): ReportRow[] {
-    const financeAccounts = this.accounts.length;
-    return [
-      {
-        date: this.toDate,
-        search: 'student finance accounts expected paid remaining',
-        values: ['Student Finance Accounts', financeAccounts, this.money(this.expectedTotal), this.money(this.paidTotal), this.money(this.remainingTotal)],
-        amount: this.expectedTotal
-      },
-      {
-        date: this.toDate,
-        search: 'payments collections revenue',
-        values: ['Payments / Collections', this.payments.length, '-', this.money(this.totalRevenue), '-'],
-        amount: this.totalRevenue
-      },
-      {
-        date: this.toDate,
-        search: 'expenses',
-        values: ['Expenses', this.expenses.length, '-', this.money(this.totalExpenses), '-'],
-        amount: this.totalExpenses
-      },
-      {
-        date: this.toDate,
-        search: 'admissions registrations unpaid incomplete',
-        values: ['Admissions In Period', this.admissionsInPeriod, '-', '-', this.unpaidAdmissions],
-        amount: this.admissionsInPeriod
-      }
+  get pieGradient(): string {
+    const values = (this.result?.chart.values || []).map(Math.abs);
+    const total = values.reduce((sum, value) => sum + value, 0) || 1;
+    const colors = [
+      "#0b5ed7",
+      "#14b8a6",
+      "#f59e0b",
+      "#7c3aed",
+      "#ef4444",
+      "#0891b2",
+      "#84cc16",
+      "#f97316",
     ];
-  }
-
-  private paymentRows(): ReportRow[] {
-    return this.payments.map((item) => ({
-      date: item.date,
-      search: [item.patient, item.feeItem, item.package, item.method, item.receipt].join(' ').toLowerCase(),
-      values: [item.date, this.safeName(item.patient), item.feeItem || item.package, item.method, item.receipt, this.money(item.amount)],
-      amount: Number(item.amount || 0)
-    }));
-  }
-
-  private expenseRows(): ReportRow[] {
-    return this.expenses.map((item) => ({
-      date: item.date,
-      search: [item.supplierName, item.category, item.invoiceType, item.paymentStatus, item.journalEntryNo, item.notes].join(' ').toLowerCase(),
-      values: [item.date, item.supplierName || '-', item.category, item.invoiceType || '-', item.paymentStatus || item.status, this.money(item.totalAmount || item.amount), item.journalEntryNo || '-'],
-      amount: Number(item.totalAmount || item.amount || 0)
-    }));
-  }
-
-  private groupExpenseRows(key: 'category' | 'supplierName' | 'costCenter'): ReportRow[] {
-    const groups = new Map<string, any[]>();
-    this.expenses.forEach((expense) => {
-      const label = String(expense[key] || (key === 'costCenter' ? 'No Cost Center' : 'Unknown'));
-      groups.set(label, [...(groups.get(label) || []), expense]);
+    let cursor = 0;
+    const segments = values.map((value, index) => {
+      const start = cursor;
+      cursor += (value / total) * 100;
+      return `${colors[index % colors.length]} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
     });
-    return Array.from(groups.entries()).map(([label, rows]) => {
-      const beforeVat = rows.reduce((sum, expense) => sum + Number(expense.amountBeforeVat || expense.amount || 0), 0);
-      const vat = rows.reduce((sum, expense) => sum + Number(expense.vatAmount || 0), 0);
-      const total = rows.reduce((sum, expense) => sum + Number(expense.totalAmount || expense.amount || 0), 0);
-      return {
-        date: this.toDate,
-        search: [label, ...rows.map((row) => [row.supplierName, row.category, row.costCenter].join(' '))].join(' ').toLowerCase(),
-        values: [label, rows.length, this.money(beforeVat), this.money(vat), this.money(total)],
-        amount: total
-      };
-    });
+    return `conic-gradient(${segments.join(",")})`;
   }
-
-  private vatInputRows(): ReportRow[] {
-    return this.expenses.filter((expense) => Number(expense.vatAmount || 0) > 0).map((expense) => ({
-      date: expense.date,
-      search: [expense.supplierName, expense.supplierInvoiceNumber, expense.invoiceType, expense.category].join(' ').toLowerCase(),
-      values: [expense.date, expense.supplierName || '-', expense.supplierInvoiceNumber || '-', expense.invoiceType, this.money(expense.amountBeforeVat), this.money(expense.vatAmount), this.money(expense.totalAmount)],
-      amount: Number(expense.vatAmount || 0)
-    }));
+  chartPercent(index: number): number {
+    return (Math.abs(this.result?.chart.values[index] || 0) / this.maxChartValue) * 100;
   }
-
-  private filteredExpenseRows(predicate: (expense: any) => boolean): ReportRow[] {
-    return this.expenses.filter(predicate).map((expense) => ({
-      date: expense.date,
-      search: [expense.supplierName, expense.category, expense.paymentFrom, expense.paymentStatus, expense.journalEntryNo].join(' ').toLowerCase(),
-      values: [expense.date, expense.supplierName || '-', expense.category, expense.paymentFrom || expense.paymentMethod || '-', this.money(expense.totalAmount || expense.amount), expense.journalEntryNo || '-'],
-      amount: Number(expense.totalAmount || expense.amount || 0)
-    }));
+  chartColor(index: number): string {
+    return ["#0b5ed7", "#14b8a6", "#f59e0b", "#7c3aed", "#ef4444", "#0891b2"][index % 6];
   }
-
-  private accountLedgerRows(): ReportRow[] {
-    const account = this.accountOptions.find((item) => item.value === this.selectedAccount) || this.accountOptions[0];
-    const entries: Array<{ date: string; description: string; source: string; method: string; debit: number; credit: number; search: string }> = [];
-
-    if (account.type === 'revenue') {
-      this.payments
-        .filter((payment) => this.paymentMatchesAccount(payment, account))
-        .forEach((payment) => entries.push({
-          date: payment.date,
-          description: `${this.safeName(payment.patient)} - ${payment.feeItem || payment.package || 'Payment'}`,
-          source: payment.receipt || payment.registrationNumber || '-',
-          method: payment.method || '-',
-          debit: 0,
-          credit: Number(payment.amount || 0),
-          search: [account.label, payment.patient, payment.feeItem, payment.package, payment.method, payment.receipt, payment.registrationNumber].join(' ').toLowerCase()
-        }));
-    } else {
-      this.expenses
-        .filter((expense) => this.expenseMatchesAccount(expense, account))
-        .forEach((expense) => {
-          const detail = this.expenseDetail(expense);
-          entries.push({
-            date: expense.date,
-            description: this.expenseTitle(expense),
-            source: expense.supplierName || detail.supplierName || expense.category || '-',
-            method: expense.paymentFrom || expense.paymentMethod || detail.method || '-',
-            debit: Number(expense.totalAmount || expense.amount || 0),
-            credit: 0,
-            search: [account.label, expense.category, expense.title, expense.supplierName, detail.supplierName, detail.supplierTaxNumber, detail.invoiceNumber, expense.notes].join(' ').toLowerCase()
-          });
-        });
-    }
-
-    let balance = 0;
-    return entries
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((entry) => {
-        balance += entry.credit - entry.debit;
-        return {
-          date: entry.date,
-          search: entry.search,
-          values: [
-            entry.date,
-            account.label,
-            entry.description,
-            entry.source,
-            entry.method,
-            entry.debit ? this.money(entry.debit) : '-',
-            entry.credit ? this.money(entry.credit) : '-',
-            this.money(balance)
-          ],
-          amount: entry.credit - entry.debit
-        };
-      });
-  }
-
-  private payrollRows(): ReportRow[] {
-    return this.payroll.map((item) => ({
-      date: item.startDate || this.toDate,
-      search: [item.name, item.position, item.status].join(' ').toLowerCase(),
-      values: [this.safeName(item.name), item.position, item.startDate || '-', this.money(item.salary || item.net), item.status],
-      amount: Number(item.salary || item.net || 0)
-    }));
-  }
-
-  private outstandingRows(): ReportRow[] {
-    return this.accounts.filter((item) => Number(item.remaining || 0) > 0).map((item) => ({
-      date: item.startDate || this.toDate,
-      search: [item.patient, item.registrationNumber, item.grade, item.status].join(' ').toLowerCase(),
-      values: [this.safeName(item.patient), item.registrationNumber || '-', item.grade || '-', this.money(item.total), this.money(item.paid), this.money(item.remaining), item.status],
-      amount: Number(item.remaining || 0)
-    }));
-  }
-
-  private admissionRows(): ReportRow[] {
-    return this.storage.registrations().map((item) => ({
-      date: item.submittedAt || item.createdAt,
-      search: [item.student.englishName, item.student.arabicName, item.student.applyingGrade, item.registrationNumber, item.father.phone, item.mother.phone, item.financial.paymentStatus].join(' ').toLowerCase(),
-      values: [
-        (item.submittedAt || item.createdAt).slice(0, 10),
-        this.safeName(item.student.englishName || item.student.arabicName || '-'),
-        item.student.applyingGrade,
-        item.registrationNumber || '-',
-        item.father.phone || item.mother.phone || '-',
-        this.money(item.financial.grandTotal),
-        item.financial.paymentStatus
-      ],
-      amount: Number(item.financial.grandTotal || 0)
-    }));
-  }
-
-  private inDateRange(value: string): boolean {
-    if (!value) return true;
-    const date = value.slice(0, 10);
-    return (!this.fromDate || date >= this.fromDate) && (!this.toDate || date <= this.toDate);
-  }
-
-  private money(value: unknown): string {
-    return `${Number(value || 0).toLocaleString('en-US')} SAR`;
-  }
-
-  private paymentMatchesAccount(payment: any, account: AccountOption): boolean {
-    const method = String(payment.method || '').toLowerCase();
-    const item = [payment.feeItem, payment.package].join(' ').toLowerCase();
-    if (account.value === 'revenue-cash') return method === 'cash';
-    if (account.value === 'revenue-bank') return ['bank transfer', 'card'].some((value) => method.includes(value));
-    return account.match.some((value) => item.includes(value));
-  }
-
-  private expenseMatchesAccount(expense: any, account: AccountOption): boolean {
-    const detail = this.expenseDetail(expense);
-    const text = [expense.category, expense.title, detail.supplierName].join(' ').toLowerCase();
-    return account.match.some((value) => text.includes(value));
-  }
-
-  private expenseTitle(expense: any): string {
-    const detail = this.expenseDetail(expense);
-    return [expense.title || expense.description || 'Expense', detail.invoiceNumber ? `Invoice ${detail.invoiceNumber}` : ''].filter(Boolean).join(' - ');
-  }
-
-  private expenseDetail(expense: any): ExpenseDetail {
+  async run(): Promise<void> {
+    this.loading = true;
+    this.error = "";
     try {
-      const value = JSON.parse(expense.notes || '{}');
-      return typeof value === 'object' && value ? value : {};
-    } catch {
-      return {};
+      this.result = await this.reports.run(
+        this.selectedType,
+        Object.fromEntries(
+          Object.entries(this.filters).filter(([, value]) => value),
+        ),
+        {
+          groupBy: this.groupBy || undefined,
+          sortBy: this.sortBy || undefined,
+        },
+      );
+      this.visibleColumns = new Set(this.result.columns);
+      this.chartType = this.definition?.chartTypes[0] || "bar";
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { report: this.selectedType },
+        queryParamsHandling: "merge",
+        replaceUrl: true,
+      });
+    } catch (error: any) {
+      this.error =
+        error?.safeMessage ||
+        error?.message ||
+        "Report could not be generated.";
+    } finally {
+      this.loading = false;
     }
   }
-
-  private safeName(value: unknown): string {
-    const text = String(value || '-').trim();
-    return /[^\x20-\x7E]/.test(text) ? text.replace(/[^\x20-\x7E]/g, '?') : text;
+  toggleColumn(column: string): void {
+    this.visibleColumns.has(column)
+      ? this.visibleColumns.delete(column)
+      : this.visibleColumns.add(column);
+  }
+  async saveTemplate(): Promise<void> {
+    if (!this.templateName.trim()) return;
+    await this.reports.saveTemplate({
+      name: this.templateName.trim(),
+      reportType: this.selectedType,
+      filters: this.filters,
+      columns: [...this.visibleColumns],
+      groupBy: this.groupBy || undefined,
+      sortBy: this.sortBy || undefined,
+      chartType: this.chartType,
+    });
+    this.templates = await this.reports.templates();
+  }
+  async loadTemplate(): Promise<void> {
+    const template = this.templates.find(
+      (item) => item.id === this.selectedTemplateId,
+    );
+    if (!template) return;
+    this.selectedType = template.reportType;
+    this.filters = { ...this.filters, ...(template.filters || {}) };
+    this.groupBy = template.groupBy || "";
+    this.sortBy = template.sortBy || "";
+    this.chartType = template.chartType || "bar";
+    await this.run();
+    if (Array.isArray(template.columns) && template.columns.length)
+      this.visibleColumns = new Set(template.columns);
+  }
+  async deleteTemplate(): Promise<void> {
+    if (!this.selectedTemplateId) return;
+    await this.reports.deleteTemplate(this.selectedTemplateId);
+    this.templates = await this.reports.templates();
+    this.selectedTemplateId = "";
+  }
+  async downloadPdf(): Promise<void> {
+    if (this.result) await this.exporter.downloadPdf(this.exportModel());
+  }
+  async downloadExcel(): Promise<void> {
+    if (this.result) await this.exporter.downloadExcel(this.exportModel());
+  }
+  print(): void {
+    window.print();
+  }
+  format(value: unknown): string {
+    return typeof value === "number"
+      ? value.toLocaleString(
+          this.i18n.language() === "ar" ? "ar-SA" : "en-US",
+          { maximumFractionDigits: 2 },
+        )
+      : String(value ?? "-");
+  }
+  private exportModel(): ReportTable {
+    const def = this.result!.definition;
+    return {
+      title: def.titleEn,
+      titleAr: def.titleAr,
+      subtitle: `${this.filters["from"] || "Start"} - ${this.filters["to"] || "Today"}`,
+      description: def.category,
+      columns: this.columns,
+      rows: this.rows,
+      summary: this.summaryEntries,
+      fileName: `rawafed-${this.selectedType}-${this.filters["from"] || "all"}-${this.filters["to"] || "today"}`,
+      direction: this.i18n.direction(),
+      locale: this.i18n.language(),
+      generatedBy: this.auth.session()?.displayName,
+      academicYear: this.filters["academicYearId"],
+      branch: this.filters["branchId"],
+      chart: this.result!.chart,
+      comparison: this.result!.comparison,
+    };
   }
 }

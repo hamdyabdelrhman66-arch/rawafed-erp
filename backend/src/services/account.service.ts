@@ -64,11 +64,13 @@ export class AccountService {
     return new CostCentersRepository(this.prisma).list();
   }
   async create(input: any) {
+    const type = String(input.accountType).toUpperCase() as AccountType;
+    await this.assertValidParent("__new_account__", input.parentId || null, type);
     const row = await new AccountsRepository(this.prisma).create({
       code: input.code,
       name: input.nameEn,
       nameAr: input.nameAr,
-      type: String(input.accountType).toUpperCase(),
+      type,
       parentId: input.parentId || null,
       openingBalance: Number(input.openingBalance || 0),
       openingDate: input.openingDate ? new Date(input.openingDate) : null,

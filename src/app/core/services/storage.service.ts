@@ -313,7 +313,10 @@ export class StorageService {
   }
 
   private normalizeSettings(settings: SchoolSettings): SchoolSettings {
-    const fees = settings.fees as Record<string, number | undefined>;
+    const fees = (settings.fees || DEFAULT_SETTINGS.fees) as Record<
+      string,
+      number | undefined
+    >;
     const { transportation: oldTransportationFee, ...currentFees } = fees;
     const gradeFees = GRADE_LEVELS.reduce(
       (acc, grade) => {

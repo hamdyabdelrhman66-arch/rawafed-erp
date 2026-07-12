@@ -118,49 +118,84 @@ export class JournalService {
     return shape(entry);
   }
   async post(input: Posting, actor: Actor = {}) {
-    return this.prisma.$transaction(
-      (tx) => JournalService.postUsing(tx, input, actor),
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          (tx) => JournalService.postUsing(tx, input, actor),
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+            maxWait: 10_000,
+            timeout: 30_000,
+          },
+        );
+      } catch (error: any) {
+        lastError = error;
+        if (!["P2002", "P2034"].includes(String(error?.code || "")))
+          throw error;
+        await new Promise((resolve) =>
+          setTimeout(resolve, 75 * (attempt + 1)),
+        );
+        const existing = await new JournalsRepository(this.prisma).bySource(
+          input.sourceType,
+          input.sourceId,
+        );
+        if (existing) return shape(existing);
+      }
+    }
+    throw lastError;
   }
   async list(skip = 0, take = 100) {
     return (await new JournalsRepository(this.prisma).list({}, skip, take)).map(
       shape,
     );
   }
-  async reverse(id: string, actor: Actor = {}) {
-    return this.prisma.$transaction(async (tx) => {
-      const repo = new JournalsRepository(tx);
-      const original = await repo.find(id);
-      if (!original || original.status !== "POSTED")
-        throw new ServiceError("Posted journal entry not found.", 404);
-      if (original.reversal) {
-        const existing = await repo.find(original.reversal.id);
-        if (existing) return shape(existing);
-      }
-      const reversal = await JournalService.postUsing(
-        tx,
-        {
-          postingDate: new Date(),
-          description: `Reversal: ${original.description}`,
-          sourceType: "journal_reversal",
-          sourceId: original.id,
-          referenceNumber: original.entryNumber,
-          lines: original.lines.map((line) => ({
-            accountId: line.accountId,
-            costCenterId: line.costCenterId || undefined,
-            debit: Number(line.credit),
-            credit: Number(line.debit),
-            description: line.description || undefined,
-          })),
-        },
-        actor,
-      );
-      await tx.journalEntry.update({
-        where: { id: reversal.id },
-        data: { reversedFromId: original.id },
-      });
-      return reversal;
+  static async reverseUsing(
+    db: DatabaseClient,
+    id: string,
+    actor: Actor = {},
+    sourceType = "journal_reversal",
+  ) {
+    const repo = new JournalsRepository(db);
+    const original = await repo.find(id);
+    if (!original || original.status !== "POSTED")
+      throw new ServiceError("Posted journal entry not found.", 404);
+    if (original.reversal) {
+      const existing = await repo.find(original.reversal.id);
+      if (existing) return shape(existing);
+    }
+    const reversal = await JournalService.postUsing(
+      db,
+      {
+        postingDate: new Date(),
+        description: `Reversal: ${original.description}`,
+        sourceType,
+        sourceId: original.id,
+        referenceNumber: original.entryNumber,
+        lines: original.lines.map((line) => ({
+          accountId: line.accountId,
+          costCenterId: line.costCenterId || undefined,
+          debit: Number(line.credit),
+          credit: Number(line.debit),
+          description: line.description || undefined,
+        })),
+      },
+      actor,
+    );
+    await db.journalEntry.update({
+      where: { id: reversal.id },
+      data: { reversedFromId: original.id },
     });
+    return reversal;
+  }
+  async reverse(id: string, actor: Actor = {}) {
+    return this.prisma.$transaction(
+      (tx) => JournalService.reverseUsing(tx, id, actor),
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
+    );
   }
 }

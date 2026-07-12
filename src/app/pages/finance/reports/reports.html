@@ -1,105 +1,230 @@
-<div class="reports-page">
+<section class="reports-page" [attr.dir]="i18n.direction()">
   <header class="page-header">
     <div>
-      <span>Rawafed Reports</span>
-      <h1>{{ reportTitle }}</h1>
-      <p>Build finance and admissions reports by date range, search, then download Excel or branded PDF.</p>
+      <span>ERP REPORTING CENTER</span>
+      <h1>
+        {{ i18n.language() === 'ar' ? 'مركز التقارير المؤسسي' : 'Enterprise
+        Reporting Center' }}
+      </h1>
+      <p>
+        Authoritative PostgreSQL reports, comparisons, charts, templates, PDF
+        and Excel exports.
+      </p>
     </div>
-
     <div class="export-actions">
-      <button type="button" (click)="downloadExcel()">Download Excel</button>
-      <button type="button" class="primary" (click)="downloadPdf()">Download PDF</button>
+      <button (click)="downloadExcel()" [disabled]="!result">Excel</button
+      ><button (click)="downloadPdf()" [disabled]="!result">PDF</button
+      ><button (click)="print()">Print</button
+      ><button class="primary" (click)="run()" [disabled]="loading">
+        {{ loading ? 'Loading…' : 'Generate' }}
+      </button>
     </div>
   </header>
 
-  <section class="report-controls">
-    <label>
-      <span>Report Type</span>
-      <select [ngModel]="reportKind" (ngModelChange)="setReportKind($event)">
-        <option *ngFor="let option of reportOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
+  <div class="builder-grid">
+    <aside class="catalog">
+      <h2>25 Report Categories</h2>
+      <button
+        *ngFor="let item of catalog"
+        [class.active]="item.id === selectedType"
+        (click)="selectedType = item.id; run()"
+      >
+        <span>{{ item.titleEn }}</span><small>{{ item.titleAr }}</small>
+      </button>
+    </aside>
+    <main class="builder-main">
+      <section class="report-controls">
+        <label *ngFor="let key of definition?.filters || []"
+          ><span>{{ filterLabels[key] }}</span
+          ><select *ngIf="key === 'quarter'" [(ngModel)]="filters[key]">
+            <option value="">All</option>
+            <option value="Q1">Q1</option>
+            <option value="Q2">Q2</option>
+            <option value="Q3">Q3</option>
+            <option value="Q4">Q4</option></select
+          ><input
+            *ngIf="key !== 'quarter'"
+            [type]="key === 'from' || key === 'to' ? 'date' : key === 'month' ? 'month' : key === 'year' ? 'number' : 'text'"
+            [(ngModel)]="filters[key]"
+        /></label>
+        <label
+          ><span>Group by</span
+          ><select [(ngModel)]="groupBy">
+            <option value="">None</option>
+            <option
+              *ngFor="let column of result?.columns || []"
+              [value]="column"
+            >
+              {{ column }}
+            </option>
+          </select></label
+        >
+        <label
+          ><span>Sort by</span
+          ><select [(ngModel)]="sortBy">
+            <option value="">Default</option>
+            <option
+              *ngFor="let column of result?.columns || []"
+              [value]="column"
+            >
+              {{ column }}
+            </option>
+          </select></label
+        >
+        <label
+          ><span>Chart</span
+          ><select [(ngModel)]="chartType">
+            <option
+              *ngFor="let chart of definition?.chartTypes || []"
+              [value]="chart"
+            >
+              {{ chart }}
+            </option>
+          </select></label
+        >
+      </section>
 
-    <label *ngIf="reportKind === 'account-ledger'">
-      <span>Account</span>
-      <select [(ngModel)]="selectedAccount">
-        <option *ngFor="let account of accountOptions" [value]="account.value">{{ account.label }}</option>
-      </select>
-    </label>
+      <section class="template-bar">
+        <input placeholder="Template name" [(ngModel)]="templateName" /><button
+          (click)="saveTemplate()"
+        >
+          Save template</button
+        ><select [(ngModel)]="selectedTemplateId">
+          <option value="">Saved templates</option>
+          <option *ngFor="let template of templates" [value]="template.id">
+            {{ template.name }}
+          </option></select
+        ><button (click)="loadTemplate()">Load</button
+        ><button (click)="deleteTemplate()">Delete</button>
+      </section>
+      <p class="error" *ngIf="error">{{ error }}</p>
 
-    <label>
-      <span>From Date</span>
-      <input type="date" [(ngModel)]="fromDate" />
-    </label>
-
-    <label>
-      <span>To Date</span>
-      <input type="date" [(ngModel)]="toDate" />
-    </label>
-
-    <label>
-      <span>Search</span>
-      <input type="search" placeholder="Student, receipt, grade, status..." [(ngModel)]="searchText" />
-    </label>
-  </section>
-
-  <section class="stats-grid">
-    <article class="stat-card">
-      <h3>Rows</h3>
-      <h2>{{ rows.length }}</h2>
-    </article>
-
-    <article class="stat-card">
-      <h3>Report Amount</h3>
-      <h2>{{ totalAmount | number }} SAR</h2>
-    </article>
-
-    <article class="stat-card">
-      <h3>Collections</h3>
-      <h2>{{ totalRevenue | number }} SAR</h2>
-    </article>
-
-    <article class="stat-card">
-      <h3>Expenses</h3>
-      <h2>{{ totalExpenses | number }} SAR</h2>
-    </article>
-
-    <article class="stat-card">
-      <h3>Outstanding</h3>
-      <h2>{{ remainingTotal | number }} SAR</h2>
-    </article>
-
-    <article class="stat-card">
-      <h3>Admissions</h3>
-      <h2>{{ admissionsInPeriod }}</h2>
-    </article>
-  </section>
-
-  <section class="report-card">
-    <div class="table-title">
-      <div>
-        <h2>{{ reportTitle }}</h2>
-        <p>{{ reportSubtitle }}</p>
-      </div>
-      <strong>{{ rows.length }} records</strong>
-    </div>
-
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th *ngFor="let column of columns">{{ column }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let row of tableRows">
-            <td *ngFor="let cell of row">{{ cell }}</td>
-          </tr>
-          <tr *ngIf="!tableRows.length">
-            <td [attr.colspan]="columns.length" class="empty-cell">No records found for this filter.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-</div>
+      <section class="stats-grid" *ngIf="result">
+        <article class="stat-card" *ngFor="let item of summaryEntries">
+          <h3>{{ item.label }}</h3>
+          <strong>{{ format(item.value) }}</strong>
+        </article>
+      </section>
+      <section class="comparison" *ngIf="result?.comparison as comparison">
+        <article>
+          <span>Current</span><strong>{{ format(comparison.current) }}</strong>
+        </article>
+        <article>
+          <span>Previous</span
+          ><strong>{{ format(comparison.previous) }}</strong>
+        </article>
+        <article>
+          <span>Difference</span
+          ><strong [class.negative]="comparison.difference < 0"
+            >{{ format(comparison.difference) }}</strong
+          >
+        </article>
+        <article>
+          <span>Change</span
+          ><strong
+            >{{ comparison.percentageChange === null ? 'N/A' :
+            format(comparison.percentageChange) + '%' }}</strong
+          >
+        </article>
+      </section>
+      <section class="chart-card" *ngIf="result?.chart?.labels?.length">
+        <h2>{{ definition?.titleEn }} - {{ result?.chart?.valueKey }}</h2>
+        <div
+          *ngIf="chartType === 'pie' || chartType === 'donut'"
+          class="pie-chart"
+          [class.donut]="chartType === 'donut'"
+          [style.background]="pieGradient"
+          aria-label="Report distribution chart"
+        ></div>
+        <div
+          *ngIf="chartType === 'pie' || chartType === 'donut'"
+          class="chart-legend"
+        >
+          <span *ngFor="let label of result?.chart?.labels; let i = index"
+            ><i [style.background]="chartColor(i)"></i>{{ label }} · {{
+            format(result!.chart.values[i]) }}</span
+          >
+        </div>
+        <div
+          *ngIf="chartType === 'line' || chartType === 'area'"
+          class="line-chart"
+        >
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img">
+            <polygon
+              *ngIf="chartType === 'area'"
+              [attr.points]="areaPoints"
+            ></polygon>
+            <polyline [attr.points]="linePoints"></polyline>
+          </svg>
+          <div class="line-labels">
+            <span *ngFor="let label of result?.chart?.labels">{{ label }}</span>
+          </div>
+        </div>
+        <div
+          *ngIf="chartType !== 'pie' && chartType !== 'donut' && chartType !== 'line' && chartType !== 'area'"
+          class="bar-chart"
+          [class.horizontal]="chartType === 'horizontal-bar'"
+          [class.waterfall]="chartType === 'waterfall'"
+          [class.stacked]="chartType === 'stacked-bar'"
+        >
+          <div
+            class="bar-item"
+            *ngFor="let label of result?.chart?.labels; let i = index"
+          >
+            <div
+              class="bar"
+              [style.height.%]="chartType === 'horizontal-bar' ? null : chartPercent(i)"
+              [style.width.%]="chartType === 'horizontal-bar' ? chartPercent(i) : null"
+              [style.background]="chartColor(i)"
+            ></div>
+            <small>{{ label }}</small
+            ><b>{{ format(result!.chart.values[i]) }}</b>
+          </div>
+        </div>
+      </section>
+      <section class="column-picker" *ngIf="result">
+        <label *ngFor="let column of result.columns"
+          ><input
+            type="checkbox"
+            [checked]="visibleColumns.has(column)"
+            (change)="toggleColumn(column)"
+          />{{ column }}</label
+        >
+      </section>
+      <section class="report-card" *ngIf="result">
+        <div class="table-title">
+          <div>
+            <h2>
+              {{ i18n.language() === 'ar' ? result.definition.titleAr :
+              result.definition.titleEn }}
+            </h2>
+            <p>
+              {{ filters['from'] }} - {{ filters['to'] }} · {{
+              result.generatedAt | date:'medium' }}
+            </p>
+          </div>
+          <strong>{{ result.rows.length }} rows</strong>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th *ngFor="let column of columns">{{ column }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of rows">
+                <td *ngFor="let value of row">{{ format(value) }}</td>
+              </tr>
+              <tr *ngIf="!rows.length">
+                <td class="empty-cell" [attr.colspan]="columns.length || 1">
+                  No records for the selected filters.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</section>

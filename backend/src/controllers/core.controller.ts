@@ -182,4 +182,13 @@ export class CoreController {
       .status(201)
       .json(await this.finance.createPayment(req.body, actor(req))),
   );
+  refundPayment = asyncController(async (req, res) =>
+    res.json(await this.finance.refundPayment(req.params.id, actor(req))),
+  );
+  cancelPayment = asyncController(async (req, res) =>
+    res.json(await this.finance.cancelPayment(req.params.id, actor(req))),
+  );
+  cancelInvoice = asyncController(async (req, res) =>
+    res.json(await this.finance.cancelInvoice(req.params.id, actor(req))),
+  );
 }

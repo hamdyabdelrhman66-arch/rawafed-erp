@@ -17,6 +17,7 @@
     "db:test:guard": "tsx scripts/test-database-guard.ts",
     "db:validate": "prisma validate",
     "test": "vitest run",
+    "test:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=../test-results/junit.xml",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

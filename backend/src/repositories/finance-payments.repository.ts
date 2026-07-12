@@ -17,6 +17,17 @@ export class FinancePaymentsRepository {
   findByReceipt(receiptNumber: string) {
     return this.db.financePayment.findUnique({ where: { receiptNumber } });
   }
+  findById(id: string) {
+    return this.db.financePayment.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        account: { include: { student: true, registration: true } },
+        allocations: { include: { invoice: true } },
+        feeAllocations: true,
+        journalEntries: { where: { deletedAt: null }, include: { lines: true } },
+      },
+    });
+  }
   createWithAllocation(data: {
     receiptNumber: string;
     accountId: string;

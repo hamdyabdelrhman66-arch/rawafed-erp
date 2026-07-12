@@ -9,6 +9,7 @@
     "backend:build": "npm --prefix backend run build",
     "backend:seed": "npm --prefix backend run seed",
     "backend:backup": "npm --prefix backend run backup",
+    "test:report-exports": "npx --prefix backend tsx scripts/report-export-behavior.ts",
     "build": "ng build",
     "watch": "ng build --watch --configuration development"
   },
@@ -25,6 +26,7 @@
     "@angular/router": "20.3.25",
     "@angular/service-worker": "20.3.25",
     "@pdf-lib/fontkit": "^1.1.1",
+    "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.6.205",

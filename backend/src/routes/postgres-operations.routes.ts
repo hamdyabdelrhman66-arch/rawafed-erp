@@ -22,12 +22,51 @@ export function postgresOperationsRoutes(prisma: PrismaClient) {
       "Chief Accountant",
       "Accountant",
     ]);
+  const reportRoles = requireRole([
+    "Super Admin",
+    "Principal",
+    "Finance",
+    "Finance Manager",
+    "Chief Accountant",
+    "Accountant",
+    "Auditor",
+    "Admissions",
+    "Registrar",
+  ]);
   r.get("/api", c.api);
   r.get(
     "/api/admin/export",
     ...secured,
     requireRole(["Super Admin"]),
     c.exportAll,
+  );
+  r.get("/api/reports/catalog", ...secured, reportRoles, c.reportCatalog);
+  r.post("/api/reports/run/:type", ...secured, reportRoles, c.reportRun);
+  r.get("/api/reports/templates", ...secured, reportRoles, c.reportTemplates);
+  r.post(
+    "/api/reports/templates",
+    ...secured,
+    reportRoles,
+    c.reportTemplateSave,
+  );
+  r.delete(
+    "/api/reports/templates/:id",
+    ...secured,
+    reportRoles,
+    c.reportTemplateDelete,
+  );
+  r.get(
+    "/api/reports/reconciliation",
+    ...secured,
+    requireRole([
+      "Super Admin",
+      "Finance",
+      "Finance Manager",
+      "Chief Accountant",
+      "Accountant",
+      "Auditor",
+    ]),
+    c.reportReconciliation,
   );
   r.get(
     "/api/admin/integrity",

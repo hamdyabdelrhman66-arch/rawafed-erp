@@ -4,6 +4,7 @@ import { asyncController } from "./core.controller.js";
 import { AdminService } from "../services/admin.service.js";
 import { PayrollService } from "../services/payroll.service.js";
 import { ReportService } from "../services/report.service.js";
+import { EnterpriseReportService } from "../services/enterprise-report.service.js";
 import { StaffService } from "../services/staff.service.js";
 const actor = (r: AuthRequest) => ({
   id: r.user?.id,
@@ -15,11 +16,13 @@ export class OperationsController {
   private staff;
   private payroll;
   private reports;
+  private enterpriseReports;
   constructor(prisma: PrismaClient) {
     this.admin = new AdminService(prisma);
     this.staff = new StaffService(prisma);
     this.payroll = new PayrollService(prisma);
     this.reports = new ReportService(prisma);
+    this.enterpriseReports = new EnterpriseReportService(prisma);
   }
   api = asyncController(async (_r, s) =>
     s.json({
@@ -93,5 +96,32 @@ export class OperationsController {
         String(r.query.month || new Date().toISOString().slice(0, 7)),
       ),
     ),
+  );
+  reportCatalog = asyncController(async (_r, s) =>
+    s.json(this.enterpriseReports.catalog()),
+  );
+  reportRun = asyncController(async (r, s) =>
+    s.json(
+      await this.enterpriseReports.run(
+        r.params.type,
+        r.body?.filters || r.body || {},
+        r.body?.options || {},
+      ),
+    ),
+  );
+  reportTemplates = asyncController(async (r, s) =>
+    s.json(await this.enterpriseReports.templates(r.user!.id)),
+  );
+  reportTemplateSave = asyncController(async (r, s) =>
+    s
+      .status(201)
+      .json(await this.enterpriseReports.saveTemplate(r.user!.id, r.body)),
+  );
+  reportTemplateDelete = asyncController(async (r, s) => {
+    await this.enterpriseReports.removeTemplate(r.user!.id, r.params.id);
+    s.status(204).send();
+  });
+  reportReconciliation = asyncController(async (_r, s) =>
+    s.json(await this.enterpriseReports.reconciliation()),
   );
 }

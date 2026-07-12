@@ -86,7 +86,8 @@ const invoiceShape = (i: any) => {
     paid,
     remaining: money(Math.max(total - paid, 0)),
     paymentMethod: "",
-    status: paid >= total ? "Paid" : "Pending",
+    status:
+      i.status === "VOID" ? "Void" : paid >= total ? "Paid" : "Pending",
     issuedAt: i.issuedAt.toISOString(),
     createdAt: i.createdAt.toISOString(),
   };
@@ -100,6 +101,7 @@ const paymentShape = (p: any) => ({
   paymentItem: "School Fees",
   amount: money(p.amount),
   method: p.method,
+  status: p.status,
   paidAt: p.paidAt.toISOString(),
   collectedBy: p.collectedBy || "Finance",
   referenceNumber: p.referenceNumber || undefined,
@@ -419,7 +421,152 @@ export class FinanceService {
           }),
         };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
+    );
+  }
+
+  private async reversePayment(
+    id: string,
+    status: "REFUNDED" | "VOID",
+    actor: Actor,
+  ) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const payments = new FinancePaymentsRepository(tx);
+        const payment = await payments.findById(id);
+        if (!payment)
+          throw new ServiceError("Payment not found.", 404, "NOT_FOUND");
+        if (payment.status === status) return paymentShape(payment);
+        if (payment.status !== "COMPLETED")
+          throw new ServiceError(
+            "Only a completed payment can be reversed.",
+            409,
+            "PAYMENT_NOT_REVERSIBLE",
+          );
+        const journal = payment.journalEntries.find(
+          (entry) =>
+            entry.sourceType === "finance_payment" && entry.sourceId === id,
+        );
+        if (!journal)
+          throw new ServiceError(
+            "Payment journal entry was not found.",
+            409,
+            "PAYMENT_JOURNAL_MISSING",
+          );
+        await JournalService.reverseUsing(
+          tx,
+          journal.id,
+          actor,
+          status === "REFUNDED"
+            ? "finance_payment_refund"
+            : "finance_payment_void",
+        );
+        const updated = await tx.financePayment.update({
+          where: { id },
+          data: { status },
+          include: {
+            account: { include: { student: true, registration: true } },
+            allocations: true,
+          },
+        });
+        for (const allocation of payment.allocations) {
+          const aggregate = await payments.paidForInvoice(allocation.invoiceId);
+          const paid = money(aggregate._sum.amount);
+          const total = money(allocation.invoice.total);
+          await new FinanceInvoicesRepository(tx).updateStatus(
+            allocation.invoiceId,
+            paid <= 0 ? "ISSUED" : paid >= total ? "PAID" : "PARTIALLY_PAID",
+          );
+        }
+        await new AuditRepository(tx).create({
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: status === "REFUNDED" ? "refund payment" : "cancel payment",
+          entityType: "finance_payment",
+          entityId: id,
+          details: { receiptNumber: payment.receiptNumber, amount: money(payment.amount) },
+        });
+        return paymentShape(updated);
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
+    );
+  }
+
+  refundPayment(id: string, actor: Actor) {
+    return this.reversePayment(id, "REFUNDED", actor);
+  }
+
+  cancelPayment(id: string, actor: Actor) {
+    return this.reversePayment(id, "VOID", actor);
+  }
+
+  async cancelInvoice(id: string, actor: Actor) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const invoices = new FinanceInvoicesRepository(tx);
+        const invoice = await invoices.findById(id);
+        if (!invoice)
+          throw new ServiceError("Invoice not found.", 404, "NOT_FOUND");
+        if (invoice.status === "VOID") return invoiceShape(invoice);
+        if (invoice.payments.length)
+          throw new ServiceError(
+            "Reverse all completed payments before cancelling the invoice.",
+            409,
+            "INVOICE_HAS_ACTIVE_PAYMENTS",
+          );
+        const journal = await tx.journalEntry.findFirst({
+          where: {
+            sourceType: "finance_invoice",
+            sourceId: id,
+            deletedAt: null,
+          },
+        });
+        if (!journal)
+          throw new ServiceError(
+            "Invoice journal entry was not found.",
+            409,
+            "INVOICE_JOURNAL_MISSING",
+          );
+        await JournalService.reverseUsing(
+          tx,
+          journal.id,
+          actor,
+          "finance_invoice_void",
+        );
+        const updated = await tx.financeInvoice.update({
+          where: { id },
+          data: { status: "VOID" },
+          include: {
+            account: { include: { student: true, registration: true } },
+            lines: true,
+            payments: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+        });
+        await new AuditRepository(tx).create({
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: "cancel invoice",
+          entityType: "finance_invoice",
+          entityId: id,
+          details: { invoiceNumber: invoice.invoiceNumber, total: money(invoice.total) },
+        });
+        return invoiceShape(updated);
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
     );
   }
 }
