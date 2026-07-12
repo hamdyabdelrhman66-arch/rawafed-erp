@@ -45,7 +45,6 @@ export class AppComponent {
     private readonly router: Router
   ) {
     this.currentUrl.set(this.router.url);
-    this.syncProtectedData();
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       this.currentUrl.set(event.urlAfterRedirects);
       this.syncProtectedData();
