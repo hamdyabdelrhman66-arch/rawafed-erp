@@ -197,13 +197,14 @@ model FinanceAccount {
 }
 
 model FinanceAccountFeeItem {
-  id        String         @id @default(uuid()) @db.Uuid
-  accountId String         @map("account_id") @db.Uuid
-  account   FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  name      String
-  amount    Decimal        @db.Decimal(14, 2)
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  id                 String                 @id @default(uuid()) @db.Uuid
+  accountId          String                 @map("account_id") @db.Uuid
+  account            FinanceAccount         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name               String
+  amount             Decimal                @db.Decimal(14, 2)
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  paymentAllocations PaymentFeeAllocation[]
 
   @@unique([accountId, name])
   @@index([accountId])
@@ -256,28 +257,43 @@ model InvoiceLine {
 }
 
 model FinancePayment {
-  id              String              @id @default(uuid()) @db.Uuid
-  receiptNumber   String              @unique @map("receipt_number")
-  accountId       String              @map("account_id") @db.Uuid
-  account         FinanceAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  registrationId  String?             @map("registration_id") @db.Uuid
-  registration    Registration?       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  amount          Decimal             @db.Decimal(14, 2)
+  id              String                 @id @default(uuid()) @db.Uuid
+  receiptNumber   String                 @unique @map("receipt_number")
+  accountId       String                 @map("account_id") @db.Uuid
+  account         FinanceAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  registrationId  String?                @map("registration_id") @db.Uuid
+  registration    Registration?          @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  amount          Decimal                @db.Decimal(14, 2)
   method          String
-  status          PaymentStatus       @default(COMPLETED)
-  referenceNumber String?             @map("reference_number")
+  status          PaymentStatus          @default(COMPLETED)
+  referenceNumber String?                @map("reference_number")
   notes           String?
-  paidAt          DateTime            @map("paid_at")
-  collectedBy     String?             @map("collected_by")
+  paidAt          DateTime               @map("paid_at")
+  collectedBy     String?                @map("collected_by")
   allocations     PaymentAllocation[]
+  feeAllocations  PaymentFeeAllocation[]
   journalEntries  JournalEntry[]
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
-  deletedAt       DateTime?           @map("deleted_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  deletedAt       DateTime?              @map("deleted_at")
 
   @@index([accountId, paidAt])
   @@index([status, paidAt])
   @@map("finance_payments")
+}
+
+model PaymentFeeAllocation {
+  id        String                @id @default(uuid()) @db.Uuid
+  paymentId String                @map("payment_id") @db.Uuid
+  payment   FinancePayment        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  feeItemId String                @map("fee_item_id") @db.Uuid
+  feeItem   FinanceAccountFeeItem @relation(fields: [feeItemId], references: [id], onDelete: Restrict)
+  amount    Decimal               @db.Decimal(14, 2)
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  @@unique([paymentId, feeItemId])
+  @@index([feeItemId])
+  @@map("payment_fee_allocations")
 }
 
 model PaymentAllocation {
@@ -331,6 +347,9 @@ model ChartOfAccount {
   openingBalance      Decimal              @default(0) @map("opening_balance") @db.Decimal(14, 2)
   openingDate         DateTime?            @map("opening_date") @db.Date
   notes               String?
+  normalBalance       String               @default("DEBIT") @map("normal_balance")
+  allowPosting        Boolean              @default(true) @map("allow_posting")
+  allowManualJournal  Boolean              @default(true) @map("allow_manual_journal")
   isCashAccount       Boolean              @default(false) @map("is_cash_account")
   isBankAccount       Boolean              @default(false) @map("is_bank_account")
   isVatAccount        Boolean              @default(false) @map("is_vat_account")
@@ -1121,10 +1140,16 @@ model Notification {
   readBy      Json      @default("[]") @map("read_by")
   link        String?
   sourceId    String?   @map("source_id")
+  sourceType  String?   @map("source_type")
+  eventType   String?   @map("event_type")
+  targetRole  String?   @map("target_role")
+  messageKey  String?   @map("message_key")
+  parameters  Json?     @map("parameters")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
+  @@unique([sourceType, sourceId, eventType, targetRole])
   @@index([category, createdAt])
   @@index([sourceId])
   @@map("notifications")

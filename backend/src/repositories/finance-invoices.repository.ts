@@ -9,7 +9,9 @@ export class FinanceInvoicesRepository {
       include: {
         account: { include: { student: true, registration: true } },
         lines: true,
-        payments: true,
+        payments: {
+          where: { payment: { status: "COMPLETED", deletedAt: null } },
+        },
       },
       orderBy: { issuedAt: "desc" },
       skip,
@@ -22,7 +24,21 @@ export class FinanceInvoicesRepository {
       include: {
         account: { include: { student: true, registration: true } },
         lines: true,
-        payments: true,
+        payments: {
+          where: { payment: { status: "COMPLETED", deletedAt: null } },
+        },
+      },
+    });
+  }
+  findByNumber(invoiceNumber: string) {
+    return this.db.financeInvoice.findUnique({
+      where: { invoiceNumber },
+      include: {
+        account: { include: { student: true, registration: true } },
+        lines: true,
+        payments: {
+          where: { payment: { status: "COMPLETED", deletedAt: null } },
+        },
       },
     });
   }
@@ -36,7 +52,9 @@ export class FinanceInvoicesRepository {
       include: {
         account: { include: { student: true, registration: true } },
         lines: true,
-        payments: true,
+        payments: {
+          where: { payment: { status: "COMPLETED", deletedAt: null } },
+        },
       },
       orderBy: { issuedAt: "asc" },
     });
@@ -50,7 +68,9 @@ export class FinanceInvoicesRepository {
       include: {
         account: { include: { student: true, registration: true } },
         lines: true,
-        payments: true,
+        payments: {
+          where: { payment: { status: "COMPLETED", deletedAt: null } },
+        },
       },
     });
   }

@@ -60,6 +60,25 @@ export class JournalService {
         "Each journal line must contain either a debit or a credit.",
         422,
       );
+    const accountIds = [...new Set(input.lines.map((line) => line.accountId))];
+    const postingAccounts = await db.chartOfAccount.findMany({
+      where: { id: { in: accountIds }, active: true, deletedAt: null },
+      select: { id: true, allowPosting: true, allowManualJournal: true },
+    });
+    if (
+      postingAccounts.length !== accountIds.length ||
+      postingAccounts.some(
+        (account) =>
+          !account.allowPosting ||
+          (input.sourceType === "manual_journal" &&
+            !account.allowManualJournal),
+      )
+    )
+      throw new ServiceError(
+        "Journal contains an archived or non-posting account.",
+        422,
+        "ACCOUNT_NOT_POSTABLE",
+      );
     const repo = new JournalsRepository(db);
     const existing = await repo.bySource(input.sourceType, input.sourceId);
     if (existing) return shape(existing);
@@ -115,6 +134,10 @@ export class JournalService {
       const original = await repo.find(id);
       if (!original || original.status !== "POSTED")
         throw new ServiceError("Posted journal entry not found.", 404);
+      if (original.reversal) {
+        const existing = await repo.find(original.reversal.id);
+        if (existing) return shape(existing);
+      }
       const reversal = await JournalService.postUsing(
         tx,
         {
@@ -136,10 +159,6 @@ export class JournalService {
       await tx.journalEntry.update({
         where: { id: reversal.id },
         data: { reversedFromId: original.id },
-      });
-      await tx.journalEntry.update({
-        where: { id: original.id },
-        data: { status: "REVERSED" },
       });
       return reversal;
     });

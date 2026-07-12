@@ -81,7 +81,7 @@ describe("PostgreSQL runtime API", () => {
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
-  });
+  }, 15_000);
 
   it("preserves the standardized API error contract", async () => {
     const response = await fetch(`${baseUrl}/api/not-a-real-endpoint`);

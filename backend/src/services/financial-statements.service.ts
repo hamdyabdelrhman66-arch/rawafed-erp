@@ -133,14 +133,67 @@ export class FinancialStatementsService {
     };
   }
   async dashboard(from?: string, to?: string) {
-    const [trialBalance, incomeStatement, balanceSheet, cashFlow] =
-      await Promise.all([
-        this.trialBalance(from, to),
-        this.incomeStatement(from, to),
-        this.balanceSheet(to),
-        this.cashFlow(from, to),
-      ]);
-    return { trialBalance, incomeStatement, balanceSheet, cashFlow };
+    const [
+      trialBalance,
+      incomeStatement,
+      balanceSheet,
+      cashFlow,
+      accounts,
+      balances,
+    ] = await Promise.all([
+      this.trialBalance(from, to),
+      this.incomeStatement(from, to),
+      this.balanceSheet(to),
+      this.cashFlow(from, to),
+      new AccountsRepository(this.prisma).list(),
+      new LedgerRepository(this.prisma).balances(this.dates(from, to)),
+    ]);
+    const accountMap = new Map(
+      accounts.map((account) => [account.id, account]),
+    );
+    const naturalBalance = (
+      account: (typeof accounts)[number],
+      debit: number,
+      credit: number,
+    ) =>
+      account.type === "ASSET" || account.type === "EXPENSE"
+        ? debit - credit
+        : credit - debit;
+    const totals = {
+      cashBalance: 0,
+      bankBalance: 0,
+      accountsReceivable: 0,
+      accountsPayable: 0,
+      vatPayable: 0,
+    };
+    for (const balance of balances) {
+      const account = accountMap.get(balance.accountId);
+      if (!account) continue;
+      const value = round(
+        naturalBalance(
+          account,
+          num(balance._sum.debit),
+          num(balance._sum.credit),
+        ),
+      );
+      if (account.isCashAccount) totals.cashBalance += value;
+      if (account.isBankAccount) totals.bankBalance += value;
+      if (account.isReceivableAccount) totals.accountsReceivable += value;
+      if (account.isPayableAccount) totals.accountsPayable += value;
+      if (account.isVatAccount) totals.vatPayable += value;
+    }
+    const kpis = {
+      cashBalance: round(totals.cashBalance),
+      bankBalance: round(totals.bankBalance),
+      accountsReceivable: round(totals.accountsReceivable),
+      accountsPayable: round(totals.accountsPayable),
+      vatPayable: round(totals.vatPayable),
+      currentAssets: round(balanceSheet.assets),
+      revenue: incomeStatement.revenue,
+      expenses: incomeStatement.expenses,
+      netProfit: incomeStatement.netIncome,
+    };
+    return { trialBalance, incomeStatement, balanceSheet, cashFlow, kpis };
   }
   search(query: string) {
     return new AccountingSearchRepository(this.prisma).search(query);

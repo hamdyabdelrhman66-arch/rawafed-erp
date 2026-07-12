@@ -1,6 +1,6 @@
-import { AdmissionRegistration } from '../models/admission.models';
+import { AdmissionRegistration } from "../models/admission.models";
 
-export type FinanceStatus = 'Unpaid' | 'Partial' | 'Paid';
+export type FinanceStatus = "Unpaid" | "Partial" | "Paid";
 
 export interface FinanceStudent {
   id: number;
@@ -31,11 +31,12 @@ export interface FinancePackage {
   services: FinanceFeeItem[];
   grade?: string;
   paymentPlan?: string;
-  notificationStatus?: 'new' | 'seen';
+  notificationStatus?: "new" | "seen";
   discountPercent?: number;
   registrationId?: string;
   registrationNumber?: string;
   backendId?: string;
+  canonicalInvoiceId?: string;
 }
 
 export interface FinanceFeeItem {
@@ -43,6 +44,8 @@ export interface FinanceFeeItem {
   sessions: number;
   price: number;
   customPrice: boolean;
+  paid?: number;
+  remaining?: number;
 }
 
 export interface FinancePayment {
@@ -72,7 +75,7 @@ export interface FinanceInvoice {
   vat?: number;
   total?: number;
   date: string;
-  status: 'Pending' | 'Paid';
+  status: "Pending" | "Paid";
   paid?: number;
   remaining?: number;
   paymentMethod?: string;
@@ -106,17 +109,26 @@ export interface FinanceData {
   expenses: FinanceExpense[];
 }
 
-export function registrationToFinanceStudent(registration: AdmissionRegistration, id: number): FinanceStudent {
-  const parent = registration.father.fullName ? registration.father : registration.mother;
+export function registrationToFinanceStudent(
+  registration: AdmissionRegistration,
+  id: number,
+): FinanceStudent {
+  const parent = registration.father.fullName
+    ? registration.father
+    : registration.mother;
   return {
     id,
     registrationId: registration.id,
     registrationNumber: registration.registrationNumber,
-    name: registration.student.englishName || registration.student.arabicName || registration.registrationNumber || `Student ${id}`,
+    name:
+      registration.student.englishName ||
+      registration.student.arabicName ||
+      registration.registrationNumber ||
+      `Student ${id}`,
     phone: parent.phone,
     guardian: parent.fullName,
     diagnosis: registration.student.applyingGrade,
-    age: '',
-    notes: registration.notes
+    age: "",
+    notes: registration.notes,
   };
 }

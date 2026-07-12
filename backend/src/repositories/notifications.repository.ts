@@ -14,6 +14,27 @@ export class NotificationsRepository {
   create(data: Prisma.NotificationUncheckedCreateInput) {
     return this.db.notification.create({ data });
   }
+  createCanonical(
+    data: Prisma.NotificationUncheckedCreateInput & {
+      sourceType: string;
+      sourceId: string;
+      eventType: string;
+      targetRole: string;
+    },
+  ) {
+    return this.db.notification.upsert({
+      where: {
+        sourceType_sourceId_eventType_targetRole: {
+          sourceType: data.sourceType,
+          sourceId: data.sourceId,
+          eventType: data.eventType,
+          targetRole: data.targetRole,
+        },
+      },
+      update: {},
+      create: data,
+    });
+  }
   findBySourceId(sourceId: string) {
     return this.db.notification.findFirst({
       where: { sourceId, deletedAt: null },

@@ -1,15 +1,20 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-import { InvoicesService } from '../../../core/finance/invoices.service';
-import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
-import { PaymentsService } from '../../../core/finance/payments.service';
-import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
-import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
-import { StorageService } from '../../../core/services/storage.service';
-import { SearchableSelectComponent } from '../../../shared/components/searchable-select/searchable-select.component';
+import { CommonModule } from "@angular/common";
+import { Component, OnInit } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { ActivatedRoute, Router } from "@angular/router";
+import { firstValueFrom } from "rxjs";
+import { InvoicesService } from "../../../core/finance/invoices.service";
+import { PatientPackagesService } from "../../../core/finance/patient-packages.service";
+import { PaymentsService } from "../../../core/finance/payments.service";
+import {
+  allocateHalf,
+  allocateRemaining,
+} from "../../../core/finance/payment-allocation";
+import {
+  FeedbackService,
+  safeErrorMessage,
+} from "../../../core/feedback/feedback.service";
+import { SearchableSelectComponent } from "../../../shared/components/searchable-select/searchable-select.component";
 
 interface PaymentLine {
   feeItem: string;
@@ -18,27 +23,27 @@ interface PaymentLine {
 }
 
 @Component({
-  selector: 'app-add-payment',
+  selector: "app-add-payment",
   standalone: true,
   imports: [CommonModule, FormsModule, SearchableSelectComponent],
-  templateUrl: './add-payment.html',
-  styleUrls: ['./add-payment.css', '../../../shared/finance/finance-ui.scss']
+  templateUrl: "./add-payment.html",
+  styleUrls: ["./add-payment.css", "../../../shared/finance/finance-ui.scss"],
 })
 export class AddPayment implements OnInit {
   accounts: any[] = [];
   selectedAccount: any = null;
-  paymentMethod = 'Cash';
-  paymentDate = new Date().toISOString().split('T')[0];
-  collectedBy = 'Finance';
-  referenceNumber = '';
-  notes = '';
+  paymentMethod = "Cash";
+  paymentDate = new Date().toISOString().split("T")[0];
+  collectedBy = "Finance";
+  referenceNumber = "";
+  notes = "";
   previousPayments: any[] = [];
   paymentLines: PaymentLine[] = [];
   saving = false;
   readonly accountLabel = (account: any) =>
     account
-      ? `${account.patient} - ${account.registrationNumber || account.fileNo || '-'} - Grade ${account.grade || '-'} - Remaining ${Number(account.remaining || 0).toLocaleString('en-US')} SAR`
-      : '';
+      ? `${account.patient} - ${account.registrationNumber || account.fileNo || "-"} - Grade ${account.grade || "-"} - Remaining ${Number(account.remaining || 0).toLocaleString("en-US")} SAR`
+      : "";
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -46,16 +51,18 @@ export class AddPayment implements OnInit {
     private readonly accountService: PatientPackagesService,
     private readonly paymentsService: PaymentsService,
     private readonly invoicesService: InvoicesService,
-    private readonly zatcaInvoice: ZatcaInvoiceService,
-    private readonly storage: StorageService,
-    private readonly feedback: FeedbackService
+    private readonly feedback: FeedbackService,
   ) {}
 
   ngOnInit(): void {
     this.accountService.getPackages().subscribe((accounts: any[]) => {
       this.accounts = accounts;
-      const accountId = Number(this.route.snapshot.queryParamMap.get('accountId'));
-      this.selectedAccount = accountId ? this.accounts.find((item) => item.id === accountId) || null : null;
+      const accountId = Number(
+        this.route.snapshot.queryParamMap.get("accountId"),
+      );
+      this.selectedAccount = accountId
+        ? this.accounts.find((item) => item.id === accountId) || null
+        : null;
       if (this.selectedAccount) this.onAccountChange();
     });
   }
@@ -69,7 +76,10 @@ export class AddPayment implements OnInit {
   }
 
   get totalPaymentAmount(): number {
-    return this.paymentLines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
+    return this.paymentLines.reduce(
+      (sum, line) => sum + Number(line.amount || 0),
+      0,
+    );
   }
 
   onAccountChange(): void {
@@ -83,15 +93,26 @@ export class AddPayment implements OnInit {
   }
 
   payHalf(): void {
-    this.allocateAmount(this.outstanding / 2);
+    const allocation = allocateHalf(this.paymentLines);
+    this.paymentLines = this.paymentLines.map((line, index) => ({
+      ...line,
+      amount: allocation[index],
+    }));
   }
 
   payRemaining(): void {
-    this.allocateAmount(this.outstanding);
+    const allocation = allocateRemaining(this.paymentLines);
+    this.paymentLines = this.paymentLines.map((line, index) => ({
+      ...line,
+      amount: allocation[index],
+    }));
   }
 
   clearPaymentLines(): void {
-    this.paymentLines = this.paymentLines.map((line) => ({ ...line, amount: 0 }));
+    this.paymentLines = this.paymentLines.map((line) => ({
+      ...line,
+      amount: 0,
+    }));
   }
 
   async savePayment(): Promise<void> {
@@ -101,126 +122,99 @@ export class AddPayment implements OnInit {
       .filter((line) => line.amount > 0);
 
     if (!this.selectedAccount || !payableLines.length) {
-      this.feedback.validation('Please select student account and enter at least one payment amount.');
+      this.feedback.validation(
+        "Please select student account and enter at least one payment amount.",
+      );
       return;
     }
 
     const amount = this.totalPaymentAmount;
     if (amount > this.outstanding) {
-      this.feedback.validation('Payment amount cannot be more than the remaining balance.');
+      this.feedback.validation(
+        "Payment amount cannot be more than the remaining balance.",
+      );
       return;
     }
 
     const confirmed = await this.feedback.confirm({
-      title: 'Record Student Payment?',
-      message: `This will record ${amount.toLocaleString('en-US')} SAR, generate a receipt, update the student balance, and create an invoice.`,
-      confirmText: 'Record Payment',
-      tone: 'primary'
+      title: "Record Student Payment?",
+      message: `This will record ${amount.toLocaleString("en-US")} SAR against the existing invoice and update the student balance.`,
+      confirmText: "Record Payment",
+      tone: "primary",
     });
     if (!confirmed) return;
 
     this.saving = true;
-    const receiptBatchId = Date.now();
-    const receiptNumber = `REC-${receiptBatchId}`;
+    const receiptNumber = `REC-${crypto.randomUUID()}`;
     const studentName = this.selectedAccount.patient;
 
     try {
-      await Promise.all(payableLines.map((line, index) => firstValueFrom(this.paymentsService.addPayment({
-          id: receiptBatchId + index,
-          receipt: receiptNumber,
-          patient: studentName,
-          package: line.feeItem,
+      await this.paymentsService.recordPayment({
+        accountId: this.selectedAccount.backendId || this.selectedAccount.id,
+        invoiceId: this.selectedAccount.canonicalInvoiceId,
+        receiptNumber,
+        idempotencyKey: receiptNumber,
+        amount,
+        method: this.paymentMethod,
+        paidAt: this.paymentDate,
+        referenceNumber: this.referenceNumber,
+        notes: this.notes,
+        lines: payableLines.map((line) => ({
           feeItem: line.feeItem,
           amount: line.amount,
-          method: this.paymentMethod,
-          date: this.paymentDate,
-          collectedBy: this.collectedBy,
-          referenceNumber: this.referenceNumber,
-          notes: this.notes,
-          status: 'Completed',
-          accountId: this.selectedAccount.backendId || this.selectedAccount.id,
-          registrationNumber: this.selectedAccount.registrationNumber
-        }))));
-
-      const invoiceTotals = this.zatcaInvoice.fromVatInclusive(amount);
-      const invoiceId = receiptBatchId;
-      await firstValueFrom(this.invoicesService.addInvoice({
-        id: invoiceId,
-        invoiceNumber: `INV-${invoiceId}`,
-        patient: studentName,
-        service: payableLines.map((line) => line.feeItem).join(' + '),
-        amount: invoiceTotals.amountBeforeVat,
-        discount: 0,
-        vat: invoiceTotals.vat,
-        total: invoiceTotals.total,
-        date: this.paymentDate,
-        status: 'Paid',
-        paid: invoiceTotals.total,
-        remaining: Math.max(this.outstanding - amount, 0),
-        paymentMethod: this.paymentMethod,
-        receipt: receiptNumber,
-        taxNumber: this.zatcaInvoice.taxNumber,
-        accountId: this.selectedAccount.id,
-        feeItem: payableLines.map((line) => line.feeItem).join(' + '),
-        registrationNumber: this.selectedAccount.registrationNumber,
-        patientId: this.selectedAccount.registrationNumber,
-        fileNo: this.selectedAccount.registrationNumber,
-        notes: this.notes,
-        user: this.collectedBy
-      }));
-
-      const paid = Number(this.selectedAccount.paid || 0) + amount;
-      const remaining = Math.max(Number(this.selectedAccount.total || 0) - paid, 0);
-      const nextAccount = {
-        ...this.selectedAccount,
-        paid,
-        remaining,
-        status: remaining <= 0 ? 'Paid' : 'Partial',
-        notificationStatus: 'seen'
-      };
-
-      await firstValueFrom(this.accountService.updatePackage(nextAccount.id, nextAccount));
-      this.selectedAccount = nextAccount;
+        })),
+      });
+      const refreshed = await firstValueFrom(this.accountService.getPackages());
+      this.accounts = refreshed;
+      this.selectedAccount =
+        refreshed.find(
+          (account: any) =>
+            account.backendId === this.selectedAccount.backendId,
+        ) || this.selectedAccount;
+      this.paymentLines = this.buildPaymentLines();
       this.loadPreviousPayments();
-
-      this.storage.notify(
-        nextAccount.remaining > 0
-          ? `${studentName} has ${nextAccount.remaining.toLocaleString()} SAR remaining after payment.`
-          : `${studentName} is fully paid.`,
-        ['Admissions', 'Finance', 'Super Admin'],
-        'finance',
-        '/finance/patient-packages'
+      this.feedback.success(
+        `Payment ${receiptNumber} recorded successfully.`,
+        "Receipt and student balance were updated from PostgreSQL.",
       );
-
-      this.feedback.success(`Payment ${receiptNumber} recorded successfully.`, 'Receipt, invoice, and student balance were updated.');
-      void this.router.navigate(['/finance/invoice-details', invoiceId]);
+      const invoices = await firstValueFrom(this.invoicesService.getInvoices());
+      const invoice = invoices.find(
+        (item: any) =>
+          item.registrationNumber === this.selectedAccount.registrationNumber,
+      );
+      if (invoice)
+        void this.router.navigate(["/finance/invoice-details", invoice.id]);
     } catch (error) {
-      this.feedback.error('Payment was not recorded.', safeErrorMessage(error));
+      this.feedback.error("Payment was not recorded.", safeErrorMessage(error));
     } finally {
       this.saving = false;
     }
   }
 
   private buildPaymentLines(): PaymentLine[] {
-    const services = Array.isArray(this.selectedAccount?.services) && this.selectedAccount.services.length
-      ? this.selectedAccount.services
-      : [{ service: 'School Fees', price: Number(this.selectedAccount?.total || 0) }];
+    const services =
+      Array.isArray(this.selectedAccount?.services) &&
+      this.selectedAccount.services.length
+        ? this.selectedAccount.services
+        : [
+            {
+              service: "School Fees",
+              price: Number(this.selectedAccount?.total || 0),
+            },
+          ];
 
     return services.map((service: any) => ({
-      feeItem: service.service || 'School Fees',
-      expected: Number(service.price || 0) * Number(service.sessions || 1),
-      amount: 0
+      feeItem: service.service || "School Fees",
+      expected: this.money(
+        service.remaining ??
+          Number(service.price || 0) * Number(service.sessions || 1),
+      ),
+      amount: 0,
     }));
   }
 
-  private allocateAmount(targetAmount: number): void {
-    let remainingToAllocate = Math.max(Number(targetAmount || 0), 0);
-
-    this.paymentLines = this.paymentLines.map((line) => {
-      const amount = Math.min(line.expected, remainingToAllocate);
-      remainingToAllocate -= amount;
-      return { ...line, amount };
-    });
+  private money(value: unknown): number {
+    return Math.round(Number(value || 0) * 100) / 100;
   }
 
   private loadPreviousPayments(): void {
@@ -232,7 +226,11 @@ export class AddPayment implements OnInit {
 
     this.paymentsService.getPayments().subscribe((payments: any[]) => {
       this.previousPayments = payments
-        .filter((payment) => payment.patient === studentName || payment.accountId === this.selectedAccount.id)
+        .filter(
+          (payment) =>
+            payment.patient === studentName ||
+            payment.accountId === this.selectedAccount.id,
+        )
         .reverse();
     });
   }

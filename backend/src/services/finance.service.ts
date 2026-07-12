@@ -17,6 +17,39 @@ const accountShape = (a: any) => {
   const paid = paidForAccount(a);
   const expected = money(a.expectedTotal);
   const remaining = money(Math.max(expected - paid, 0));
+  const allocatedByItem = (a.feeItems || []).map((item: any) =>
+    money(
+      (item.paymentAllocations || []).reduce(
+        (sum: number, allocation: any) => sum + Number(allocation.amount),
+        0,
+      ),
+    ),
+  );
+  let legacyUnallocated = money(
+    Math.max(
+      paid -
+        allocatedByItem.reduce((sum: number, value: number) => sum + value, 0),
+      0,
+    ),
+  );
+  const feeItems = (a.feeItems || []).map((item: any, index: number) => {
+    const expectedAmount = money(item.amount);
+    const legacyPaid = money(
+      Math.min(
+        Math.max(expectedAmount - allocatedByItem[index], 0),
+        legacyUnallocated,
+      ),
+    );
+    legacyUnallocated = money(legacyUnallocated - legacyPaid);
+    const paidAmount = money(allocatedByItem[index] + legacyPaid);
+    return {
+      id: item.id,
+      name: item.name,
+      amount: expectedAmount,
+      paid: paidAmount,
+      remaining: money(expectedAmount - paidAmount),
+    };
+  });
   return {
     id: a.id,
     registrationId: a.registrationId,
@@ -28,10 +61,8 @@ const accountShape = (a: any) => {
     paid,
     remaining,
     status: remaining <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid",
-    feeItems: (a.feeItems || []).map((item: any) => ({
-      name: item.name,
-      amount: money(item.amount),
-    })),
+    feeItems,
+    canonicalInvoiceId: a.invoices?.[0]?.id,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };
@@ -109,13 +140,30 @@ export class FinanceService {
       const total = money(input.total ?? subtotal + vat);
       if (total <= 0 || total !== money(subtotal + vat))
         throw new ServiceError("Invoice totals are invalid.", 422);
+      const invoiceNumber = String(
+        input.invoiceNumber || `INV-${Date.now()}-${randomUUID().slice(0, 8)}`,
+      );
+      const existing = await new FinanceInvoicesRepository(tx).findByNumber(
+        invoiceNumber,
+      );
+      if (existing) {
+        if (
+          existing.accountId === account.id &&
+          money(existing.subtotal) === subtotal &&
+          money(existing.vatAmount) === vat &&
+          money(existing.total) === total
+        )
+          return invoiceShape(existing);
+        throw new ServiceError(
+          "Invoice number already belongs to a different transaction.",
+          409,
+          "DUPLICATE_INVOICE",
+        );
+      }
       const row = await new FinanceInvoicesRepository(tx).create(
         {
           id: input.id ? String(input.id) : randomUUID(),
-          invoiceNumber: String(
-            input.invoiceNumber ||
-              `INV-${Date.now()}-${randomUUID().slice(0, 8)}`,
-          ),
+          invoiceNumber,
           accountId: account.id,
           registrationId: account.registrationId,
           subtotal,
@@ -214,70 +262,12 @@ export class FinanceService {
             "Student receivable account is not configured.",
             422,
           );
-        if (!invoice) {
-          const outstanding = money(
-            Number(account.expectedTotal) - paidForAccount(account),
+        if (!invoice)
+          throw new ServiceError(
+            "Payment must reference an existing open invoice.",
+            422,
+            "INVOICE_REQUIRED",
           );
-          if (outstanding <= 0)
-            throw new ServiceError(
-              "Finance account has no outstanding balance.",
-              422,
-            );
-          invoice = await invoices.create(
-            {
-              invoiceNumber: `INV-${Date.now()}-${randomUUID().slice(0, 8)}`,
-              accountId: account.id,
-              registrationId: account.registrationId,
-              subtotal: outstanding,
-              vatAmount: 0,
-              total: outstanding,
-              issuedAt: new Date(),
-            },
-            {
-              id: randomUUID(),
-              description: input.paymentItem || "School Fees",
-              quantity: 1,
-              unitPrice: outstanding,
-              vatRate: 0,
-              netAmount: outstanding,
-              vatAmount: 0,
-              totalAmount: outstanding,
-            },
-          );
-          const revenue = await tx.chartOfAccount.findUnique({
-            where: { systemKey: "tuition-revenue" },
-          });
-          if (!revenue)
-            throw new ServiceError("Revenue account is not configured.", 422);
-          const invoiceOutbox = await tx.accountingOutbox.create({
-            data: {
-              eventType: "INVOICE_CREATED",
-              aggregateType: "finance_invoice",
-              aggregateId: invoice.id,
-              payload: { invoiceId: invoice.id, canonical: true },
-            },
-          });
-          await JournalService.postUsing(
-            tx,
-            {
-              postingDate: invoice.issuedAt,
-              description: `Sales invoice ${invoice.invoiceNumber}`,
-              referenceNumber: invoice.invoiceNumber,
-              sourceType: "finance_invoice",
-              sourceId: invoice.id,
-              invoiceId: invoice.id,
-              lines: [
-                { accountId: customer.receivableAccountId, debit: outstanding },
-                { accountId: revenue.id, credit: outstanding },
-              ],
-            },
-            actor,
-          );
-          await tx.accountingOutbox.update({
-            where: { id: invoiceOutbox.id },
-            data: { processedAt: new Date() },
-          });
-        }
         if (invoice.accountId !== account.id)
           throw new ServiceError(
             "Invoice does not belong to finance account.",
@@ -289,6 +279,52 @@ export class FinanceService {
         );
         const remaining = money(Number(invoice.total) - already);
         const amount = money(input.amount);
+        if (amount <= 0)
+          throw new ServiceError(
+            "Payment amount must be greater than zero.",
+            422,
+          );
+        let feeAllocations: Array<{ feeItemId: string; amount: number }> = [];
+        if (input.lines?.length) {
+          const authoritative = accountShape(account).feeItems as Array<{
+            name: string;
+            remaining: number;
+          }>;
+          const submittedNames = new Set<string>();
+          let submittedTotal = 0;
+          for (const line of input.lines) {
+            const name = String(line.feeItem || "").trim();
+            if (!name || submittedNames.has(name))
+              throw new ServiceError(
+                "Payment fee-item lines are invalid.",
+                422,
+              );
+            submittedNames.add(name);
+            const current = authoritative.find((item) => item.name === name);
+            const feeItem = account.feeItems.find(
+              (item: any) => item.name === name,
+            );
+            const lineAmount = money(line.amount);
+            if (
+              !current ||
+              !feeItem ||
+              lineAmount <= 0 ||
+              lineAmount > money(current.remaining)
+            )
+              throw new ServiceError(
+                `Payment exceeds the outstanding amount for ${name || "fee item"}.`,
+                422,
+                "FEE_ITEM_OVERPAYMENT",
+              );
+            submittedTotal = money(submittedTotal + lineAmount);
+            feeAllocations.push({ feeItemId: feeItem.id, amount: lineAmount });
+          }
+          if (submittedTotal !== amount)
+            throw new ServiceError(
+              "Payment lines do not equal the payment total.",
+              422,
+            );
+        }
         if (amount > remaining)
           throw new ServiceError(
             "Payment exceeds the outstanding invoice balance.",
@@ -297,6 +333,14 @@ export class FinanceService {
         const receiptNumber =
           input.receiptNumber ||
           `REC-${Date.now()}-${randomUUID().slice(0, 8)}`;
+        if (
+          await new FinancePaymentsRepository(tx).findByReceipt(receiptNumber)
+        )
+          throw new ServiceError(
+            "Receipt number has already been posted.",
+            409,
+            "DUPLICATE_RECEIPT",
+          );
         const payment = await new FinancePaymentsRepository(
           tx,
         ).createWithAllocation({
@@ -310,6 +354,7 @@ export class FinanceService {
           paidAt: new Date(input.paidAt || Date.now()),
           collectedBy: actor.displayName || "Finance",
           invoiceId: invoice.id,
+          feeAllocations,
         });
         await invoices.updateStatus(
           invoice.id,

@@ -28,12 +28,14 @@ export class FinancePaymentsRepository {
     paidAt: Date;
     collectedBy?: string;
     invoiceId: string;
+    feeAllocations?: Array<{ feeItemId: string; amount: number }>;
   }) {
-    const { invoiceId, ...payment } = data;
+    const { invoiceId, feeAllocations = [], ...payment } = data;
     return this.db.financePayment.create({
       data: {
         ...payment,
         allocations: { create: { invoiceId, amount: payment.amount } },
+        feeAllocations: { create: feeAllocations },
       },
       include: {
         account: { include: { student: true, registration: true } },

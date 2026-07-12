@@ -12,7 +12,10 @@ export class JournalsRepository {
   find(id: string) {
     return this.db.journalEntry.findFirst({
       where: { id, deletedAt: null },
-      include: { lines: { include: { account: true, costCenter: true } } },
+      include: {
+        reversal: true,
+        lines: { include: { account: true, costCenter: true } },
+      },
     });
   }
   list(where: Prisma.JournalEntryWhereInput = {}, skip = 0, take = 100) {

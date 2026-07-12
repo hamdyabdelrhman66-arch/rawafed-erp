@@ -27,4 +27,5 @@ export interface PaymentInput {
   paidAt?: string;
   referenceNumber?: string;
   notes?: string;
+  lines?: Array<{ feeItem: string; amount: number }>;
 }

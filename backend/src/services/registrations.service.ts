@@ -56,6 +56,10 @@ export class RegistrationsService {
     return this.prisma.$transaction(
       async (tx) => {
         const repo = new RegistrationsRepository(tx);
+        if (input.id) {
+          const existing = await repo.findById(input.id);
+          if (existing) return unpack(existing);
+        }
         const branch = await tx.branch.findFirst({
           where: { active: true, deletedAt: null },
         });
@@ -80,13 +84,20 @@ export class RegistrationsService {
           data: json(input),
           createdAt: new Date(input.createdAt || now),
         });
-        await new NotificationsRepository(tx).create({
+        await new NotificationsRepository(tx).createCanonical({
           message: `New application waiting approval: ${input.student?.englishName || registrationNumber}`,
           targetRoles: ["Admissions", "Registrar", "Principal", "Super Admin"],
           category: "registration",
           readBy: [],
           link: "/applications",
-          sourceId: `registration-approval:${row.id}`,
+          sourceType: "registration",
+          sourceId: row.id,
+          eventType: "SUBMITTED",
+          targetRole: "admissions",
+          messageKey: "notifications.registration_submitted",
+          parameters: json({
+            studentName: input.student?.englishName || registrationNumber,
+          }),
         });
         await new AuditRepository(tx).create({
           actorId: actor?.id,
@@ -179,20 +190,32 @@ export class RegistrationsService {
           });
         }
         const notices = new NotificationsRepository(tx);
-        if (!(await notices.findBySourceId(`student-created:${student.id}`)))
-          await notices.create({
-            message: `Student created from approved application: ${student.englishName}`,
-            targetRoles: [
-              "Admissions",
-              "Registrar",
-              "Principal",
-              "Super Admin",
-            ],
-            category: "registration",
-            readBy: [],
-            link: "/students",
-            sourceId: `student-created:${student.id}`,
-          });
+        await notices.createCanonical({
+          message: `Student created from approved application: ${student.englishName}`,
+          targetRoles: ["Admissions", "Registrar", "Principal", "Super Admin"],
+          category: "registration",
+          readBy: [],
+          link: "/students",
+          sourceType: "registration",
+          sourceId: id,
+          eventType: "APPROVED",
+          targetRole: "admissions",
+          messageKey: "notifications.registration_approved",
+          parameters: json({ studentName: student.englishName }),
+        });
+        await notices.createCanonical({
+          message: `Student finance account created: ${student.englishName}`,
+          targetRoles: ["Finance", "Super Admin"],
+          category: "finance",
+          readBy: [],
+          link: "/finance/patient-packages",
+          sourceType: "finance_account",
+          sourceId: id,
+          eventType: "CREATED",
+          targetRole: "finance",
+          messageKey: "notifications.finance_account_created",
+          parameters: json({ studentName: student.englishName }),
+        });
         const audit = new AuditRepository(tx);
         if (!(await audit.findByIdempotencyKey(`approve-registration:${id}`)))
           await audit.create({

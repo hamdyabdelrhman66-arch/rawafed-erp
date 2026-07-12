@@ -8,7 +8,26 @@ export class FinanceAccountsRepository {
       include: {
         registration: true,
         student: true,
-        feeItems: true,
+        feeItems: {
+          include: {
+            paymentAllocations: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+        },
+        invoices: {
+          where: {
+            deletedAt: null,
+            status: { in: ["ISSUED", "PARTIALLY_PAID"] },
+          },
+          include: {
+            lines: true,
+            payments: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+          orderBy: { issuedAt: "asc" },
+        },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
       },
       orderBy: { createdAt: "desc" },
@@ -22,7 +41,26 @@ export class FinanceAccountsRepository {
       include: {
         registration: true,
         student: true,
-        feeItems: true,
+        feeItems: {
+          include: {
+            paymentAllocations: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+        },
+        invoices: {
+          where: {
+            deletedAt: null,
+            status: { in: ["ISSUED", "PARTIALLY_PAID"] },
+          },
+          include: {
+            lines: true,
+            payments: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+          orderBy: { issuedAt: "asc" },
+        },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
       },
     });
@@ -33,7 +71,26 @@ export class FinanceAccountsRepository {
       include: {
         registration: true,
         student: true,
-        feeItems: true,
+        feeItems: {
+          include: {
+            paymentAllocations: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+        },
+        invoices: {
+          where: {
+            deletedAt: null,
+            status: { in: ["ISSUED", "PARTIALLY_PAID"] },
+          },
+          include: {
+            lines: true,
+            payments: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+          orderBy: { issuedAt: "asc" },
+        },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
       },
     });

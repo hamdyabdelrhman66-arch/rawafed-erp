@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { ReportRepository } from "../repositories/report.repository.js";
+import { FinancialStatementsService } from "./financial-statements.service.js";
 const money = (v: unknown) => Math.round(Number(v || 0) * 100) / 100;
 const dates = (from?: string, to?: string) => ({
   from: from ? new Date(`${from}T00:00:00.000Z`) : undefined,
@@ -86,17 +87,25 @@ export class ReportService {
       expenses = await repo.expenses(d.from, d.to),
       accounts = (await repo.accounts()).map(account),
       collected = payments.reduce((n, p) => n + p.amount, 0),
-      spent = expenses.reduce((n, e) => n + Number(e.totalAmount), 0),
-      outstanding = accounts.reduce((n, a) => n + a.remaining, 0);
+      statements = new FinancialStatementsService(this.prisma),
+      [incomeStatement, dashboard] = await Promise.all([
+        statements.incomeStatement(from, to),
+        statements.dashboard(from, to),
+      ]);
     return {
       from,
       to,
       collected: money(collected),
-      expenseTotal: money(spent),
-      net: money(collected - spent),
-      outstanding,
+      revenue: incomeStatement.revenue,
+      expenseTotal: incomeStatement.expenses,
+      net: incomeStatement.netIncome,
+      outstanding: dashboard.kpis.accountsReceivable,
       payments,
       expenses,
+      reconciliation: {
+        trialBalanceBalanced: dashboard.trialBalance.balanced,
+        balanceSheetBalanced: dashboard.balanceSheet.balanced,
+      },
     };
   }
   async outstanding() {

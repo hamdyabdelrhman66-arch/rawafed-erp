@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { JournalsRepository } from "../repositories/journals.repository.js";
 import { LedgerRepository } from "../repositories/ledger.repository.js";
 import { FinancialStatementsService } from "./financial-statements.service.js";
@@ -19,6 +19,10 @@ export class ReconciliationService {
       balanceSheet,
       dashboard,
       vat,
+      duplicateInvoiceGroups,
+      duplicateNotifications,
+      invalidAccountHierarchy,
+      studentsWithoutFinanceAccounts,
     ] = await Promise.all([
       journals.unbalanced(),
       journals.duplicateSources(),
@@ -28,13 +32,56 @@ export class ReconciliationService {
       statements.balanceSheet(),
       statements.dashboard(),
       new VatService(this.prisma).summary(),
+      this.prisma.$queryRaw<
+        Array<{
+          account_id: string;
+          total: Prisma.Decimal;
+          invoice_date: Date;
+          count: bigint;
+        }>
+      >`SELECT account_id, total, DATE(issued_at) invoice_date, COUNT(*) count
+         FROM finance_invoices
+        WHERE deleted_at IS NULL AND status <> 'VOID'
+        GROUP BY account_id, total, DATE(issued_at)
+       HAVING COUNT(*) > 1`,
+      this.prisma.$queryRaw<
+        Array<{
+          source_type: string;
+          source_id: string;
+          event_type: string;
+          target_role: string;
+          count: bigint;
+        }>
+      >`SELECT source_type, source_id, event_type, target_role, COUNT(*) count
+         FROM notifications
+        WHERE deleted_at IS NULL AND source_type IS NOT NULL
+        GROUP BY source_type, source_id, event_type, target_role
+       HAVING COUNT(*) > 1`,
+      this.prisma.$queryRaw<
+        Array<{ id: string; code: string; reason: string }>
+      >`
+        SELECT child.id, child.code,
+               CASE WHEN child.parent_id = child.id THEN 'self-parent'
+                    WHEN child.type <> parent.type THEN 'cross-type-parent' END reason
+          FROM chart_of_accounts child
+          JOIN chart_of_accounts parent ON parent.id = child.parent_id
+         WHERE child.deleted_at IS NULL
+           AND (child.parent_id = child.id OR child.type <> parent.type)`,
+      this.prisma.student.findMany({
+        where: { deletedAt: null, financeAccount: null },
+        select: { id: true, registrationNumber: true, englishName: true },
+      }),
     ]);
     const receivableLedger = (await ledger.lines({ accountTypes: ["ASSET"] }))
       .filter((l) => l.account.isReceivableAccount)
       .reduce((n, l) => n + Number(l.debit) - Number(l.credit), 0);
     const openInvoices = await this.prisma.financeInvoice.findMany({
       where: { deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID"] } },
-      include: { payments: true },
+      include: {
+        payments: {
+          where: { payment: { status: "COMPLETED", deletedAt: null } },
+        },
+      },
     });
     const receivableInvoices = openInvoices.reduce(
       (n, i) =>
@@ -62,6 +109,10 @@ export class ReconciliationService {
       dashboardMismatch: !dashboard.trialBalance.balanced,
       trialBalanceMismatch: !trialBalance.balanced,
       balanceSheetMismatch: !balanceSheet.balanced,
+      duplicateInvoiceGroups,
+      duplicateNotifications,
+      invalidAccountHierarchy,
+      studentsWithoutFinanceAccounts,
     };
   }
 }

@@ -3,19 +3,32 @@
     <span>Finance Inbox</span>
     <h1 class="page-title">Student Finance Accounts</h1>
     <p class="page-subtitle">
-      Submitted registrations appear here automatically for accounting follow-up and payment collection.
+      Submitted registrations appear here automatically for accounting follow-up
+      and payment collection.
     </p>
   </div>
 
   <div class="header-actions">
-    <button type="button" (click)="refresh()">
-      Refresh Accounts
-    </button>
+    <button type="button" (click)="refresh()">Refresh Accounts</button>
 
-    <button routerLink="/finance/add-payment">
-      Record Payment
-    </button>
+    <button routerLink="/finance/add-payment">Record Payment</button>
   </div>
+</div>
+
+<div class="load-state" *ngIf="state === 'loading'">
+  Loading student finance accounts…
+</div>
+<div class="load-state warning" *ngIf="state === 'stale'">
+  {{ errorMessage }}
+</div>
+<div
+  class="load-state error"
+  *ngIf="state === 'error' || state === 'unauthorized'"
+>
+  {{ errorMessage }}
+</div>
+<div class="load-state" *ngIf="state === 'empty'">
+  No student finance accounts have been created yet.
 </div>
 
 <div class="stats">
@@ -49,7 +62,8 @@
   <input
     class="search-box"
     placeholder="Search by student, registration number, grade, or status..."
-    [(ngModel)]="searchText">
+    [(ngModel)]="searchText"
+  />
 
   <table>
     <thead>
@@ -70,7 +84,11 @@
       <tr *ngFor="let item of filteredAccounts">
         <td>
           {{ item.patient }}
-          <span class="unpaid" *ngIf="item.notificationStatus === 'new' || item.paid === 0">New</span>
+          <span
+            class="unpaid"
+            *ngIf="item.notificationStatus === 'new' || item.paid === 0"
+            >New</span
+          >
         </td>
         <td>{{ item.registrationNumber || '-' }}</td>
         <td>{{ item.grade || '-' }}</td>
@@ -83,7 +101,8 @@
           <span
             [class.paid]="item.status==='Paid'"
             [class.partial]="item.status==='Partial'"
-            [class.unpaid]="item.status==='Unpaid'">
+            [class.unpaid]="item.status==='Unpaid'"
+          >
             {{ item.status }}
           </span>
         </td>
@@ -92,20 +111,23 @@
           <button
             class="action-btn"
             [routerLink]="['/finance/add-payment']"
-            [queryParams]="{ accountId: item.id }">
+            [queryParams]="{ accountId: item.id }"
+          >
             Record Payment
           </button>
 
           <button
             class="view-btn"
-            [routerLink]="['/finance/package-details', item.id]">
+            [routerLink]="['/finance/package-details', item.id]"
+          >
             View
           </button>
 
           <button
             class="invoice-btn"
             *ngIf="latestInvoiceId(item) as invoiceId"
-            [routerLink]="['/finance/invoice-details', invoiceId]">
+            [routerLink]="['/finance/invoice-details', invoiceId]"
+          >
             Invoice
           </button>
         </td>
