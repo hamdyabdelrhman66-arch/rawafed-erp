@@ -11,7 +11,7 @@ import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { AuthRequest, createOpaqueToken, hashToken, requireAuth, requireRole, signRefreshToken, signUser, verifyRefreshToken } from './auth.js';
-import { accountIdBySystemKey, accountingDashboard, archiveAccount, cashAccountForMethod, createAccount, createAccountingExpense, createBank, createCashBankTransfer, createCashbox, createInstallmentPlan, createJournalEntry, createSupplier, createSupplierPayment, createSystemJournal, customerById, customerInstallments, customerStatement, deactivateAccount, deactivateSupplier, deleteAccount, ensureCustomerForStudent, expenseAccountForCategory, globalAccountingSearch, ledger, listAccountingExpenses, listAccounts, listBanks, listCashboxes, listCostCenters, listCustomers, listExpenseAccounts, listJournalEntries, listPayableAccounts, listPaymentAccounts, listReceivableAccounts, listRevenueAccounts, listSuppliers, moveAccount, receivableAccountForStudentContext, revenueAccountForItem, suggestAccountCode, supplierAging, supplierProfile, supplierStatement, syncCustomersFromStudents, trialBalance, updateAccount, updateBank, updateCashbox, updateSupplier } from './accounting.js';
+import { accountIdBySystemKey, accountingDashboard, archiveAccount, cashAccountForMethod, createAccount, createAccountingExpense, createBank, createCashBankTransfer, createCashbox, createInstallmentPlan, createJournalEntry, createSupplier, createSupplierPayment, createSystemJournal, customerById, customerInstallments, customerStatement, deactivateAccount, deactivateSupplier, deleteAccount, deleteJournalEntry, ensureCustomerForStudent, expenseAccountForCategory, globalAccountingSearch, ledger, listAccountingExpenses, listAccounts, listBanks, listCashboxes, listCostCenters, listCustomers, listExpenseAccounts, listJournalEntries, listPayableAccounts, listPaymentAccounts, listReceivableAccounts, listRevenueAccounts, listSuppliers, moveAccount, receivableAccountForStudentContext, revenueAccountForItem, suggestAccountCode, supplierAging, supplierProfile, supplierStatement, syncCustomersFromStudents, trialBalance, updateAccount, updateBank, updateCashbox, updateJournalEntry, updateSupplier } from './accounting.js';
 import { logAudit, readDb, updateDb } from './db.js';
 import { applyPaymentToAccount, ensureFinanceAccount, isVatExemptRegistration, money } from './finance.js';
 import { createGoodsReceipt, createItem, createPurchaseOrder, createPurchaseRequest, createStockMovement, createWarehouse, inventoryDashboard, inventoryReports, issueItemToStudent, listGoodsReceipts, listInventoryCategories, listItems, listPurchaseOrders, listPurchaseRequests, listStockMovements, listWarehouses, updateItem, updatePurchaseOrderStatus, updatePurchaseRequestStatus, updateWarehouse } from './inventory.js';
@@ -379,7 +379,7 @@ app.get('/api/registrations', requireAuth, requireRole(['Admissions', 'Registrar
   res.json(withFinancePaymentStatuses(db.registrations, db.financeAccounts));
 });
 
-app.post('/api/registrations', requireAuth, requireRole(['Admissions', 'Registrar']), (req: AuthRequest, res) => {
+const submitRegistration = (req: AuthRequest, res: express.Response) => {
   const body = registrationSchema.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ message: 'Invalid registration payload.', errors: body.error.flatten() });
@@ -411,10 +411,13 @@ app.post('/api/registrations', requireAuth, requireRole(['Admissions', 'Registra
     });
     ensureFinanceAccount(db, submitted);
   });
-  logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'create registration', entityType: 'registration', entityId: submitted.id });
+  logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: req.user ? 'create registration' : 'public registration submission', entityType: 'registration', entityId: submitted.id });
 
   res.status(201).json(submitted);
-});
+};
+
+app.post('/api/registrations', submitRegistration);
+app.post('/api/public/registrations', submitRegistration);
 
 app.patch('/api/registrations/:id/status', requireAuth, requireRole(['Admissions', 'Registrar', 'Principal']), (req, res) => {
   const status = z.enum(['draft', 'pending', 'approved', 'rejected', 'archived']).safeParse(req.body.status);
@@ -895,6 +898,53 @@ app.post('/api/accounting/journal-entries', requireAuth, requireRole(['Finance']
     res.status(201).json(entry);
   } catch (error) {
     res.status(400).json({ message: error instanceof Error ? error.message : 'Could not create journal entry.' });
+  }
+});
+
+app.patch('/api/accounting/journal-entries/:id', requireAuth, requireRole(['Finance']), (req: AuthRequest, res) => {
+  const body = z.object({
+    referenceNumber: z.string().optional(),
+    postingDate: z.string().min(8),
+    description: z.string().min(3),
+    status: z.enum(['draft', 'posted']).optional(),
+    lines: z.array(z.object({
+      accountId: z.string().min(1),
+      costCenterId: z.string().optional(),
+      description: z.string().optional(),
+      debit: z.coerce.number().nonnegative().optional(),
+      credit: z.coerce.number().nonnegative().optional()
+    })).min(2)
+  }).safeParse(req.body);
+
+  if (!body.success) {
+    res.status(400).json({ message: 'Invalid journal entry payload.', errors: body.error.flatten() });
+    return;
+  }
+
+  try {
+    const entry = updateJournalEntry(String(req.params.id), body.data, { id: req.user?.id, name: req.user?.displayName });
+    if (!entry) {
+      res.status(404).json({ message: 'Journal entry not found.' });
+      return;
+    }
+    logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'update journal entry', entityType: 'accounting_journal_entry', entityId: entry.id, details: { entryNumber: entry.entryNumber } });
+    res.json(entry);
+  } catch (error) {
+    res.status(400).json({ message: error instanceof Error ? error.message : 'Could not update journal entry.' });
+  }
+});
+
+app.delete('/api/accounting/journal-entries/:id', requireAuth, requireRole(['Finance']), (req: AuthRequest, res) => {
+  try {
+    const deleted = deleteJournalEntry(String(req.params.id));
+    if (!deleted) {
+      res.status(404).json({ message: 'Journal entry not found.' });
+      return;
+    }
+    logAudit({ actorId: req.user?.id, actorRole: req.user?.role, action: 'delete journal entry', entityType: 'accounting_journal_entry', entityId: String(req.params.id), details: { entryNumber: deleted.entryNumber } });
+    res.json(deleted);
+  } catch (error) {
+    res.status(400).json({ message: error instanceof Error ? error.message : 'Could not delete journal entry.' });
   }
 });
 

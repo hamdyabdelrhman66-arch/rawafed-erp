@@ -59,11 +59,15 @@ export class AdmissionService {
       registrationInfoPdf: undefined
     };
     try {
-      const saved = await this.api.post<AdmissionRegistration>('/registrations', submitted);
+      const saved = await this.api.post<AdmissionRegistration>('/public/registrations', submitted);
       this.storage.upsertRegistration(saved);
       this.storage.clearDraft();
       return saved;
-    } catch {
+    } catch (error) {
+      const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+      if (!isLocalhost) {
+        throw new Error('Could not submit the registration to the school system. Please try again.');
+      }
       this.finance.ensureAccountFromRegistration(submitted);
       this.storage.upsertRegistration(submitted);
       this.storage.clearDraft();

@@ -615,6 +615,46 @@ export function createJournalEntry(input: JournalEntryInput, actor: AccountingAc
   });
 }
 
+export function updateJournalEntry(id: string, input: JournalEntryInput, actor: AccountingActor = {}): any {
+  validateBalanced(input.lines);
+  const existing = dbFirst<any>('SELECT * FROM accounting_journal_entries WHERE id = ?', [id]);
+  if (!existing) return undefined;
+  if (existing.source_type || existing.source_id) {
+    throw new Error('Only manual journal entries can be edited. Open the source document to correct system-generated entries.');
+  }
+  const now = new Date().toISOString();
+  const status = input.status || existing.status || 'posted';
+  return dbTransaction(() => {
+    dbRun(
+      `UPDATE accounting_journal_entries
+       SET status = ?, reference_number = ?, posting_date = ?, description = ?, updated_at = ?, posted_at = ?
+       WHERE id = ?`,
+      [
+        status,
+        input.referenceNumber || null,
+        input.postingDate.slice(0, 10),
+        input.description,
+        now,
+        status === 'posted' ? (existing.posted_at || now) : null,
+        id
+      ]
+    );
+    dbRun('DELETE FROM accounting_journal_lines WHERE journal_entry_id = ?', [id]);
+    input.lines.forEach((line) => insertLine(id, line, now));
+    return journalEntryById(id);
+  });
+}
+
+export function deleteJournalEntry(id: string): any {
+  const existing = journalEntryById(id);
+  if (!existing) return undefined;
+  if (existing.sourceType || existing.sourceId) {
+    throw new Error('Only manual journal entries can be deleted. Open the source document to reverse system-generated entries.');
+  }
+  dbRun('DELETE FROM accounting_journal_entries WHERE id = ?', [id]);
+  return existing;
+}
+
 export function createSystemJournal(input: JournalEntryInput, actor: AccountingActor = {}): any {
   if (input.sourceType && input.sourceId) {
     const existing = dbFirst<any>('SELECT id FROM accounting_journal_entries WHERE source_type = ? AND source_id = ?', [input.sourceType, input.sourceId]);

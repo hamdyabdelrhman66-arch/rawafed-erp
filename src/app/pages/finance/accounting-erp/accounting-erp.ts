@@ -29,6 +29,7 @@ export class AccountingErp implements OnInit {
   dashboard: any;
   costCenters: Array<{ id: string; code: string; nameEn: string; nameAr: string }> = [];
   selectedJournal: JournalEntry | null = null;
+  editingJournalId = '';
 
   selectedAccountId = '';
   fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -280,27 +281,74 @@ export class AccountingErp implements OnInit {
 
   async saveJournal(): Promise<void> {
     this.error = '';
+    const payload = {
+      ...this.draftEntry,
+      lines: this.draftEntry.lines.map((line) => ({
+        accountId: line.accountId,
+        description: line.description,
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0)
+      }))
+    };
     try {
-      await this.accounting.createJournalEntry({
-        ...this.draftEntry,
-        lines: this.draftEntry.lines.map((line) => ({
-          accountId: line.accountId,
-          description: line.description,
-          debit: Number(line.debit || 0),
-          credit: Number(line.credit || 0)
-        }))
-      });
-      this.draftEntry.description = '';
-      this.draftEntry.referenceNumber = '';
-      this.draftEntry.lines = [
-        { accountId: '', description: '', debit: 0, credit: 0 },
-        { accountId: '', description: '', debit: 0, credit: 0 }
-      ];
+      if (this.editingJournalId) await this.accounting.updateJournalEntry(this.editingJournalId, payload);
+      else await this.accounting.createJournalEntry(payload);
+      this.resetJournalForm();
       await this.load();
       this.setActiveTab('journal');
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Could not save journal entry.';
     }
+  }
+
+  editJournal(entry: JournalEntry): void {
+    if (entry.sourceType || entry.sourceId) {
+      this.error = 'Only manual journal entries can be edited from here.';
+      return;
+    }
+    this.editingJournalId = entry.id;
+    this.draftEntry = {
+      postingDate: entry.postingDate,
+      referenceNumber: entry.referenceNumber || '',
+      description: entry.description,
+      status: entry.status === 'draft' ? 'draft' : 'posted',
+      lines: entry.lines.map((line) => ({
+        accountId: line.accountId,
+        description: line.description || '',
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0)
+      }))
+    };
+    this.setActiveTab('journal');
+  }
+
+  async deleteJournal(entry: JournalEntry): Promise<void> {
+    if (entry.sourceType || entry.sourceId) {
+      this.error = 'Only manual journal entries can be deleted from here.';
+      return;
+    }
+    if (!confirm(`Delete journal entry ${entry.entryNumber}?`)) return;
+    this.error = '';
+    try {
+      await this.accounting.deleteJournalEntry(entry.id);
+      if (this.editingJournalId === entry.id) this.resetJournalForm();
+      await this.load();
+      this.setActiveTab('journal');
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : 'Could not delete journal entry.';
+    }
+  }
+
+  resetJournalForm(): void {
+    this.editingJournalId = '';
+    this.draftEntry.description = '';
+    this.draftEntry.referenceNumber = '';
+    this.draftEntry.status = 'posted';
+    this.draftEntry.postingDate = new Date().toISOString().slice(0, 10);
+    this.draftEntry.lines = [
+      { accountId: '', description: '', debit: 0, credit: 0 },
+      { accountId: '', description: '', debit: 0, credit: 0 }
+    ];
   }
 
   money(value: unknown): string {

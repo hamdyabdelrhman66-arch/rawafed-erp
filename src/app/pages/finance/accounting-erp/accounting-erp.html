@@ -249,9 +249,9 @@
       <div class="line-table">
         <div class="line-head">
           <span>{{ 'common.account' | t }}</span>
-          <span>{{ 'common.description' | t }}</span>
           <span>{{ 'common.debit' | t }}</span>
           <span>{{ 'common.credit' | t }}</span>
+          <span>{{ 'common.description' | t }}</span>
           <span></span>
         </div>
         <div class="line-row" *ngFor="let line of draftEntry.lines; let index = index">
@@ -259,9 +259,9 @@
             <option value="">{{ 'accounting.select_account' | t }}</option>
             <option *ngFor="let account of accounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
           </select>
-          <input type="text" [(ngModel)]="line.description" [name]="'description' + index" />
           <input type="number" [(ngModel)]="line.debit" [name]="'debit' + index" min="0" />
           <input type="number" [(ngModel)]="line.credit" [name]="'credit' + index" min="0" />
+          <input type="text" [(ngModel)]="line.description" [name]="'description' + index" />
           <button type="button" (click)="removeLine(index)">{{ 'common.remove' | t }}</button>
         </div>
       </div>
@@ -270,6 +270,7 @@
         <button type="button" (click)="addLine()">{{ 'common.add_line' | t }}</button>
         <strong>{{ 'common.debit' | t }}: {{ money(debitTotal) }}</strong>
         <strong>{{ 'common.credit' | t }}: {{ money(creditTotal) }}</strong>
+        <button type="button" *ngIf="editingJournalId" (click)="resetJournalForm()">{{ 'common.cancel' | t }}</button>
         <button type="submit" class="primary">{{ 'accounting.save_journal' | t }}</button>
       </footer>
     </form>
@@ -283,6 +284,7 @@
             <th>{{ 'common.description' | t }}</th>
             <th>{{ 'common.lines' | t }}</th>
             <th>{{ 'common.status' | t }}</th>
+            <th>{{ 'common.action' | t }}</th>
           </tr>
         </thead>
         <tbody>
@@ -292,6 +294,10 @@
             <td>{{ entry.description }}</td>
             <td>{{ entry.lines.length }}</td>
             <td>{{ entry.status | statusLabel }}</td>
+            <td class="entry-actions">
+              <button type="button" [disabled]="entry.sourceType || entry.sourceId" (click)="editJournal(entry)">{{ 'common.edit' | t }}</button>
+              <button type="button" [disabled]="entry.sourceType || entry.sourceId" (click)="deleteJournal(entry)">{{ 'common.delete' | t }}</button>
+            </td>
           </tr>
         </tbody>
       </table>

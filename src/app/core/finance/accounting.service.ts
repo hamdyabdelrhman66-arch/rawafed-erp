@@ -269,4 +269,18 @@ export class AccountingService {
   }): Promise<JournalEntry> {
     return this.api.post<JournalEntry>('/accounting/journal-entries', payload);
   }
+
+  updateJournalEntry(id: string, payload: {
+    referenceNumber?: string;
+    postingDate: string;
+    description: string;
+    status: 'draft' | 'posted';
+    lines: Array<{ accountId: string; description?: string; debit?: number; credit?: number }>;
+  }): Promise<JournalEntry> {
+    return this.api.patch<JournalEntry>(`/accounting/journal-entries/${id}`, payload);
+  }
+
+  deleteJournalEntry(id: string): Promise<JournalEntry> {
+    return this.api.delete<JournalEntry>(`/accounting/journal-entries/${id}`);
+  }
 }

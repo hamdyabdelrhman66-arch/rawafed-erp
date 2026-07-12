@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
+import { AccountingService } from '../../../core/finance/accounting.service';
 import { ExpensesService } from '../../../core/finance/expenses.service';
 import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
 import { PaymentsService } from '../../../core/finance/payments.service';
@@ -10,7 +11,7 @@ import { StaffService } from '../../../core/finance/staff.service';
 import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
 import { StorageService } from '../../../core/services/storage.service';
 
-type ReportKind = 'finance-summary' | 'account-ledger' | 'payments' | 'expenses' | 'expense-by-category' | 'expense-by-supplier' | 'vat-input' | 'cash-expenses' | 'bank-expenses' | 'unpaid-expenses' | 'cost-center-expenses' | 'payroll' | 'outstanding' | 'admissions';
+type ReportKind = 'finance-summary' | 'income-statement' | 'financial-position' | 'cash-flow' | 'equity-changes' | 'all-accounts-statement' | 'account-ledger' | 'payments' | 'expenses' | 'expense-by-category' | 'expense-by-supplier' | 'vat-input' | 'cash-expenses' | 'bank-expenses' | 'unpaid-expenses' | 'cost-center-expenses' | 'payroll' | 'outstanding' | 'admissions';
 
 interface AccountOption {
   value: string;
@@ -51,9 +52,15 @@ export class Reports implements OnInit {
   expenses: any[] = [];
   accounts: any[] = [];
   payroll: any[] = [];
+  trialBalance: any;
 
   readonly reportOptions: Array<{ value: ReportKind; label: string }> = [
     { value: 'finance-summary', label: 'Finance Summary' },
+    { value: 'income-statement', label: 'Income Statement' },
+    { value: 'financial-position', label: 'Statement of Financial Position' },
+    { value: 'cash-flow', label: 'Cash Flow Statement' },
+    { value: 'equity-changes', label: 'Statement of Changes in Equity' },
+    { value: 'all-accounts-statement', label: 'All Accounts Statement' },
     { value: 'account-ledger', label: 'Account Ledger / Trial Balance' },
     { value: 'payments', label: 'Payments Report' },
     { value: 'expenses', label: 'Expenses Report' },
@@ -86,6 +93,7 @@ export class Reports implements OnInit {
   ];
 
   constructor(
+    private readonly accounting: AccountingService,
     private readonly paymentsService: PaymentsService,
     private readonly expensesService: ExpensesService,
     private readonly accountService: PatientPackagesService,
@@ -116,11 +124,13 @@ export class Reports implements OnInit {
       this.expenses = expenses;
       this.accounts = accounts;
       this.payroll = payroll;
+      void this.refreshAccountingReport();
     });
   }
 
   setReportKind(kind: ReportKind): void {
     this.reportKind = kind;
+    if (this.isAccountingReport(kind)) void this.refreshAccountingReport();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: kind === 'finance-summary' ? {} : { report: kind },
@@ -144,6 +154,11 @@ export class Reports implements OnInit {
   get columns(): string[] {
     return {
       'finance-summary': ['Section', 'Count', 'Expected', 'Paid', 'Remaining'],
+      'income-statement': ['Account', 'Type', 'Revenue', 'Expense', 'Net'],
+      'financial-position': ['Account', 'Type', 'Debit Balance', 'Credit Balance', 'Closing'],
+      'cash-flow': ['Cash / Bank Account', 'Opening', 'Cash In', 'Cash Out', 'Closing'],
+      'equity-changes': ['Equity Account', 'Opening', 'Increase', 'Decrease', 'Closing'],
+      'all-accounts-statement': ['Code', 'Account', 'Type', 'Opening', 'Debit', 'Credit', 'Closing'],
       'account-ledger': ['Date', 'Account', 'Description', 'Source', 'Method', 'Debit', 'Credit', 'Balance'],
       payments: ['Date', 'Student', 'Fee Item', 'Method', 'Receipt', 'Amount'],
       expenses: ['Date', 'Supplier', 'Category', 'Invoice Type', 'Payment Status', 'Total', 'Journal'],
@@ -230,6 +245,7 @@ export class Reports implements OnInit {
 
   private buildRows(): ReportRow[] {
     if (this.reportKind === 'payments') return this.paymentRows();
+    if (this.isAccountingReport(this.reportKind)) return this.accountingStatementRows();
     if (this.reportKind === 'account-ledger') return this.accountLedgerRows();
     if (this.reportKind === 'expenses') return this.expenseRows();
     if (this.reportKind === 'expense-by-category') return this.groupExpenseRows('category');
@@ -273,6 +289,74 @@ export class Reports implements OnInit {
         amount: this.admissionsInPeriod
       }
     ];
+  }
+
+  async refreshAccountingReport(): Promise<void> {
+    this.trialBalance = await this.accounting.getTrialBalance({
+      fromDate: this.fromDate,
+      toDate: this.toDate,
+      displayMode: 'balance',
+      showParentAccounts: false,
+      accountStatus: 'active'
+    });
+  }
+
+  private isAccountingReport(kind: ReportKind): boolean {
+    return ['income-statement', 'financial-position', 'cash-flow', 'equity-changes', 'all-accounts-statement'].includes(kind);
+  }
+
+  private accountingStatementRows(): ReportRow[] {
+    const rows = this.trialBalance?.rows || [];
+    if (this.reportKind === 'income-statement') {
+      return rows
+        .filter((row: any) => ['revenue', 'expense'].includes(row.type))
+        .map((row: any) => {
+          const revenue = row.type === 'revenue' ? Number(row.periodCredit || 0) : 0;
+          const expense = row.type === 'expense' ? Number(row.periodDebit || 0) : 0;
+          return {
+            date: this.toDate,
+            search: [row.code, row.nameEn, row.nameAr, row.type].join(' ').toLowerCase(),
+            values: [`${row.code} - ${row.nameEn}`, row.type, revenue ? this.money(revenue) : '-', expense ? this.money(expense) : '-', this.money(revenue - expense)],
+            amount: revenue - expense
+          };
+        });
+    }
+    if (this.reportKind === 'financial-position') {
+      return rows
+        .filter((row: any) => ['asset', 'liability', 'equity'].includes(row.type))
+        .map((row: any) => ({
+          date: this.toDate,
+          search: [row.code, row.nameEn, row.nameAr, row.type].join(' ').toLowerCase(),
+          values: [`${row.code} - ${row.nameEn}`, row.type, this.money(row.closingDebit), this.money(row.closingCredit), this.money(row.closingBalance)],
+          amount: Number(row.closingDebit || 0) - Number(row.closingCredit || 0)
+        }));
+    }
+    if (this.reportKind === 'cash-flow') {
+      return rows
+        .filter((row: any) => /cash|bank|card/i.test([row.code, row.nameEn, row.nameAr].join(' ')))
+        .map((row: any) => ({
+          date: this.toDate,
+          search: [row.code, row.nameEn, row.nameAr].join(' ').toLowerCase(),
+          values: [`${row.code} - ${row.nameEn}`, this.money(row.openingBalance), this.money(row.periodDebit), this.money(row.periodCredit), this.money(row.closingBalance)],
+          amount: Number(row.closingBalance || 0)
+        }));
+    }
+    if (this.reportKind === 'equity-changes') {
+      return rows
+        .filter((row: any) => row.type === 'equity')
+        .map((row: any) => ({
+          date: this.toDate,
+          search: [row.code, row.nameEn, row.nameAr].join(' ').toLowerCase(),
+          values: [`${row.code} - ${row.nameEn}`, this.money(row.openingBalance), this.money(row.periodCredit), this.money(row.periodDebit), this.money(row.closingBalance)],
+          amount: Number(row.closingBalance || 0)
+        }));
+    }
+    return rows.map((row: any) => ({
+      date: this.toDate,
+      search: [row.code, row.nameEn, row.nameAr, row.type].join(' ').toLowerCase(),
+      values: [row.code, row.nameEn, row.type, this.money(row.openingBalance), this.money(row.periodDebit), this.money(row.periodCredit), this.money(row.closingBalance)],
+      amount: Number(row.closingBalance || 0)
+    }));
   }
 
   private paymentRows(): ReportRow[] {

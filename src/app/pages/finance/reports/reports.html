@@ -29,12 +29,12 @@
 
     <label>
       <span>From Date</span>
-      <input type="date" [(ngModel)]="fromDate" />
+      <input type="date" [(ngModel)]="fromDate" (change)="refreshAccountingReport()" />
     </label>
 
     <label>
       <span>To Date</span>
-      <input type="date" [(ngModel)]="toDate" />
+      <input type="date" [(ngModel)]="toDate" (change)="refreshAccountingReport()" />
     </label>
 
     <label>
