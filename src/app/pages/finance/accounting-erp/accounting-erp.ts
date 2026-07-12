@@ -7,6 +7,7 @@ import { AccountNamePipe } from '../../../core/i18n/account-name.pipe';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { StatusLabelPipe } from '../../../core/i18n/status-label.pipe';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
+import { SearchableSelectComponent } from '../../../shared/components/searchable-select/searchable-select.component';
 
 type AccountingTab = 'overview' | 'accounts' | 'journal' | 'ledger' | 'trial';
 type AccountFormMode = 'details' | 'create' | 'edit';
@@ -34,7 +35,7 @@ type AccountFormModel = {
 @Component({
   selector: 'app-accounting-erp',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, StatusLabelPipe, AccountNamePipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, StatusLabelPipe, AccountNamePipe, SearchableSelectComponent],
   templateUrl: './accounting-erp.html',
   styleUrls: ['./accounting-erp.css', '../../../shared/finance/finance-ui.scss']
 })
@@ -73,6 +74,7 @@ export class AccountingErp implements OnInit {
   readonly branchOptions = [{ id: 'main', name: 'Main Branch' }];
   readonly currencyOptions = ['SAR'];
   collapsedTrialAccounts = new Set<string>();
+  readonly accountOptionLabel = (account: AccountingAccount) => this.accountDisplayName(account);
 
   draftEntry = {
     postingDate: new Date().toISOString().slice(0, 10),

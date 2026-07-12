@@ -7,6 +7,7 @@ import { PatientPackagesService } from '../../../core/finance/patient-packages.s
 import { PaymentsService } from '../../../core/finance/payments.service';
 import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
 import { StorageService } from '../../../core/services/storage.service';
+import { SearchableSelectComponent } from '../../../shared/components/searchable-select/searchable-select.component';
 
 interface PaymentLine {
   feeItem: string;
@@ -17,7 +18,7 @@ interface PaymentLine {
 @Component({
   selector: 'app-add-payment',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SearchableSelectComponent],
   templateUrl: './add-payment.html',
   styleUrls: ['./add-payment.css', '../../../shared/finance/finance-ui.scss']
 })
@@ -31,6 +32,10 @@ export class AddPayment implements OnInit {
   notes = '';
   previousPayments: any[] = [];
   paymentLines: PaymentLine[] = [];
+  readonly accountLabel = (account: any) =>
+    account
+      ? `${account.patient} - ${account.registrationNumber || account.fileNo || '-'} - Grade ${account.grade || '-'} - Remaining ${Number(account.remaining || 0).toLocaleString('en-US')} SAR`
+      : '';
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -66,6 +71,11 @@ export class AddPayment implements OnInit {
   onAccountChange(): void {
     this.paymentLines = this.buildPaymentLines();
     this.loadPreviousPayments();
+  }
+
+  selectAccount(account: any): void {
+    this.selectedAccount = account;
+    this.onAccountChange();
   }
 
   payHalf(): void {

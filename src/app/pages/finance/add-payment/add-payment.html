@@ -14,12 +14,15 @@
   <div class="info-grid">
     <div class="form-group wide">
       <label>Student</label>
-      <select [(ngModel)]="selectedAccount" (change)="onAccountChange()">
-        <option [ngValue]="null">Select student account</option>
-        <option *ngFor="let account of accounts" [ngValue]="account">
-          {{ account.patient }} - Grade {{ account.grade || '-' }} - Remaining {{ account.remaining | number }} SAR
-        </option>
-      </select>
+      <app-searchable-select
+        [options]="accounts"
+        [value]="selectedAccount"
+        (valueChange)="selectAccount($event)"
+        [labelWith]="accountLabel"
+        placeholder="Select student account"
+        searchPlaceholder="Search by student, grade, registration, or balance..."
+        emptyText="No student accounts found">
+      </app-searchable-select>
     </div>
 
     <div class="form-group">

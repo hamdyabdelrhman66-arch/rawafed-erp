@@ -280,10 +280,15 @@
           <span></span>
         </div>
         <div class="line-row" *ngFor="let line of draftEntry.lines; let index = index">
-          <select [(ngModel)]="line.accountId" [name]="'account' + index" required>
-            <option value="">{{ 'accounting.select_account' | t }}</option>
-            <option *ngFor="let account of accounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
-          </select>
+          <app-searchable-select
+            [options]="accounts"
+            valueKey="id"
+            [(value)]="line.accountId"
+            [labelWith]="accountOptionLabel"
+            [placeholder]="'accounting.select_account' | t"
+            [searchPlaceholder]="'accounting.code_or_name' | t"
+            [emptyText]="'accounting.no_accounts' | t">
+          </app-searchable-select>
           <input type="number" [(ngModel)]="line.debit" [name]="'debit' + index" min="0" />
           <input type="number" [(ngModel)]="line.credit" [name]="'credit' + index" min="0" />
           <input type="text" [(ngModel)]="line.description" [name]="'description' + index" />
