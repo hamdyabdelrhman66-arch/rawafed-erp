@@ -194,6 +194,16 @@
   </section>
 
   <section class="erp-panel" *ngIf="activeTab === 'accounts'">
+    <div class="accounts-toolbar">
+      <div>
+        <strong>{{ 'nav.chart_of_accounts' | t }}</strong>
+        <span>{{ 'accounting.accounts_hint' | t }}</span>
+      </div>
+      <div class="toolbar-actions">
+        <button type="button" class="primary" (click)="openNewParentAccount()">{{ 'accounting.add_parent_account' | t }}</button>
+        <button type="button" (click)="openNewChildAccount(selectedAccount)" [disabled]="!selectedAccount">{{ 'accounting.add_child_account' | t }}</button>
+      </div>
+    </div>
     <div class="table-scroll">
       <table>
         <thead>
@@ -205,17 +215,32 @@
             <th>{{ 'common.parent' | t }}</th>
             <th>{{ 'common.opening' | t }}</th>
             <th>{{ 'common.status' | t }}</th>
+            <th>{{ 'common.action' | t }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let account of accounts">
-            <td>{{ account.code }}</td>
+          <tr
+            *ngFor="let account of accounts"
+            class="account-row"
+            [class.selected]="selectedAccount?.id === account.id"
+            [class.parent-account]="isParentAccount(account)"
+            (click)="openAccountDetails(account)">
+            <td>
+              <strong>{{ account.code }}</strong>
+              <small *ngIf="isParentAccount(account)">{{ 'accounting.header_account' | t }}</small>
+            </td>
             <td>{{ account.nameEn }}</td>
             <td>{{ account.nameAr }}</td>
             <td>{{ 'type.' + account.type | t }}</td>
-            <td>{{ account.parentId || '-' }}</td>
+            <td>{{ accountDisplayName(findAccount(account.parentId)) }}</td>
             <td>{{ money(account.openingBalance) }}</td>
             <td>{{ account.status | statusLabel }}</td>
+            <td>
+              <div class="row-actions">
+                <button type="button" (click)="$event.stopPropagation(); openAccountDetails(account)">{{ 'common.details' | t }}</button>
+                <button type="button" (click)="$event.stopPropagation(); openNewChildAccount(account)">+ {{ 'accounting.add_under_account' | t }}</button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -303,6 +328,139 @@
       </table>
     </div>
   </section>
+
+  <div class="account-modal-backdrop" *ngIf="accountFormOpen">
+    <article class="account-modal">
+      <header>
+        <div>
+          <span>{{ 'nav.chart_of_accounts' | t }}</span>
+          <h2>{{ accountModalTitle }}</h2>
+          <p *ngIf="selectedAccount">{{ accountDisplayName(selectedAccount) }}</p>
+        </div>
+        <button type="button" (click)="closeAccountModal()">×</button>
+      </header>
+
+      <ng-container *ngIf="accountModalMode === 'details'; else accountEditor">
+        <div class="account-detail-grid">
+          <div *ngFor="let row of accountDetailRows">
+            <span>{{ row.label }}</span>
+            <strong>{{ row.value }}</strong>
+          </div>
+        </div>
+
+        <div class="flag-list" *ngIf="selectedAccountFlags.length">
+          <span *ngFor="let flag of selectedAccountFlags">{{ flag }}</span>
+        </div>
+
+        <section class="ledger-preview">
+          <h3>{{ 'accounting.ledger_preview' | t }}</h3>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{ 'common.date' | t }}</th>
+                  <th>{{ 'common.entry' | t }}</th>
+                  <th>{{ 'common.description' | t }}</th>
+                  <th>{{ 'common.debit' | t }}</th>
+                  <th>{{ 'common.credit' | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of accountLedgerPreview?.transactions || []">
+                  <td>{{ row.postingDate }}</td>
+                  <td>{{ row.entryNumber }}</td>
+                  <td>{{ row.description }}</td>
+                  <td>{{ money(row.debit) }}</td>
+                  <td>{{ money(row.credit) }}</td>
+                </tr>
+                <tr *ngIf="!(accountLedgerPreview?.transactions || []).length">
+                  <td colspan="5" class="empty-cell">{{ 'accounting.no_account_transactions' | t }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <footer>
+          <button type="button" class="primary" (click)="openNewChildAccount(selectedAccount)">+ {{ 'accounting.add_under_account' | t }}</button>
+          <button type="button" (click)="editSelectedAccount()">{{ 'common.edit' | t }}</button>
+          <button type="button" (click)="closeAccountModal()">{{ 'common.close' | t }}</button>
+        </footer>
+      </ng-container>
+
+      <ng-template #accountEditor>
+        <form class="account-editor" (ngSubmit)="saveAccountForm()">
+          <div class="form-grid">
+            <label>
+              <span>{{ 'common.code' | t }}</span>
+              <input type="text" [(ngModel)]="accountForm.code" name="accountCode" required />
+            </label>
+            <label>
+              <span>{{ 'accounting.english_name' | t }}</span>
+              <input type="text" [(ngModel)]="accountForm.nameEn" name="accountNameEn" required />
+            </label>
+            <label>
+              <span>{{ 'accounting.arabic_name' | t }}</span>
+              <input type="text" [(ngModel)]="accountForm.nameAr" name="accountNameAr" required />
+            </label>
+            <label>
+              <span>{{ 'common.type' | t }}</span>
+              <select [(ngModel)]="accountForm.type" name="accountType" (ngModelChange)="onAccountTypeChange()">
+                <option *ngFor="let type of accountTypeOptions" [value]="type">{{ 'type.' + type | t }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ 'common.parent' | t }}</span>
+              <select [(ngModel)]="accountForm.parentId" name="parentAccountId" (ngModelChange)="suggestCodeForForm()">
+                <option value="">{{ 'accounting.no_parent_account' | t }}</option>
+                <option *ngFor="let account of accounts" [value]="account.id">{{ accountDisplayName(account) }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ 'accounting.normal_balance' | t }}</span>
+              <select [(ngModel)]="accountForm.normalBalance" name="normalBalance">
+                <option value="debit">{{ 'common.debit' | t }}</option>
+                <option value="credit">{{ 'common.credit' | t }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ 'common.opening' | t }}</span>
+              <input type="number" [(ngModel)]="accountForm.openingBalance" name="openingBalance" />
+            </label>
+            <label>
+              <span>{{ 'common.date' | t }}</span>
+              <input type="date" [(ngModel)]="accountForm.openingDate" name="openingDate" />
+            </label>
+            <label>
+              <span>{{ 'common.status' | t }}</span>
+              <select [(ngModel)]="accountForm.status" name="accountStatus">
+                <option value="active">{{ 'status.active' | t }}</option>
+                <option value="inactive">{{ 'status.inactive' | t }}</option>
+              </select>
+            </label>
+            <label class="wide">
+              <span>{{ 'common.description' | t }}</span>
+              <textarea [(ngModel)]="accountForm.notes" name="accountNotes" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div class="account-flags">
+            <label><input type="checkbox" [(ngModel)]="accountForm.postingAccount" name="postingAccount" /> {{ 'accounting.posting_account' | t }}</label>
+            <label><input type="checkbox" [(ngModel)]="accountForm.isCashAccount" name="isCashAccount" /> {{ 'accounting.cash_account' | t }}</label>
+            <label><input type="checkbox" [(ngModel)]="accountForm.isBankAccount" name="isBankAccount" /> {{ 'accounting.bank_account' | t }}</label>
+            <label><input type="checkbox" [(ngModel)]="accountForm.isVatAccount" name="isVatAccount" /> {{ 'accounting.vat_account' | t }}</label>
+            <label><input type="checkbox" [(ngModel)]="accountForm.isReceivableAccount" name="isReceivableAccount" /> {{ 'accounting.receivable_account' | t }}</label>
+            <label><input type="checkbox" [(ngModel)]="accountForm.isPayableAccount" name="isPayableAccount" /> {{ 'accounting.payable_account' | t }}</label>
+          </div>
+
+          <footer>
+            <button type="submit" class="primary">{{ 'common.save' | t }}</button>
+            <button type="button" (click)="accountModalMode = selectedAccount ? 'details' : 'create'; selectedAccount ? null : closeAccountModal()">{{ 'common.cancel' | t }}</button>
+          </footer>
+        </form>
+      </ng-template>
+    </article>
+  </div>
 
   <section class="erp-panel" *ngIf="activeTab === 'ledger'">
     <label class="account-picker">

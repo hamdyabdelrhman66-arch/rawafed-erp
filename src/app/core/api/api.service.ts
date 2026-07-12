@@ -1,6 +1,6 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, throwError } from 'rxjs';
 
 const TOKEN_KEY = 'rawafed_api_token';
 const API_OVERRIDE_KEY = 'rawafed_api_base_url';
@@ -16,7 +16,14 @@ export class ApiService {
   constructor(private readonly http: HttpClient) {}
 
   get token(): string {
-    return localStorage.getItem(TOKEN_KEY) || '';
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) return token;
+    try {
+      const session = JSON.parse(localStorage.getItem('rawafed_auth') || 'null');
+      return session?.token || '';
+    } catch {
+      return '';
+    }
   }
 
   setToken(token: string): void {
@@ -28,27 +35,27 @@ export class ApiService {
   }
 
   get<T>(path: string): Promise<T> {
-    return firstValueFrom(this.http.get<T>(this.url(path), { headers: this.headers() }));
+    return firstValueFrom(this.http.get<T>(this.url(path), { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
   }
 
   post<T>(path: string, body: unknown): Promise<T> {
-    return firstValueFrom(this.http.post<T>(this.url(path), body, { headers: this.headers() }));
+    return firstValueFrom(this.http.post<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
   }
 
   postForm<T>(path: string, body: FormData): Promise<T> {
-    return firstValueFrom(this.http.post<T>(this.url(path), body, { headers: this.headers() }));
+    return firstValueFrom(this.http.post<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
   }
 
   patch<T>(path: string, body: unknown): Promise<T> {
-    return firstValueFrom(this.http.patch<T>(this.url(path), body, { headers: this.headers() }));
+    return firstValueFrom(this.http.patch<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
   }
 
   put<T>(path: string, body: unknown): Promise<T> {
-    return firstValueFrom(this.http.put<T>(this.url(path), body, { headers: this.headers() }));
+    return firstValueFrom(this.http.put<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
   }
 
   delete<T>(path: string): Promise<T> {
-    return firstValueFrom(this.http.delete<T>(this.url(path), { headers: this.headers() }));
+    return firstValueFrom(this.http.delete<T>(this.url(path), { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
   }
 
   private url(path: string): string {
@@ -57,6 +64,18 @@ export class ApiService {
 
   private headers(): HttpHeaders {
     return this.token ? new HttpHeaders({ Authorization: `Bearer ${this.token}` }) : new HttpHeaders();
+  }
+
+  private handleError(error: unknown) {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 401) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem('rawafed_auth');
+      }
+      const message = error.error?.message || error.message || 'Could not reach backend.';
+      return throwError(() => new Error(`${message} (${error.status})`));
+    }
+    return throwError(() => error);
   }
 
   private apiBaseUrl(): string {

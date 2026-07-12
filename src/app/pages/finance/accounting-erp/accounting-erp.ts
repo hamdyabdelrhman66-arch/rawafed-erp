@@ -9,6 +9,27 @@ import { StatusLabelPipe } from '../../../core/i18n/status-label.pipe';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 
 type AccountingTab = 'overview' | 'accounts' | 'journal' | 'ledger' | 'trial';
+type AccountFormMode = 'details' | 'create' | 'edit';
+type AccountFormModel = {
+  id?: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  type: string;
+  parentId: string;
+  openingBalance: number;
+  openingDate: string;
+  currency: string;
+  status: string;
+  notes: string;
+  normalBalance: 'debit' | 'credit';
+  postingAccount: boolean;
+  isCashAccount: boolean;
+  isBankAccount: boolean;
+  isVatAccount: boolean;
+  isReceivableAccount: boolean;
+  isPayableAccount: boolean;
+};
 
 @Component({
   selector: 'app-accounting-erp',
@@ -30,6 +51,11 @@ export class AccountingErp implements OnInit {
   costCenters: Array<{ id: string; code: string; nameEn: string; nameAr: string }> = [];
   selectedJournal: JournalEntry | null = null;
   editingJournalId = '';
+  selectedAccount: AccountingAccount | null = null;
+  accountModalMode: AccountFormMode = 'details';
+  accountFormOpen = false;
+  accountForm: AccountFormModel = this.emptyAccountForm();
+  accountLedgerPreview: any = null;
 
   selectedAccountId = '';
   fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -120,6 +146,48 @@ export class AccountingErp implements OnInit {
     return this.accounts.filter((account) => parentIds.has(account.id));
   }
 
+  get accountTypeOptions(): string[] {
+    return ['asset', 'liability', 'equity', 'revenue', 'expense'];
+  }
+
+  get accountModalTitle(): string {
+    if (this.accountModalMode === 'create') return this.i18n.t('accounting.new_account');
+    if (this.accountModalMode === 'edit') return this.i18n.t('accounting.edit_account');
+    return this.i18n.t('accounting.account_details');
+  }
+
+  get accountDetailRows(): Array<{ label: string; value: string }> {
+    const account = this.selectedAccount;
+    if (!account) return [];
+    return [
+      { label: this.i18n.t('common.code'), value: account.code },
+      { label: this.i18n.t('accounting.english_name'), value: account.nameEn || '-' },
+      { label: this.i18n.t('accounting.arabic_name'), value: account.nameAr || '-' },
+      { label: this.i18n.t('common.type'), value: this.i18n.t(`type.${account.type}`) },
+      { label: this.i18n.t('common.parent'), value: this.accountDisplayName(this.findAccount(account.parentId)) },
+      { label: this.i18n.t('common.opening'), value: this.money(account.openingBalance) },
+      { label: this.i18n.t('accounting.current_balance'), value: this.money(account.currentBalance) },
+      { label: this.i18n.t('accounting.debit_total'), value: this.money(account.debit) },
+      { label: this.i18n.t('accounting.credit_total'), value: this.money(account.credit) },
+      { label: this.i18n.t('accounting.journal_entries'), value: String(account.journalEntries || 0) },
+      { label: this.i18n.t('common.status'), value: this.i18n.status(account.status) }
+    ];
+  }
+
+  get selectedAccountFlags(): string[] {
+    const account = this.selectedAccount;
+    if (!account) return [];
+    const flags = [
+      account.postingAccount ? this.i18n.t('accounting.posting_account') : '',
+      account.isCashAccount ? this.i18n.t('accounting.cash_account') : '',
+      account.isBankAccount ? this.i18n.t('accounting.bank_account') : '',
+      account.isVatAccount ? this.i18n.t('accounting.vat_account') : '',
+      account.isReceivableAccount ? this.i18n.t('accounting.receivable_account') : '',
+      account.isPayableAccount ? this.i18n.t('accounting.payable_account') : ''
+    ];
+    return flags.filter(Boolean);
+  }
+
   get visibleTrialRows(): any[] {
     if (!this.showParentAccounts) return this.trialRows;
     const rowsById = new Map(this.trialRows.map((row) => [row.accountId, row]));
@@ -201,6 +269,147 @@ export class AccountingErp implements OnInit {
   async loadLedger(): Promise<void> {
     if (!this.selectedAccountId) return;
     this.ledger = await this.accounting.getLedger(this.selectedAccountId, this.fromDate, this.toDate);
+  }
+
+  accountDisplayName(account: AccountingAccount | null | undefined): string {
+    if (!account) return '-';
+    return `${account.code} - ${this.i18n.label(account.nameEn || '-', account.nameAr)}`;
+  }
+
+  findAccount(id?: string): AccountingAccount | undefined {
+    return id ? this.accounts.find((account) => account.id === id) : undefined;
+  }
+
+  isParentAccount(account: AccountingAccount): boolean {
+    return this.accounts.some((item) => item.parentId === account.id);
+  }
+
+  async openAccountDetails(account: AccountingAccount): Promise<void> {
+    this.selectedAccount = account;
+    this.selectedAccountId = account.id;
+    this.accountModalMode = 'details';
+    this.accountFormOpen = true;
+    this.accountLedgerPreview = null;
+    try {
+      this.accountLedgerPreview = await this.accounting.getLedger(account.id, this.fromDate, this.toDate);
+    } catch {
+      this.accountLedgerPreview = { transactions: [] };
+    }
+  }
+
+  async openNewParentAccount(): Promise<void> {
+    this.selectedAccount = null;
+    this.accountModalMode = 'create';
+    this.accountFormOpen = true;
+    this.accountLedgerPreview = null;
+    this.accountForm = this.emptyAccountForm();
+    await this.suggestCodeForForm();
+  }
+
+  async openNewChildAccount(parent?: AccountingAccount | null): Promise<void> {
+    const selectedParent = parent || this.selectedAccount;
+    this.accountModalMode = 'create';
+    this.accountFormOpen = true;
+    this.accountLedgerPreview = null;
+    this.accountForm = this.emptyAccountForm({
+      parentId: selectedParent?.id || '',
+      type: selectedParent?.type || 'asset',
+      normalBalance: selectedParent?.normalBalance || this.defaultNormalBalance(selectedParent?.type || 'asset')
+    });
+    await this.suggestCodeForForm();
+  }
+
+  editSelectedAccount(): void {
+    if (!this.selectedAccount) return;
+    const account = this.selectedAccount;
+    this.accountModalMode = 'edit';
+    this.accountForm = this.emptyAccountForm({
+      id: account.id,
+      code: account.code,
+      nameAr: account.nameAr || '',
+      nameEn: account.nameEn || '',
+      type: account.type || 'asset',
+      parentId: account.parentId || '',
+      openingBalance: Number(account.openingBalance || 0),
+      openingDate: account.openingDate || '',
+      currency: account.currency || 'SAR',
+      status: account.status || 'active',
+      notes: account.notes || '',
+      normalBalance: account.normalBalance || this.defaultNormalBalance(account.type || 'asset'),
+      postingAccount: account.postingAccount !== false,
+      isCashAccount: Boolean(account.isCashAccount),
+      isBankAccount: Boolean(account.isBankAccount),
+      isVatAccount: Boolean(account.isVatAccount),
+      isReceivableAccount: Boolean(account.isReceivableAccount),
+      isPayableAccount: Boolean(account.isPayableAccount)
+    });
+  }
+
+  async saveAccountForm(): Promise<void> {
+    this.error = '';
+    const payload = {
+      ...this.accountForm,
+      parentId: this.accountForm.parentId || null,
+      openingBalance: Number(this.accountForm.openingBalance || 0)
+    };
+    try {
+      const saved = this.accountModalMode === 'edit' && this.accountForm.id
+        ? await this.accounting.updateAccount(this.accountForm.id, payload)
+        : await this.accounting.createAccount(payload);
+      this.accounts = await this.accounting.getAccounts();
+      this.selectedAccount = this.findAccount(saved.id) || saved;
+      this.accountModalMode = 'details';
+      await this.openAccountDetails(this.selectedAccount);
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : 'Could not save account.';
+    }
+  }
+
+  closeAccountModal(): void {
+    this.accountFormOpen = false;
+    this.accountModalMode = 'details';
+    this.accountLedgerPreview = null;
+  }
+
+  onAccountTypeChange(): void {
+    this.accountForm.normalBalance = this.defaultNormalBalance(this.accountForm.type);
+    void this.suggestCodeForForm();
+  }
+
+  async suggestCodeForForm(): Promise<void> {
+    try {
+      const result = await this.accounting.suggestAccountCode(this.accountForm.parentId, this.accountForm.type);
+      this.accountForm.code = result.code || this.accountForm.code;
+    } catch {
+      // Manual code entry remains available if code suggestion is not reachable.
+    }
+  }
+
+  private emptyAccountForm(overrides: Partial<AccountFormModel> = {}): AccountFormModel {
+    return {
+      code: '',
+      nameAr: '',
+      nameEn: '',
+      type: 'asset',
+      parentId: '',
+      openingBalance: 0,
+      openingDate: '',
+      currency: 'SAR',
+      status: 'active',
+      notes: '',
+      normalBalance: 'debit',
+      postingAccount: true,
+      isCashAccount: false,
+      isBankAccount: false,
+      isVatAccount: false,
+      isReceivableAccount: false,
+      isPayableAccount: false,
+      ...overrides
+    };
+  }
+
+  private defaultNormalBalance(type: string): 'debit' | 'credit' {
+    return ['asset', 'expense'].includes(type) ? 'debit' : 'credit';
   }
 
   async loadTrialBalance(): Promise<any> {

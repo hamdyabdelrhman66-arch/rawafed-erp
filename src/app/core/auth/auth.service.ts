@@ -24,7 +24,10 @@ export class AuthService {
   constructor(
     private readonly router: Router,
     private readonly api: ApiService
-  ) {}
+  ) {
+    const current = this.session();
+    if (current?.token) this.api.setToken(current.token);
+  }
 
   async login(username: string, password: string): Promise<boolean> {
     try {
