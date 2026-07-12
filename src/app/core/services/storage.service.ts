@@ -46,9 +46,10 @@ export class StorageService {
     });
   }
 
-  async syncFromApi(): Promise<void> {
+  async syncFromApi(role?: UserRole): Promise<void> {
+    const shouldSyncRegistrations = this.canSyncRegistrations(role);
     await Promise.all([
-      this.syncRegistrationsFromApi(),
+      shouldSyncRegistrations ? this.syncRegistrationsFromApi() : Promise.resolve(),
       this.syncNotificationsFromApi(),
       this.syncSettingsFromApi()
     ]);
@@ -82,6 +83,10 @@ export class StorageService {
     } catch {
       this.settingsState.set(this.normalizeSettings(DEFAULT_SETTINGS));
     }
+  }
+
+  private canSyncRegistrations(role?: UserRole): boolean {
+    return !!role && ['Super Admin', 'Admissions', 'Registrar', 'Principal'].includes(role);
   }
 
   saveDraft(registration: AdmissionRegistration): void {

@@ -137,8 +137,9 @@ export class AppComponent {
   }
 
   private syncProtectedData(): void {
-    if (this.shellHidden() || !this.auth.session()) return;
-    void this.storage.syncFromApi().then(() => this.syncOperationalNotifications());
+    const session = this.auth.session();
+    if (this.shellHidden() || !session) return;
+    void this.storage.syncFromApi(session.role).then(() => this.syncOperationalNotifications());
   }
 
   private localizePageAfterRender(): void {
