@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { AuthRequest, createOpaqueToken, hashToken, requireAuth, requireRole, signRefreshToken, signUser, verifyRefreshToken } from './auth.js';
 import { accountIdBySystemKey, accountingDashboard, archiveAccount, cashAccountForMethod, createAccount, createAccountingExpense, createBank, createCashBankTransfer, createCashbox, createInstallmentPlan, createJournalEntry, createSupplier, createSupplierPayment, createSystemJournal, customerById, customerInstallments, customerStatement, deactivateAccount, deactivateSupplier, deleteAccount, ensureCustomerForStudent, expenseAccountForCategory, globalAccountingSearch, ledger, listAccountingExpenses, listAccounts, listBanks, listCashboxes, listCostCenters, listCustomers, listExpenseAccounts, listJournalEntries, listPayableAccounts, listPaymentAccounts, listReceivableAccounts, listRevenueAccounts, listSuppliers, moveAccount, receivableAccountForStudentContext, revenueAccountForItem, suggestAccountCode, supplierAging, supplierProfile, supplierStatement, syncCustomersFromStudents, trialBalance, updateAccount, updateBank, updateCashbox, updateSupplier } from './accounting.js';
-import { logAudit, readDb, updateDb } from './db.js';
+import { databaseStorage, logAudit, readDb, updateDb } from './db.js';
 import { applyPaymentToAccount, ensureFinanceAccount, isVatExemptRegistration, money } from './finance.js';
 import { createGoodsReceipt, createItem, createPurchaseOrder, createPurchaseRequest, createStockMovement, createWarehouse, inventoryDashboard, inventoryReports, issueItemToStudent, listGoodsReceipts, listInventoryCategories, listItems, listPurchaseOrders, listPurchaseRequests, listStockMovements, listWarehouses, updateItem, updatePurchaseOrderStatus, updatePurchaseRequestStatus, updateWarehouse } from './inventory.js';
 
@@ -85,7 +85,16 @@ app.get('/api', (_req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'rawafed-backend', time: new Date().toISOString() });
+  res.json({
+    ok: true,
+    service: 'rawafed-backend',
+    time: new Date().toISOString(),
+    database: {
+      engine: databaseStorage.engine,
+      persistent: !databaseStorage.isEphemeral,
+      dataDir: databaseStorage.dataDir
+    }
+  });
 });
 
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
@@ -591,6 +600,71 @@ app.get('/api/admin/export', requireAuth, requireRole(['Super Admin']), (_req, r
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   res.json(readDb());
+});
+
+app.get('/api/admin/integrity', requireAuth, requireRole(['Super Admin']), (_req, res) => {
+  const db = readDb();
+  const registrationIds = new Set(db.registrations.map((item: any) => item.id).filter(Boolean));
+  const registrationNumbers = new Set(db.registrations.map((item: any) => item.registrationNumber).filter(Boolean));
+  const studentIds = new Set(db.students.map((item: any) => item.id).filter(Boolean));
+  const accountIds = new Set(db.financeAccounts.map((item: any) => item.id).filter(Boolean));
+  const invoiceIds = new Set(db.financeInvoices.map((item: any) => item.id).filter(Boolean));
+  const duplicates = (values: string[]) => {
+    const seen = new Set<string>();
+    const repeated = new Set<string>();
+    values.filter(Boolean).forEach((value) => {
+      if (seen.has(value)) repeated.add(value);
+      seen.add(value);
+    });
+    return [...repeated];
+  };
+  const invoiceTotal = db.financeInvoices.reduce((sum, item: any) => sum + Number(item.total || 0), 0);
+  const paymentTotal = db.financePayments.reduce((sum, item: any) => sum + Number(item.amount || 0), 0);
+  const outstandingTotal = db.financeAccounts.reduce((sum, item: any) => sum + Number(item.remaining || 0), 0);
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    database: {
+      engine: databaseStorage.engine,
+      persistent: !databaseStorage.isEphemeral,
+      dataDir: databaseStorage.dataDir,
+      warning: databaseStorage.isEphemeral ? 'Database is stored in an ephemeral directory. Records can disappear after restart or redeploy.' : ''
+    },
+    counts: {
+      registrations: db.registrations.length,
+      students: db.students.length,
+      financeAccounts: db.financeAccounts.length,
+      invoices: db.financeInvoices.length,
+      payments: db.financePayments.length,
+      expenses: db.financeExpenses.length,
+      auditLogs: db.auditLogs.length
+    },
+    duplicates: {
+      registrationNumbers: duplicates(db.registrations.map((item: any) => String(item.registrationNumber || ''))),
+      receiptNumbers: duplicates(db.financePayments.map((item: any) => String(item.receiptNumber || ''))),
+      invoiceNumbers: duplicates(db.financeInvoices.map((item: any) => String(item.invoiceNumber || '')))
+    },
+    orphanRecords: {
+      studentsWithoutRegistration: db.students.filter((item: any) => item.registrationId && !registrationIds.has(item.registrationId)),
+      accountsWithoutRegistration: db.financeAccounts.filter((item: any) => item.registrationId && !registrationIds.has(item.registrationId)),
+      accountsWithoutStudent: db.financeAccounts.filter((item: any) => item.studentId && !studentIds.has(item.studentId)),
+      paymentsWithoutAccount: db.financePayments.filter((item: any) => !accountIds.has(item.accountId)),
+      paymentsWithoutInvoice: db.financePayments.filter((item: any) => item.invoiceId && !invoiceIds.has(item.invoiceId)),
+      paymentsWithoutRegistration: db.financePayments.filter((item: any) => item.registrationId && !registrationIds.has(item.registrationId)),
+      invoicesWithoutAccount: db.financeInvoices.filter((item: any) => item.accountId && !accountIds.has(item.accountId)),
+      invoicesWithoutRegistration: db.financeInvoices.filter((item: any) =>
+        (item.registrationId && !registrationIds.has(item.registrationId)) ||
+        (!item.registrationId && item.registrationNumber && !registrationNumbers.has(item.registrationNumber))
+      )
+    },
+    totals: {
+      invoiceTotal: money(invoiceTotal),
+      paymentTotal: money(paymentTotal),
+      outstandingTotal: money(outstandingTotal),
+      accountExpectedTotal: money(db.financeAccounts.reduce((sum, item: any) => sum + Number(item.expectedTotal || 0), 0)),
+      accountPaidTotal: money(db.financeAccounts.reduce((sum, item: any) => sum + Number(item.paid || 0), 0))
+    }
+  });
 });
 
 app.post('/api/admin/announcements', requireAuth, requireRole(['Super Admin']), (req, res) => {

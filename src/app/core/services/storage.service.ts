@@ -59,8 +59,9 @@ export class StorageService {
     try {
       const registrations = await this.api.get<AdmissionRegistration[]>('/registrations');
       this.registrationsState.set(registrations);
-    } catch {
-      this.registrationsState.set([]);
+    } catch (error) {
+      console.error('Could not sync registrations from backend', error);
+      throw error;
     }
   }
 
@@ -68,8 +69,8 @@ export class StorageService {
     try {
       const notifications = await this.api.get<AppNotification[]>('/notifications');
       this.notificationsState.set(notifications);
-    } catch {
-      this.notificationsState.set([]);
+    } catch (error) {
+      console.error('Could not sync notifications from backend', error);
     }
   }
 
@@ -80,8 +81,8 @@ export class StorageService {
         const normalized = this.normalizeSettings(settings as SchoolSettings);
         this.settingsState.set(normalized);
       }
-    } catch {
-      this.settingsState.set(this.normalizeSettings(DEFAULT_SETTINGS));
+    } catch (error) {
+      console.error('Could not sync settings from backend', error);
     }
   }
 

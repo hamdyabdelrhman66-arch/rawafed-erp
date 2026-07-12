@@ -139,7 +139,10 @@ export class AppComponent {
   private syncProtectedData(): void {
     const session = this.auth.session();
     if (this.shellHidden() || !session) return;
-    void this.storage.syncFromApi(session.role).then(() => this.syncOperationalNotifications());
+    void this.storage
+      .syncFromApi(session.role)
+      .then(() => this.syncOperationalNotifications())
+      .catch((error) => console.error('Protected data sync failed', error));
   }
 
   private localizePageAfterRender(): void {

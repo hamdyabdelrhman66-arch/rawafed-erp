@@ -3,7 +3,6 @@ import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { AdmissionLetterRequest, AdmissionRegistration, PersonInfo, UploadedDocument } from '../models/admission.models';
 import { ContractService } from '../contract-engine/contract.service';
-import { FinanceStorageService } from '../finance/finance-storage.service';
 import { ApiService } from '../api/api.service';
 import { StorageService } from './storage.service';
 
@@ -27,7 +26,6 @@ export class AdmissionService {
   constructor(
     private readonly storage: StorageService,
     private readonly contract: ContractService,
-    private readonly finance: FinanceStorageService,
     private readonly api: ApiService
   ) {}
 
@@ -58,35 +56,13 @@ export class AdmissionService {
       contractPdf: undefined,
       registrationInfoPdf: undefined
     };
-    try {
-      const saved = await this.api.post<AdmissionRegistration>('/public/registrations', submitted);
-      this.storage.upsertRegistration(saved);
-      this.storage.clearDraft();
-      return saved;
-    } catch (error) {
-      const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
-      if (!isLocalhost) {
-        throw new Error('Could not submit the registration to the school system. Please try again.');
-      }
-      this.finance.ensureAccountFromRegistration(submitted);
-      this.storage.upsertRegistration(submitted);
-      this.storage.clearDraft();
-      this.storage.notify(
-        `New registration submitted: ${submitted.student.englishName || registrationNumber}`,
-        ['Admissions', 'Registrar', 'Principal', 'Super Admin'],
-        'registration',
-        '/applications',
-        `registration-approval:${submitted.id}`
-      );
-      this.storage.notify(
-        `Finance account created for ${submitted.student.englishName || registrationNumber}. Expected total: ${submitted.financial.grandTotal.toLocaleString('en-US')} SAR`,
-        ['Finance', 'Super Admin'],
-        'finance',
-        '/finance/patient-packages',
-        `finance-account:${submitted.id}`
-      );
-      return submitted;
+    const saved = await this.api.post<AdmissionRegistration>('/public/registrations', submitted);
+    if (!saved?.id || !saved.registrationNumber) {
+      throw new Error('The school system did not confirm the saved registration. No success message was shown.');
     }
+    this.storage.upsertRegistration(saved);
+    this.storage.clearDraft();
+    return saved;
   }
 
   duplicate(registration: AdmissionRegistration): AdmissionRegistration {

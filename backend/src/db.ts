@@ -12,6 +12,13 @@ const legacyJsonPath = join(dataDir, 'rawafed-db.json');
 const sqlitePath = join(dataDir, 'rawafed.sqlite');
 const wasmPath = join(__dirname, '..', 'node_modules', 'sql.js', 'dist');
 
+export const databaseStorage = {
+  dataDir,
+  sqlitePath,
+  isEphemeral: dataDir.startsWith('/tmp') || dataDir.includes('/var/folders/'),
+  engine: 'sql.js/sqlite-file'
+};
+
 const emptyDatabase: DatabaseShape = {
   users: [],
   registrations: [],

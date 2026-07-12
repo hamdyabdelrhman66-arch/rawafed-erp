@@ -263,7 +263,7 @@ export function ensureCustomerForStudent(student: any): any {
   }
 
   const account = createAccount({
-    code: nextAccountCode('1140'),
+    code: nextAccountCode('114'),
     nameAr: student.arabicName || student.englishName,
     nameEn: `AR - ${student.englishName}`,
     type: 'asset',
