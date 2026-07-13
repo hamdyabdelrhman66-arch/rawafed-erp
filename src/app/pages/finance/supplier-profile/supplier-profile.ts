@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector: 'app-supplier-profile',
@@ -27,7 +28,8 @@ export class SupplierProfile implements OnInit {
 
   constructor(
     private readonly route: ActivatedRoute,
-    private readonly accounting: AccountingService
+    private readonly accounting: AccountingService,
+    private readonly feedback: FeedbackService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -38,13 +40,24 @@ export class SupplierProfile implements OnInit {
     ]);
     this.paymentForm.supplierId = id;
     this.paymentForm.amount = Math.max(0, Number(this.profile?.summary?.currentBalance || 0));
+    this.paymentForm.paymentAccountId = this.paymentAccounts[0]?.id || '';
   }
 
   async savePayment(): Promise<void> {
-    this.profile = await this.accounting.createSupplierPayment(this.paymentForm);
-    this.paymentForm.amount = 0;
-    this.paymentForm.notes = '';
-    this.tab = 'payments';
+    if (!this.paymentForm.paymentAccountId || Number(this.paymentForm.amount) <= 0) {
+      this.feedback.validation('Choose a cash or bank account and enter an amount greater than zero.');
+      return;
+    }
+    try {
+      await this.accounting.createSupplierPayment(this.paymentForm);
+      this.profile = await this.accounting.getSupplierProfile(this.paymentForm.supplierId);
+      this.paymentForm.amount = 0;
+      this.paymentForm.notes = '';
+      this.tab = 'payments';
+      this.feedback.success('Supplier payment posted successfully.');
+    } catch (error) {
+      this.feedback.error('Supplier payment could not be posted.', safeErrorMessage(error));
+    }
   }
 
   money(value: unknown): string {

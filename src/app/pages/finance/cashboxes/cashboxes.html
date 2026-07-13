@@ -26,13 +26,14 @@
   <section class="form-card">
     <h2>Transfer Between Cash / Bank Accounts</h2>
     <div class="form-grid">
-      <label><span>From</span><select [(ngModel)]="transfer.fromAccountId"><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option></select></label>
-      <label><span>To</span><select [(ngModel)]="transfer.toAccountId"><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option></select></label>
+      <label><span>From</span><select [(ngModel)]="transfer.fromAccountId" (ngModelChange)="onSourceAccountChange()"><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option></select></label>
+      <label><span>To</span><select [(ngModel)]="transfer.toAccountId"><option *ngFor="let account of destinationAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option></select></label>
       <label><span>Amount</span><input type="number" [(ngModel)]="transfer.amount" /></label>
       <label><span>Date</span><input type="date" [(ngModel)]="transfer.date" /></label>
       <label class="wide"><span>Description</span><input [(ngModel)]="transfer.description" /></label>
     </div>
-    <footer><button class="primary" type="button" (click)="saveTransfer()">Post Transfer</button></footer>
+    <p *ngIf="paymentAccounts.length < 2">Create another cashbox or bank account to enable transfers.</p>
+    <footer><button class="primary" type="button" [disabled]="!canPostTransfer" (click)="saveTransfer()">Post Transfer</button></footer>
   </section>
 
   <section class="table-card">

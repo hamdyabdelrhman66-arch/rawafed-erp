@@ -23,7 +23,7 @@ export interface AppNotification {
   targetRoles: UserRole[] | "all";
   category: "registration" | "finance" | "admin";
   createdAt: string;
-  readBy: UserRole[];
+  readBy: string[];
   link?: string;
   sourceId?: string;
 }
@@ -200,31 +200,31 @@ export class StorageService {
     );
   }
 
-  unreadNotificationsFor(role?: UserRole): number {
-    if (!role) return 0;
+  unreadNotificationsFor(role?: UserRole, userId?: string): number {
+    if (!role || !userId) return 0;
     return this.notificationsFor(role).filter(
-      (item) => !item.readBy.includes(role),
+      (item) => !item.readBy.includes(userId),
     ).length;
   }
 
-  markNotificationsRead(role?: UserRole): void {
-    if (!role) return;
+  markNotificationsRead(role?: UserRole, userId?: string): void {
+    if (!role || !userId) return;
     const notifications = this.notificationsState().map((item) => {
       const visible =
         item.targetRoles === "all" || item.targetRoles.includes(role);
-      if (!visible || item.readBy.includes(role)) return item;
-      return { ...item, readBy: [...item.readBy, role] };
+      if (!visible || item.readBy.includes(userId)) return item;
+      return { ...item, readBy: [...item.readBy, userId] };
     });
     this.notificationsState.set(notifications);
   }
 
-  async markNotificationRead(id: string, role?: UserRole): Promise<void> {
-    if (!role) return;
+  async markNotificationRead(id: string, role?: UserRole, userId?: string): Promise<void> {
+    if (!role || !userId) return;
     const previous = this.notificationsState();
     this.notificationsState.set(
       previous.map((item) =>
-        item.id === id && !item.readBy.includes(role)
-          ? { ...item, readBy: [...item.readBy, role] }
+        item.id === id && !item.readBy.includes(userId)
+          ? { ...item, readBy: [...item.readBy, userId] }
           : item,
       ),
     );

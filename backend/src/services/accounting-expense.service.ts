@@ -36,22 +36,33 @@ export class AccountingExpenseService {
           throw new ServiceError("Input VAT account is not configured.", 422);
         lines.push({ accountId: vatInput.id, debit: vat });
       }
-      let creditAccountId = input.paymentFromAccountId;
-      if (input.paymentStatus === "Unpaid") {
+      const paymentStatus = input.paymentStatus || "Paid";
+      const paidAmount =
+        paymentStatus === "Paid"
+          ? total
+          : paymentStatus === "Unpaid"
+            ? 0
+            : Number(input.paidAmount || 0);
+      if (paidAmount < 0 || paidAmount > total)
+        throw new ServiceError("Paid amount is invalid.", 422);
+      let supplier: any = null;
+      if (paidAmount < total) {
         if (!input.supplierId)
           throw new ServiceError(
-            "Supplier is required for unpaid expense.",
+            "Supplier is required for unpaid or partially paid expense.",
             422,
           );
-        const supplier = await new SuppliersRepository(tx).find(
-          input.supplierId,
-        );
+        supplier = await new SuppliersRepository(tx).find(input.supplierId);
         if (!supplier) throw new ServiceError("Supplier not found.", 404);
-        creditAccountId = supplier.payableAccountId;
       }
-      if (!creditAccountId)
-        throw new ServiceError("Payment or payable account is required.", 422);
-      lines.push({ accountId: creditAccountId, credit: total });
+      if (paidAmount > 0) {
+        if (!input.paymentFromAccountId)
+          throw new ServiceError("Cash or bank payment account is required.", 422);
+        lines.push({ accountId: input.paymentFromAccountId, credit: paidAmount });
+      }
+      const unpaidAmount = Math.round((total - paidAmount) * 100) / 100;
+      if (unpaidAmount > 0)
+        lines.push({ accountId: supplier.payableAccountId, credit: unpaidAmount });
       const expenseNo = input.expenseNo || `EXP-${Date.now()}`;
       const journal = await JournalService.postUsing(
         tx,
@@ -77,7 +88,7 @@ export class AccountingExpenseService {
         vatRate: Number(input.vatRate || 0),
         vatAmount: vat,
         totalAmount: total,
-        paymentStatus: input.paymentStatus || "Paid",
+        paymentStatus,
         paymentMethod: input.paymentMethod,
         paymentAccountId: input.paymentFromAccountId,
         journalEntryId: journal.id,

@@ -63,6 +63,27 @@ export class AccountService {
   async costCenters() {
     return new CostCentersRepository(this.prisma).list();
   }
+  async expenseAccounts() {
+    return this.list(["EXPENSE"]);
+  }
+  async revenueAccounts() {
+    return this.list(["REVENUE"]);
+  }
+  async paymentAccounts() {
+    return (await this.list(["ASSET"])).filter(
+      (account) => account.isCashAccount || account.isBankAccount,
+    );
+  }
+  async receivableAccounts() {
+    return (await this.list(["ASSET"])).filter(
+      (account) => account.isReceivableAccount,
+    );
+  }
+  async payableAccounts() {
+    return (await this.list(["LIABILITY"])).filter(
+      (account) => account.isPayableAccount,
+    );
+  }
   async create(input: any) {
     const type = String(input.accountType).toUpperCase() as AccountType;
     await this.assertValidParent("__new_account__", input.parentId || null, type);

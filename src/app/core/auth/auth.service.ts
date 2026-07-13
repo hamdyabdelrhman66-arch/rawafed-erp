@@ -21,6 +21,7 @@ export class AuthService {
     try {
       const response = await this.api.post<{ token: string; refreshToken: string; user: AuthSession }>('/auth/login', { username, password });
       const session: AuthSession = {
+        id: response.user.id,
         username: response.user.username,
         displayName: response.user.displayName,
         role: response.user.role,

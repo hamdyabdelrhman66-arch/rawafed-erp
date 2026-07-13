@@ -17,6 +17,7 @@ export interface AuthUser {
 }
 
 export interface AuthSession {
+  id: string;
   username: string;
   displayName: string;
   role: UserRole;

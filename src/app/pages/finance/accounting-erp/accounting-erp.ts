@@ -702,7 +702,7 @@ export class AccountingErp implements OnInit {
   }
 
   editJournal(entry: JournalEntry): void {
-    if (entry.sourceType || entry.sourceId) {
+    if (entry.sourceType && entry.sourceType !== "manual_journal") {
       this.error = "Only manual journal entries can be edited from here.";
       return;
     }
@@ -723,7 +723,7 @@ export class AccountingErp implements OnInit {
   }
 
   async deleteJournal(entry: JournalEntry): Promise<void> {
-    if (entry.sourceType || entry.sourceId) {
+    if (entry.sourceType && entry.sourceType !== "manual_journal") {
       this.error = "Only manual journal entries can be deleted from here.";
       this.feedback.warning(this.error);
       return;

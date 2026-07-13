@@ -20,6 +20,7 @@ export interface Posting {
   sourceId: string;
   invoiceId?: string;
   paymentId?: string;
+  status?: string;
   lines: PostingLine[];
 }
 const cents = (value: unknown) => Math.round(Number(value || 0) * 100);
@@ -103,8 +104,14 @@ export class JournalService {
         invoiceId: input.invoiceId,
         paymentId: input.paymentId,
         createdById: actor.id,
-        status: "POSTED",
-        postedAt: new Date(),
+        status:
+          String(input.status || "POSTED").toUpperCase() === "DRAFT"
+            ? "DRAFT"
+            : "POSTED",
+        postedAt:
+          String(input.status || "POSTED").toUpperCase() === "DRAFT"
+            ? null
+            : new Date(),
       },
       input.lines.map((line) => ({
         id: randomUUID(),
@@ -118,11 +125,16 @@ export class JournalService {
     return shape(entry);
   }
   async post(input: Posting, actor: Actor = {}) {
+    const normalized = {
+      ...input,
+      sourceType: input.sourceType || "manual_journal",
+      sourceId: input.sourceId || randomUUID(),
+    };
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.prisma.$transaction(
-          (tx) => JournalService.postUsing(tx, input, actor),
+          (tx) => JournalService.postUsing(tx, normalized, actor),
           {
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
             maxWait: 10_000,
@@ -137,13 +149,92 @@ export class JournalService {
           setTimeout(resolve, 75 * (attempt + 1)),
         );
         const existing = await new JournalsRepository(this.prisma).bySource(
-          input.sourceType,
-          input.sourceId,
+          normalized.sourceType,
+          normalized.sourceId,
         );
         if (existing) return shape(existing);
       }
     }
     throw lastError;
+  }
+
+  async updateManual(id: string, input: Posting, actor: Actor = {}) {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.journalEntry.findFirst({
+        where: { id, deletedAt: null },
+      });
+      if (!current || current.sourceType !== "manual_journal")
+        throw new ServiceError("Manual journal entry not found.", 404);
+      if (current.reversedFromId)
+        throw new ServiceError("Reversal entries cannot be edited.", 422);
+      const debit = input.lines.reduce((sum, line) => sum + cents(line.debit), 0);
+      const credit = input.lines.reduce(
+        (sum, line) => sum + cents(line.credit),
+        0,
+      );
+      if (!input.lines.length || debit <= 0 || debit !== credit)
+        throw new ServiceError("Journal entry must balance.", 422);
+      const accountIds = [...new Set(input.lines.map((line) => line.accountId))];
+      const accounts = await tx.chartOfAccount.findMany({
+        where: {
+          id: { in: accountIds },
+          active: true,
+          deletedAt: null,
+          allowPosting: true,
+          allowManualJournal: true,
+        },
+      });
+      if (accounts.length !== accountIds.length)
+        throw new ServiceError(
+          "Journal contains an archived or non-posting account.",
+          422,
+          "ACCOUNT_NOT_POSTABLE",
+        );
+      await tx.journalLine.deleteMany({ where: { journalEntryId: id } });
+      const status =
+        String(input.status || "POSTED").toUpperCase() === "DRAFT"
+          ? "DRAFT"
+          : "POSTED";
+      await tx.journalEntry.update({
+        where: { id },
+        data: {
+          postingDate: new Date(input.postingDate),
+          description: input.description,
+          referenceNumber: input.referenceNumber,
+          status,
+          postedAt: status === "POSTED" ? new Date() : null,
+          createdById: actor.id,
+          lines: {
+            create: input.lines.map((line) => ({
+              id: randomUUID(),
+              accountId: line.accountId,
+              description: line.description,
+              costCenterId: line.costCenterId,
+              debit: line.debit || 0,
+              credit: line.credit || 0,
+            })),
+          },
+        },
+      });
+      const updated = await new JournalsRepository(tx).find(id);
+      return shape(updated);
+    });
+  }
+
+  async deleteManual(id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.journalEntry.findFirst({
+        where: { id, deletedAt: null },
+      });
+      if (!current || current.sourceType !== "manual_journal")
+        throw new ServiceError("Manual journal entry not found.", 404);
+      if (current.reversedFromId)
+        throw new ServiceError("Reversal entries cannot be deleted.", 422);
+      await tx.journalEntry.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+    });
   }
   async list(skip = 0, take = 100) {
     return (await new JournalsRepository(this.prisma).list({}, skip, take)).map(

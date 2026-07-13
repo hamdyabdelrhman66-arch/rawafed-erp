@@ -27,6 +27,19 @@ export class Cashboxes implements OnInit {
     return this.cashboxes.reduce((sum, item) => sum + Number(item.currentBalance || 0), 0);
   }
 
+  get destinationAccounts(): AccountingAccount[] {
+    return this.paymentAccounts.filter((account) => account.id !== this.transfer.fromAccountId);
+  }
+
+  get canPostTransfer(): boolean {
+    return Boolean(
+      this.transfer.fromAccountId &&
+      this.transfer.toAccountId &&
+      this.transfer.fromAccountId !== this.transfer.toAccountId &&
+      Number(this.transfer.amount) > 0
+    );
+  }
+
   async load(): Promise<void> {
     const [cashboxes, paymentAccounts] = await Promise.all([
       this.accounting.getCashboxes(),
@@ -35,10 +48,18 @@ export class Cashboxes implements OnInit {
     this.cashboxes = cashboxes;
     this.paymentAccounts = paymentAccounts;
     this.transfer.fromAccountId ||= paymentAccounts[0]?.id || '';
-    this.transfer.toAccountId ||= paymentAccounts[1]?.id || paymentAccounts[0]?.id || '';
+    this.ensureDifferentDestination();
+  }
+
+  onSourceAccountChange(): void {
+    this.ensureDifferentDestination();
   }
 
   async saveCashbox(): Promise<void> {
+    if (!this.form.name.trim()) {
+      this.feedback.validation('Cashbox name is required.');
+      return;
+    }
     try {
       await this.accounting.createCashbox(this.form);
       this.form = { name: '', openingBalance: 0, notes: '', status: 'active' };
@@ -50,6 +71,14 @@ export class Cashboxes implements OnInit {
   }
 
   async saveTransfer(): Promise<void> {
+    if (!this.canPostTransfer) {
+      this.feedback.validation(
+        this.paymentAccounts.length < 2
+          ? 'Create at least two cash or bank accounts before posting a transfer.'
+          : 'Choose two different accounts and enter an amount greater than zero.'
+      );
+      return;
+    }
     try {
       await this.accounting.createTransfer(this.transfer);
       this.transfer.amount = 0;
@@ -63,5 +92,11 @@ export class Cashboxes implements OnInit {
 
   money(value: unknown): string {
     return `${Number(value || 0).toLocaleString('en-US')} SAR`;
+  }
+
+  private ensureDifferentDestination(): void {
+    if (this.transfer.toAccountId === this.transfer.fromAccountId || !this.transfer.toAccountId) {
+      this.transfer.toAccountId = this.destinationAccounts[0]?.id || '';
+    }
   }
 }

@@ -17,12 +17,17 @@ export class NotificationsService {
         deletedAt: undefined,
       }));
   }
-  async markRead(id: string, role: string) {
+  async markRead(id: string, role: string, userId: string) {
     const repo = new NotificationsRepository(this.prisma);
     const rows = await repo.list(0, 1000);
     const note = rows.find((n) => n.id === id);
     if (!note) return;
+    const visible =
+      note.targetRoles === "all" ||
+      (Array.isArray(note.targetRoles) && note.targetRoles.includes(role));
+    if (!visible) return;
     const readBy = Array.isArray(note.readBy) ? note.readBy.map(String) : [];
-    if (!readBy.includes(role)) await repo.updateReadBy(id, [...readBy, role]);
+    if (!readBy.includes(userId))
+      await repo.updateReadBy(id, [...readBy, userId]);
   }
 }

@@ -6,13 +6,29 @@ export class CashBankRepository {
   cashboxes() {
     return this.db.cashbox.findMany({
       where: { deletedAt: null },
-      include: { account: true },
+      include: {
+        account: {
+          include: {
+            journalLines: {
+              where: { journalEntry: { status: "POSTED", deletedAt: null } },
+            },
+          },
+        },
+      },
     });
   }
   banks() {
     return this.db.bank.findMany({
       where: { deletedAt: null },
-      include: { account: true },
+      include: {
+        account: {
+          include: {
+            journalLines: {
+              where: { journalEntry: { status: "POSTED", deletedAt: null } },
+            },
+          },
+        },
+      },
     });
   }
   createCashbox(data: Prisma.CashboxUncheckedCreateInput) {

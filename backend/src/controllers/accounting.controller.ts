@@ -72,6 +72,21 @@ export class AccountingController {
   costCenters = asyncController(async (_req, res) =>
     res.json(await this.accounts.costCenters()),
   );
+  expenseAccounts = asyncController(async (_req, res) =>
+    res.json(await this.accounts.expenseAccounts()),
+  );
+  paymentAccounts = asyncController(async (_req, res) =>
+    res.json(await this.accounts.paymentAccounts()),
+  );
+  revenueAccounts = asyncController(async (_req, res) =>
+    res.json(await this.accounts.revenueAccounts()),
+  );
+  receivableAccounts = asyncController(async (_req, res) =>
+    res.json(await this.accounts.receivableAccounts()),
+  );
+  payableAccounts = asyncController(async (_req, res) =>
+    res.json(await this.accounts.payableAccounts()),
+  );
   journals = asyncController(async (req, res) =>
     res.json(
       await this.journalService.list(
@@ -83,6 +98,19 @@ export class AccountingController {
   createJournal = asyncController(async (req, res) =>
     res.status(201).json(await this.journalService.post(req.body, actor(req))),
   );
+  updateJournal = asyncController(async (req, res) =>
+    res.json(
+      await this.journalService.updateManual(
+        req.params.id,
+        req.body,
+        actor(req),
+      ),
+    ),
+  );
+  deleteJournal = asyncController(async (req, res) => {
+    await this.journalService.deleteManual(req.params.id);
+    res.status(204).send();
+  });
   reverseJournal = asyncController(async (req, res) =>
     res
       .status(201)

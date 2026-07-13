@@ -129,7 +129,11 @@ export class CoreController {
     ),
   );
   notificationRead = asyncController(async (req, res) => {
-    await this.notifications.markRead(req.params.id, req.user!.role);
+    await this.notifications.markRead(
+      req.params.id,
+      req.user!.role,
+      req.user!.id,
+    );
     res.status(204).send();
   });
   settingsGet = asyncController(async (_req, res) =>

@@ -25,15 +25,34 @@ export class Banks implements OnInit {
     return this.banks.reduce((sum, item) => sum + Number(item.currentBalance || 0), 0);
   }
 
+  get destinationAccounts(): AccountingAccount[] {
+    return this.paymentAccounts.filter((account) => account.id !== this.transfer.fromAccountId);
+  }
+
+  get canPostTransfer(): boolean {
+    return Boolean(
+      this.transfer.fromAccountId &&
+      this.transfer.toAccountId &&
+      this.transfer.fromAccountId !== this.transfer.toAccountId &&
+      Number(this.transfer.amount) > 0
+    );
+  }
+
   async load(): Promise<void> {
     const [banks, paymentAccounts] = await Promise.all([this.accounting.getBanks(), this.accounting.getPaymentAccounts()]);
     this.banks = banks;
     this.paymentAccounts = paymentAccounts;
     this.transfer.fromAccountId ||= paymentAccounts[0]?.id || '';
-    this.transfer.toAccountId ||= paymentAccounts[1]?.id || paymentAccounts[0]?.id || '';
+    this.ensureDifferentDestination();
   }
 
+  onSourceAccountChange(): void { this.ensureDifferentDestination(); }
+
   async saveBank(): Promise<void> {
+    if (!this.form.bankName.trim()) {
+      this.feedback.validation('Bank name is required.');
+      return;
+    }
     try {
       await this.accounting.createBank(this.form);
       this.form = { bankName: '', iban: '', accountNumber: '', openingBalance: 0, notes: '', status: 'active' };
@@ -45,6 +64,14 @@ export class Banks implements OnInit {
   }
 
   async saveTransfer(): Promise<void> {
+    if (!this.canPostTransfer) {
+      this.feedback.validation(
+        this.paymentAccounts.length < 2
+          ? 'Create at least two cash or bank accounts before posting a transfer.'
+          : 'Choose two different accounts and enter an amount greater than zero.'
+      );
+      return;
+    }
     try {
       await this.accounting.createTransfer(this.transfer);
       this.transfer.amount = 0;
@@ -58,5 +85,11 @@ export class Banks implements OnInit {
 
   money(value: unknown): string {
     return `${Number(value || 0).toLocaleString('en-US')} SAR`;
+  }
+
+  private ensureDifferentDestination(): void {
+    if (this.transfer.toAccountId === this.transfer.fromAccountId || !this.transfer.toAccountId) {
+      this.transfer.toAccountId = this.destinationAccounts[0]?.id || '';
+    }
   }
 }

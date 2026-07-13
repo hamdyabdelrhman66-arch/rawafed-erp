@@ -64,7 +64,10 @@ export class AppComponent {
     this.storage.notificationsFor(this.auth.session()?.role),
   );
   readonly unreadNotifications = computed(() =>
-    this.storage.unreadNotificationsFor(this.auth.session()?.role),
+    this.storage.unreadNotificationsFor(
+      this.auth.session()?.role,
+      this.auth.session()?.id || this.auth.session()?.username,
+    ),
   );
   readonly currentDate = computed(() =>
     new Intl.DateTimeFormat(this.i18n.language() === "ar" ? "ar-SA" : "en-US", {
@@ -152,7 +155,11 @@ export class AppComponent {
   }
 
   async openNotification(note: { id: string }): Promise<void> {
-    await this.storage.markNotificationRead(note.id, this.auth.session()?.role);
+    await this.storage.markNotificationRead(
+      note.id,
+      this.auth.session()?.role,
+      this.auth.session()?.id || this.auth.session()?.username,
+    );
     this.closeNotifications();
   }
 

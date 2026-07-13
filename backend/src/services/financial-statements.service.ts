@@ -66,6 +66,7 @@ export class FinancialStatementsService {
           journalEntryId: line.journalEntryId,
           entryNumber: line.journalEntry.entryNumber,
           postingDate: line.journalEntry.postingDate.toISOString().slice(0, 10),
+          referenceNumber: line.journalEntry.referenceNumber,
           description: line.description || line.journalEntry.description,
           debit: num(line.debit),
           credit: num(line.credit),

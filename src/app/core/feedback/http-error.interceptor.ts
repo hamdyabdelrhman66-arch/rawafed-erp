@@ -59,6 +59,7 @@ function mapHttpError(error: HttpErrorResponse): { message: string; errorCode: s
 
 function shouldShowHttpError(url: string, status: number): boolean {
   if (status === 401) return false;
+  if ([400, 404, 409, 422].includes(status)) return false;
   if (url.includes('/auth/login')) return false;
   if (isPublicShellPage()) return false;
   return true;

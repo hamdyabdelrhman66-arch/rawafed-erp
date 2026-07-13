@@ -39,18 +39,50 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
     c.moveAccount,
   );
   r.get("/api/accounting/cost-centers", ...secured, read, c.costCenters);
-  r.get("/api/accounting/expense-accounts", ...secured, read, c.listAccounts);
-  r.get("/api/accounting/payment-accounts", ...secured, read, c.listAccounts);
-  r.get("/api/accounting/revenue-accounts", ...secured, read, c.listAccounts);
+  r.get(
+    "/api/accounting/expense-accounts",
+    ...secured,
+    read,
+    c.expenseAccounts,
+  );
+  r.get(
+    "/api/accounting/payment-accounts",
+    ...secured,
+    read,
+    c.paymentAccounts,
+  );
+  r.get(
+    "/api/accounting/revenue-accounts",
+    ...secured,
+    read,
+    c.revenueAccounts,
+  );
   r.get(
     "/api/accounting/receivable-accounts",
     ...secured,
     read,
-    c.listAccounts,
+    c.receivableAccounts,
   );
-  r.get("/api/accounting/payable-accounts", ...secured, read, c.listAccounts);
+  r.get(
+    "/api/accounting/payable-accounts",
+    ...secured,
+    read,
+    c.payableAccounts,
+  );
   r.get("/api/accounting/journal-entries", ...secured, read, c.journals);
   r.post("/api/accounting/journal-entries", ...secured, write, c.createJournal);
+  r.patch(
+    "/api/accounting/journal-entries/:id",
+    ...secured,
+    write,
+    c.updateJournal,
+  );
+  r.delete(
+    "/api/accounting/journal-entries/:id",
+    ...secured,
+    write,
+    c.deleteJournal,
+  );
   r.post(
     "/api/accounting/journal-entries/:id/reverse",
     ...secured,
