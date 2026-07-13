@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { FixedAssetsService } from '../../../core/finance/fixed-assets.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
+import { I18nService } from '../../../core/i18n/i18n.service';
 
 type Tab = 'assets' | 'categories' | 'depreciation' | 'transfers' | 'disposal' | 'maintenance' | 'reports';
 
@@ -35,6 +36,12 @@ export class FixedAssets implements OnInit, OnDestroy {
     ['asset-by-branch', 'Asset by Branch'],
     ['asset-by-category', 'Asset by Category']
   ];
+  readonly categoryTemplates = [
+    { code: 'BLDG', nameEn: 'Buildings', nameAr: 'المباني', usefulLifeMonths: 240, depreciationMethod: 'STRAIGHT_LINE' },
+    { code: 'VEH', nameEn: 'Vehicles', nameAr: 'المركبات', usefulLifeMonths: 60, depreciationMethod: 'DECLINING_BALANCE', decliningRate: 30 },
+    { code: 'FURN', nameEn: 'Furniture & Fixtures', nameAr: 'الأثاث والتجهيزات', usefulLifeMonths: 84, depreciationMethod: 'STRAIGHT_LINE' },
+    { code: 'IT', nameEn: 'IT Equipment', nameAr: 'أجهزة وتقنية المعلومات', usefulLifeMonths: 48, depreciationMethod: 'DECLINING_BALANCE', decliningRate: 40 }
+  ];
   assetForm = this.emptyAsset();
   categoryForm = this.emptyCategory();
   actionForm: any = {};
@@ -44,7 +51,8 @@ export class FixedAssets implements OnInit, OnDestroy {
     private readonly service: FixedAssetsService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly feedback: FeedbackService
+    private readonly feedback: FeedbackService,
+    public readonly i18n: I18nService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -97,6 +105,18 @@ export class FixedAssets implements OnInit, OnDestroy {
   async saveCategory(): Promise<void> {
     await this.perform('Asset category created.', async () => this.service.createCategory(this.categoryForm));
   }
+  async initializeCategories(): Promise<void> {
+    this.busy = true;
+    try {
+      const existing = new Set(this.categories.map((category) => category.code));
+      for (const template of this.categoryTemplates.filter((item) => !existing.has(item.code)))
+        await this.service.createCategory(template);
+      await this.load();
+      this.feedback.success(this.l('Default asset categories created.', 'تم إنشاء فئات الأصول الافتراضية.'));
+    } catch (error) {
+      this.feedback.error(this.l('Categories could not be initialized.', 'تعذر تهيئة فئات الأصول.'), safeErrorMessage(error));
+    } finally { this.busy = false; }
+  }
   async saveAction(): Promise<void> {
     if (!this.selected) return;
     const operation = this.modal === 'transfer'
@@ -126,7 +146,23 @@ export class FixedAssets implements OnInit, OnDestroy {
     const link = document.createElement('a'); link.href = url; link.download = `${this.reportType}.csv`; link.click(); URL.revokeObjectURL(url);
   }
   reportColumns(): string[] { return this.reportRows[0] ? Object.keys(this.reportRows[0]).filter((key) => typeof this.reportRows[0][key] !== 'object') : []; }
-  money(value: unknown): string { return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  money(value: unknown): string { return Number(value || 0).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  l(en: string, ar: string): string { return this.i18n.label(en, ar); }
+  methodLabel(value: string): string {
+    return value === 'DECLINING_BALANCE' ? this.l('Declining Balance', 'الرصيد المتناقص') : this.l('Straight Line', 'القسط الثابت');
+  }
+  reportLabel(type: string): string {
+    const labels: Record<string, [string, string]> = {
+      'asset-register': ['Asset Register', 'سجل الأصول'],
+      'depreciation-schedule': ['Depreciation Schedule', 'جدول الإهلاك'],
+      'asset-value': ['Asset Value', 'قيمة الأصول'],
+      'asset-movement': ['Asset Movement', 'حركة الأصول'],
+      'asset-by-branch': ['Asset by Branch', 'الأصول حسب الفرع'],
+      'asset-by-category': ['Asset by Category', 'الأصول حسب الفئة']
+    };
+    const label = labels[type] || [type, type];
+    return this.l(label[0], label[1]);
+  }
 
   private async perform(message: string, work: () => Promise<any>, close = true): Promise<void> {
     this.busy = true;

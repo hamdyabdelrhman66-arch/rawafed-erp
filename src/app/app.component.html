@@ -200,16 +200,16 @@
           [class.active-group]="isActive('/finance/fixed-assets')"
         >
           <summary>
-            <mat-icon>domain</mat-icon><span>الأصول الثابتة</span>
+            <mat-icon>domain</mat-icon><span>{{ "nav.fixed_assets" | t }}</span>
           </summary>
           <div class="nav-submenu">
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'assets' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'assets', 'assets')"><mat-icon>apartment</mat-icon><span>Fixed Assets</span></a>
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'categories' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'categories', 'assets')"><mat-icon>category</mat-icon><span>Asset Categories</span></a>
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'depreciation' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'depreciation', 'assets')"><mat-icon>trending_down</mat-icon><span>Depreciation</span></a>
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'transfers' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'transfers', 'assets')"><mat-icon>swap_horiz</mat-icon><span>Asset Transfers</span></a>
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'disposal' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'disposal', 'assets')"><mat-icon>delete_sweep</mat-icon><span>Asset Disposal</span></a>
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'maintenance' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'maintenance', 'assets')"><mat-icon>build</mat-icon><span>Asset Maintenance</span></a>
-            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'reports' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'reports', 'assets')"><mat-icon>assessment</mat-icon><span>Asset Reports</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'assets' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'assets', 'assets')"><mat-icon>apartment</mat-icon><span>{{ "nav.fixed_assets" | t }}</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'categories' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'categories', 'assets')"><mat-icon>category</mat-icon><span>{{ "nav.asset_categories" | t }}</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'depreciation' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'depreciation', 'assets')"><mat-icon>trending_down</mat-icon><span>{{ "nav.asset_depreciation" | t }}</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'transfers' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'transfers', 'assets')"><mat-icon>swap_horiz</mat-icon><span>{{ "nav.asset_transfers" | t }}</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'disposal' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'disposal', 'assets')"><mat-icon>delete_sweep</mat-icon><span>{{ "nav.asset_disposal" | t }}</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'maintenance' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'maintenance', 'assets')"><mat-icon>build</mat-icon><span>{{ "nav.asset_maintenance" | t }}</span></a>
+            <a routerLink="/finance/fixed-assets" [queryParams]="{ tab: 'reports' }" [class.active]="isQueryParamActive('/finance/fixed-assets', 'tab', 'reports', 'assets')"><mat-icon>assessment</mat-icon><span>{{ "nav.asset_reports" | t }}</span></a>
           </div>
         </details>
 
