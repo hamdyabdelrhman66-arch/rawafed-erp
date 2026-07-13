@@ -67,6 +67,10 @@ export class AccountingService {
     return this.api.get<AccountingAccount[]>(`/accounting/accounts${search.toString() ? `?${search}` : ''}`);
   }
 
+  getAccountDetails(id: string): Promise<any> {
+    return this.api.get<any>(`/accounting/accounts/${id}/details`);
+  }
+
   getDashboard(fromDate = '', toDate = ''): Promise<any> {
     const params = new URLSearchParams();
     if (fromDate) params.set('fromDate', fromDate);

@@ -457,6 +457,10 @@ export class FinanceStorageService {
       registrationNumber: account.registrationNumber,
       backendId: account.id,
       canonicalInvoiceId: account.canonicalInvoiceId,
+      subtotal: Number(account.subtotal || 0),
+      vat: Number(account.vat || 0),
+      vatExempt: Boolean(account.vatExempt),
+      nationalId: account.nationalId || '',
     };
   }
 
@@ -506,6 +510,8 @@ export class FinanceStorageService {
       feeItem: invoice.feeItem,
       registrationId: invoice.registrationId,
       registrationNumber: invoice.registrationNumber,
+      patientId: invoice.nationalId || '',
+      vatExempt: Boolean(invoice.vatExempt),
     };
   }
 

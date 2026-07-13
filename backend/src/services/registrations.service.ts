@@ -7,6 +7,7 @@ import { NotificationsRepository } from "../repositories/notifications.repositor
 import { RegistrationsRepository } from "../repositories/registrations.repository.js";
 import { StudentsRepository } from "../repositories/students.repository.js";
 import { ServiceError } from "./service.error.js";
+import { money, vatForSubtotal } from "./student-vat.js";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const unpack = (row: any) => ({
@@ -18,22 +19,7 @@ const unpack = (row: any) => ({
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
-const total = (r: RegistrationInput) =>
-  Math.max(
-    0,
-    Number(
-      r.financial?.grandTotal ??
-        [
-          "registrationFee",
-          "tuition",
-          "books",
-          "uniform",
-          "activities",
-          "transportationFee",
-        ].reduce((n, k) => n + Number(r.financial?.[k] || 0), 0),
-    ),
-  );
-const fees = (r: RegistrationInput) =>
+const baseFees = (r: RegistrationInput) =>
   [
     ["Registration Fee", "registrationFee"],
     ["Tuition", "tuition"],
@@ -44,6 +30,15 @@ const fees = (r: RegistrationInput) =>
   ]
     .map(([name, key]) => ({ name, amount: Number(r.financial?.[key] || 0) }))
     .filter((item) => item.amount > 0);
+const subtotal = (r: RegistrationInput) =>
+  money(baseFees(r).reduce((sum, item) => sum + item.amount, 0));
+const vat = (r: RegistrationInput) =>
+  vatForSubtotal(subtotal(r), r.student?.nationalId);
+const total = (r: RegistrationInput) => money(subtotal(r) + vat(r));
+const fees = (r: RegistrationInput) => [
+  ...baseFees(r),
+  ...(vat(r) ? [{ name: "VAT", amount: vat(r) }] : []),
+];
 
 export class RegistrationsService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -53,6 +48,12 @@ export class RegistrationsService {
     ).map(unpack);
   }
   async create(input: RegistrationInput, actor?: Actor) {
+    const vatAmount = vat(input);
+    input.financial = {
+      ...(input.financial || {}),
+      vat: vatAmount,
+      grandTotal: money(subtotal(input) + vatAmount),
+    };
     return this.prisma.$transaction(
       async (tx) => {
         const repo = new RegistrationsRepository(tx);

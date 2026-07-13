@@ -45,23 +45,27 @@
 
 <section class="stats" *ngIf="selectedAccount">
   <article class="stat-card">
-    <h3>Student Grade</h3>
-    <h2>{{ selectedAccount.grade || '-' }}</h2>
+    <h3>Subtotal</h3>
+    <h2>{{ selectedAccount.subtotal | number }} SAR</h2>
   </article>
 
   <article class="stat-card">
-    <h3>Expected Total</h3>
-    <h2>{{ selectedAccount.total | number }} SAR</h2>
+    <h3>VAT {{ selectedAccount.vatExempt ? '(Exempt)' : '15%' }}</h3>
+    <h2>{{ selectedAccount.vat | number }} SAR</h2>
   </article>
 
   <article class="stat-card">
-    <h3>Paid Before</h3>
+    <h3>Amount Paid</h3>
     <h2>{{ selectedAccount.paid | number }} SAR</h2>
   </article>
 
   <article class="stat-card">
     <h3>Remaining</h3>
     <h2>{{ outstanding | number }} SAR</h2>
+  </article>
+  <article class="stat-card">
+    <h3>Total Invoice</h3>
+    <h2>{{ selectedAccount.total | number }} SAR</h2>
   </article>
  </section>
 

@@ -1,0 +1,70 @@
+<section class="assets-page">
+  <header class="hero">
+    <div><span>Finance · Capital Management</span><h1>Fixed Assets</h1><p>Manage the complete asset lifecycle with controlled accounting entries and audit-ready reports.</p></div>
+    <button class="primary" type="button" (click)="openAsset()">+ Acquire Asset</button>
+  </header>
+
+  <nav class="tabs" aria-label="Fixed asset sections">
+    <button *ngFor="let item of [['assets','Fixed Assets'],['categories','Asset Categories'],['depreciation','Depreciation'],['transfers','Asset Transfers'],['disposal','Asset Disposal'],['maintenance','Asset Maintenance'],['reports','Asset Reports']]"
+      type="button" [class.active]="tab === item[0]" (click)="navigate($any(item[0]))">{{ item[1] }}</button>
+  </nav>
+
+  <section class="kpis">
+    <article><span>Total Assets</span><strong>{{ assets.length }}</strong><small>Registered assets</small></article>
+    <article><span>Purchase Cost</span><strong>SAR {{ money(totalCost) }}</strong><small>Historical acquisition cost</small></article>
+    <article><span>Accumulated Depreciation</span><strong>SAR {{ money(totalDepreciation) }}</strong><small>Posted depreciation</small></article>
+    <article><span>Current Book Value</span><strong>SAR {{ money(totalBookValue) }}</strong><small>PostgreSQL live balance</small></article>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'assets'">
+    <div class="panel-head"><div><h2>Asset Register</h2><p>Click any row to inspect lifecycle details.</p></div><input type="search" [(ngModel)]="search" placeholder="Search code, name, barcode, branch…"></div>
+    <div class="table-scroll"><table><thead><tr><th>Asset</th><th>Category</th><th>Branch / Location</th><th>Purchase</th><th>Cost</th><th>Book Value</th><th>Custodian</th><th>Status</th></tr></thead>
+      <tbody><tr *ngFor="let asset of filteredAssets" (click)="select(asset)" [class.selected]="asset.id === selectedId">
+        <td><strong>{{ asset.assetCode }}</strong><span>{{ asset.nameEn }}</span><small>{{ asset.nameAr }} · {{ asset.barcode }}</small></td><td>{{ asset.categoryNameEn }}</td><td>{{ asset.branchName }}<small>{{ asset.location || '—' }}</small></td><td>{{ asset.purchaseDate }}<small>{{ asset.purchaseInvoice || 'No invoice ref.' }}</small></td><td>SAR {{ money(asset.purchaseCost) }}</td><td>SAR {{ money(asset.currentBookValue) }}</td><td>{{ asset.custodian || '—' }}</td><td><b class="status" [class.closed]="asset.status !== 'ACTIVE'">{{ asset.status }}</b></td>
+      </tr></tbody></table></div>
+    <aside class="asset-detail" *ngIf="selected"><div><span>Selected Asset</span><h3>{{ selected.assetCode }} · {{ selected.nameEn }}</h3><p>{{ selected.notes || 'No notes recorded.' }}</p></div><div class="detail-grid"><p><span>Method</span>{{ selected.depreciationMethod }}</p><p><span>Useful Life</span>{{ selected.usefulLifeMonths }} months</p><p><span>Residual Value</span>SAR {{ money(selected.residualValue) }}</p><p><span>Warranty</span>{{ selected.warrantyStatus }} {{ selected.warrantyEndsAt || '' }}</p><p><span>Attachments</span>{{ selected.attachments.length }}</p><p><span>Acquisition Journal</span>{{ selected.acquisitionJournalId || '—' }}</p></div></aside>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'categories'">
+    <div class="panel-head"><div><h2>Asset Categories</h2><p>Default life, method, and control accounts.</p></div><button class="primary" (click)="openCategory()">+ New Category</button></div>
+    <div class="card-grid"><article class="category" *ngFor="let category of categories"><div class="category-icon">◆</div><div><strong>{{ category.code }} · {{ category.nameEn }}</strong><span>{{ category.nameAr }}</span><small>{{ category.depreciationMethod }} · {{ category.usefulLifeMonths }} months</small></div></article></div>
+  </section>
+
+  <section class="panel action-panel" *ngIf="tab === 'depreciation'">
+    <div><span class="eyebrow">Monthly Close</span><h2>Depreciation Processing</h2><p>Post Straight Line or Declining Balance depreciation. Duplicate periods are prevented by PostgreSQL.</p></div>
+    <label><span>Depreciation Period</span><input type="date" [(ngModel)]="period"></label>
+    <label><span>Selected Asset</span><select [(ngModel)]="selectedId"><option value="">Select asset</option><option *ngFor="let asset of assets" [value]="asset.id">{{ asset.assetCode }} · {{ asset.nameEn }}</option></select></label>
+    <div class="actions"><button (click)="depreciateSelected()" [disabled]="busy || !selectedId">Post Selected</button><button class="primary" (click)="runAllDepreciation()" [disabled]="busy">Run All Active Assets</button></div>
+  </section>
+
+  <section class="panel action-panel" *ngIf="tab === 'transfers' || tab === 'disposal' || tab === 'maintenance'">
+    <div><span class="eyebrow">Asset Lifecycle</span><h2>{{ tab === 'transfers' ? 'Asset Transfers' : tab === 'disposal' ? 'Asset Disposal / Sale / Write-off' : 'Asset Maintenance' }}</h2><p>Select an asset and record the controlled movement. Disposal, sale, and write-off create balanced journals automatically.</p></div>
+    <label><span>Asset</span><select [(ngModel)]="selectedId"><option value="">Select asset</option><option *ngFor="let asset of assets" [value]="asset.id">{{ asset.assetCode }} · {{ asset.nameEn }} · {{ asset.status }}</option></select></label>
+    <button class="primary" [disabled]="!selectedId" (click)="openAction(tab === 'transfers' ? 'transfer' : tab === 'disposal' ? 'disposal' : 'maintenance')">Record {{ tab === 'transfers' ? 'Transfer' : tab === 'disposal' ? 'Disposal' : 'Maintenance' }}</button>
+  </section>
+
+  <section class="panel" *ngIf="tab === 'reports'">
+    <div class="panel-head"><div><h2>Professional Asset Reports</h2><p>Generated from the live asset subledger.</p></div><div class="report-tools"><select [(ngModel)]="reportType" (ngModelChange)="loadReport()"><option *ngFor="let item of reportTypes" [value]="item[0]">{{ item[1] }}</option></select><button (click)="exportReport()">Export Excel</button><button onclick="window.print()">Print / PDF</button></div></div>
+    <div class="table-scroll"><table *ngIf="reportRows.length"><thead><tr><th *ngFor="let column of reportColumns()">{{ column }}</th></tr></thead><tbody><tr *ngFor="let row of reportRows"><td *ngFor="let column of reportColumns()">{{ row[column] }}</td></tr></tbody></table><p class="empty" *ngIf="!reportRows.length">No rows available for this report.</p></div>
+  </section>
+
+  <div class="modal-backdrop" *ngIf="modal">
+    <section class="modal"><header><div><span>Fixed Assets</span><h2>{{ modal === 'asset' ? 'Acquire Asset' : modal === 'category' ? 'Create Category' : modal === 'transfer' ? 'Transfer Asset' : modal === 'disposal' ? 'Dispose / Sell / Write-off' : 'Record Maintenance' }}</h2></div><button (click)="closeModal()">×</button></header>
+      <div class="form-grid" *ngIf="modal === 'asset'">
+        <label><span>Asset Code</span><input [(ngModel)]="assetForm.assetCode" placeholder="Auto if blank"></label><label><span>English Name *</span><input [(ngModel)]="assetForm.nameEn"></label><label><span>Arabic Name *</span><input [(ngModel)]="assetForm.nameAr"></label>
+        <label><span>Category *</span><select [(ngModel)]="assetForm.categoryId"><option value="">Select</option><option *ngFor="let item of categories" [value]="item.id">{{ item.code }} · {{ item.nameEn }}</option></select></label><label><span>Branch *</span><select [(ngModel)]="assetForm.branchId"><option value="">Select</option><option *ngFor="let item of master.branches" [value]="item.id">{{ item.code }} · {{ item.name }}</option></select></label><label><span>Cost Center</span><select [(ngModel)]="assetForm.costCenterId"><option value="">None</option><option *ngFor="let item of master.costCenters" [value]="item.id">{{ item.code }} · {{ item.nameEn }}</option></select></label>
+        <label><span>Purchase Date *</span><input type="date" [(ngModel)]="assetForm.purchaseDate"></label><label><span>Supplier</span><select [(ngModel)]="assetForm.supplierId"><option value="">Cash / Bank purchase</option><option *ngFor="let item of master.suppliers" [value]="item.id">{{ item.supplierCode }} · {{ item.nameEn }}</option></select></label><label><span>Purchase Invoice</span><input [(ngModel)]="assetForm.purchaseInvoice"></label>
+        <label><span>Purchase Cost *</span><input type="number" [(ngModel)]="assetForm.purchaseCost"></label><label><span>Residual Value *</span><input type="number" [(ngModel)]="assetForm.residualValue"></label><label><span>Useful Life (months) *</span><input type="number" [(ngModel)]="assetForm.usefulLifeMonths"></label>
+        <label><span>Depreciation Method</span><select [(ngModel)]="assetForm.depreciationMethod"><option value="STRAIGHT_LINE">Straight Line</option><option value="DECLINING_BALANCE">Declining Balance</option></select></label><label><span>Declining Rate %</span><input type="number" [(ngModel)]="assetForm.decliningRate"></label><label><span>Payment Account</span><select [(ngModel)]="assetForm.paymentAccountId"><option value="">Auto / Supplier payable</option><option *ngFor="let item of master.accounts" [value]="item.id" [hidden]="!item.isPaymentAccount">{{ item.code }} · {{ item.nameEn }}</option></select></label>
+        <label><span>Custodian</span><input [(ngModel)]="assetForm.custodian"></label><label><span>Location</span><input [(ngModel)]="assetForm.location"></label><label><span>Barcode / QR Code</span><input [(ngModel)]="assetForm.barcode" placeholder="Auto if blank"></label><label><span>Warranty End</span><input type="date" [(ngModel)]="assetForm.warrantyEndsAt"></label><label class="wide"><span>Notes</span><textarea [(ngModel)]="assetForm.notes"></textarea></label>
+      </div>
+      <div class="form-grid" *ngIf="modal === 'category'">
+        <label><span>Category Code *</span><input [(ngModel)]="categoryForm.code"></label><label><span>English Name *</span><input [(ngModel)]="categoryForm.nameEn"></label><label><span>Arabic Name *</span><input [(ngModel)]="categoryForm.nameAr"></label><label><span>Useful Life (months)</span><input type="number" [(ngModel)]="categoryForm.usefulLifeMonths"></label><label><span>Method</span><select [(ngModel)]="categoryForm.depreciationMethod"><option value="STRAIGHT_LINE">Straight Line</option><option value="DECLINING_BALANCE">Declining Balance</option></select></label><label><span>Declining Rate %</span><input type="number" [(ngModel)]="categoryForm.decliningRate"></label><label><span>Asset Account</span><select [(ngModel)]="categoryForm.assetAccountId"><option value="">System default</option><option *ngFor="let item of master.accounts" [value]="item.id">{{ item.code }} · {{ item.nameEn }}</option></select></label><label><span>Accumulated Depreciation</span><select [(ngModel)]="categoryForm.accumulatedDepreciationAccountId"><option value="">System default</option><option *ngFor="let item of master.accounts" [value]="item.id">{{ item.code }} · {{ item.nameEn }}</option></select></label><label><span>Depreciation Expense</span><select [(ngModel)]="categoryForm.depreciationExpenseAccountId"><option value="">System default</option><option *ngFor="let item of master.accounts" [value]="item.id">{{ item.code }} · {{ item.nameEn }}</option></select></label>
+      </div>
+      <div class="form-grid" *ngIf="modal === 'transfer'"><label><span>Transfer Date</span><input type="date" [(ngModel)]="actionForm.transferDate"></label><label><span>Destination Branch *</span><select [(ngModel)]="actionForm.toBranchId"><option value="">Select</option><option *ngFor="let item of master.branches" [value]="item.id">{{ item.code }} · {{ item.name }}</option></select></label><label><span>New Location</span><input [(ngModel)]="actionForm.toLocation"></label><label><span>New Custodian</span><input [(ngModel)]="actionForm.toCustodian"></label><label class="wide"><span>Notes</span><textarea [(ngModel)]="actionForm.notes"></textarea></label></div>
+      <div class="form-grid" *ngIf="modal === 'disposal'"><label><span>Date</span><input type="date" [(ngModel)]="actionForm.disposalDate"></label><label><span>Action</span><select [(ngModel)]="actionForm.disposalType"><option value="DISPOSAL">Disposal</option><option value="SALE">Sale</option><option value="WRITE_OFF">Write-off</option></select></label><label><span>Sale Proceeds</span><input type="number" [(ngModel)]="actionForm.proceeds"></label><label><span>Payment Account</span><select [(ngModel)]="actionForm.paymentAccountId"><option value="">Select for sale</option><option *ngFor="let item of master.accounts" [value]="item.id" [hidden]="!item.isPaymentAccount">{{ item.code }} · {{ item.nameEn }}</option></select></label><label><span>Buyer</span><input [(ngModel)]="actionForm.buyer"></label><label><span>Reason</span><input [(ngModel)]="actionForm.reason"></label></div>
+      <div class="form-grid" *ngIf="modal === 'maintenance'"><label><span>Date</span><input type="date" [(ngModel)]="actionForm.maintenanceDate"></label><label><span>Type</span><select [(ngModel)]="actionForm.maintenanceType"><option value="PREVENTIVE">Preventive</option><option value="CORRECTIVE">Corrective</option><option value="INSPECTION">Inspection</option></select></label><label><span>Supplier</span><input [(ngModel)]="actionForm.supplierName"></label><label><span>Cost</span><input type="number" [(ngModel)]="actionForm.cost"></label><label><span>Next Due</span><input type="date" [(ngModel)]="actionForm.nextDueDate"></label><label><span>Status</span><select [(ngModel)]="actionForm.status"><option value="SCHEDULED">Scheduled</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option></select></label><label class="wide"><span>Description *</span><textarea [(ngModel)]="actionForm.description"></textarea></label></div>
+      <footer><button (click)="closeModal()">Cancel</button><button class="primary" [disabled]="busy" (click)="modal === 'asset' ? saveAsset() : modal === 'category' ? saveCategory() : saveAction()">Save & Post</button></footer>
+    </section>
+  </div>
+</section>

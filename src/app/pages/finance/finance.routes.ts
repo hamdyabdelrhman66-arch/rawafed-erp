@@ -11,6 +11,7 @@ export const financeRoutes: Routes = [
   { path: 'customers', loadComponent: () => import('./customers/customers').then((m) => m.Customers) },
   { path: 'customers/:id', loadComponent: () => import('./customer-profile/customer-profile').then((m) => m.CustomerProfile) },
   { path: 'chart-of-accounts', loadComponent: () => import('./chart-of-accounts/chart-of-accounts').then((m) => m.ChartOfAccounts) },
+  { path: 'fixed-assets', loadComponent: () => import('./fixed-assets/fixed-assets').then((m) => m.FixedAssets) },
   { path: 'cashboxes', loadComponent: () => import('./cashboxes/cashboxes').then((m) => m.Cashboxes) },
   { path: 'banks', loadComponent: () => import('./banks/banks').then((m) => m.Banks) },
   { path: 'suppliers', loadComponent: () => import('./suppliers/suppliers').then((m) => m.Suppliers) },

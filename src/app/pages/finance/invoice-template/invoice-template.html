@@ -61,7 +61,7 @@
           <th>العدد<br /><small>Count</small></th>
           <th>المبلغ قبل الضريبة<br /><small>Amount Before VAT</small></th>
           <th>الخصم<br /><small>Discount</small></th>
-          <th *ngIf="hasVat()">ضريبة القيمة المضافة<br /><small>VAT</small></th>
+          <th>ضريبة القيمة المضافة<br /><small>VAT</small></th>
           <th>الإجمالي<br /><small>Total</small></th>
         </tr>
       </thead>
@@ -71,7 +71,7 @@
           <td>{{ invoice.count || 1 }}</td>
           <td>{{ formatMoney(invoice.amount) }}</td>
           <td>{{ formatMoney(invoice.discount) }}</td>
-          <td *ngIf="hasVat()">{{ formatMoney(invoice.vat) }}</td>
+          <td>{{ formatMoney(invoice.vat) }}</td>
           <td>{{ formatMoney(invoice.total) }}</td>
         </tr>
       </tbody>
@@ -122,7 +122,7 @@
         <span>المبلغ قبل الضريبة</span>
         <strong>{{ formatMoney(invoice.amount) }} SAR</strong>
       </div>
-      <div *ngIf="hasVat()">
+      <div>
         <span>ضريبة القيمة المضافة</span>
         <strong>{{ formatMoney(invoice.vat) }} SAR</strong>
       </div>

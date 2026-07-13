@@ -6,6 +6,7 @@ import { RegistrationsRepository } from "../repositories/registrations.repositor
 import { StudentsRepository } from "../repositories/students.repository.js";
 import { RegistrationsService } from "./registrations.service.js";
 import { ServiceError } from "./service.error.js";
+import { recalculateStudentVatUsing } from "./student-vat.js";
 
 const shape = (s: any) => ({
   ...s,
@@ -44,6 +45,8 @@ export class StudentsService {
         id,
         data as Prisma.StudentUpdateInput,
       );
+      if (Object.prototype.hasOwnProperty.call(data, "nationalId"))
+        await recalculateStudentVatUsing(tx, id, data.nationalId);
       await new AuditRepository(tx).create({
         actorId: actor.id,
         actorRole: actor.role,

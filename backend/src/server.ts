@@ -19,6 +19,7 @@ import { disconnectDatabase, prisma } from "./prisma/client.js";
 import { monitoringRoutes } from "./routes/monitoring.routes.js";
 import { postgresAccountingRoutes } from "./routes/postgres-accounting.routes.js";
 import { postgresCoreRoutes } from "./routes/postgres-core.routes.js";
+import { postgresFixedAssetsRoutes } from "./routes/postgres-fixed-assets.routes.js";
 import { postgresInventoryRoutes } from "./routes/postgres-inventory.routes.js";
 import { postgresOperationsRoutes } from "./routes/postgres-operations.routes.js";
 import { ServiceError } from "./services/service.error.js";
@@ -115,6 +116,7 @@ app.use("/api", apiLimiter);
 app.use(monitoringRoutes(prisma, uploadDir));
 app.use(postgresCoreRoutes(prisma, secureUpload, loginLimiter));
 app.use(postgresAccountingRoutes(prisma));
+app.use(postgresFixedAssetsRoutes(prisma));
 app.use(postgresInventoryRoutes(prisma));
 app.use(postgresOperationsRoutes(prisma));
 app.get("/", (_req, res) =>

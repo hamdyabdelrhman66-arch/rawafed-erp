@@ -7,8 +7,13 @@ import { FinanceInvoicesRepository } from "../repositories/finance-invoices.repo
 import { FinancePaymentsRepository } from "../repositories/finance-payments.repository.js";
 import { ServiceError } from "./service.error.js";
 import { JournalService } from "./journal.service.js";
+import {
+  isSaudiNationalId,
+  money,
+  vatForSubtotal,
+  vatRateForStudent,
+} from "./student-vat.js";
 
-const money = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100;
 const paidForAccount = (account: any) =>
   money(
     account.payments.reduce((n: number, p: any) => n + Number(p.amount), 0),
@@ -50,6 +55,16 @@ const accountShape = (a: any) => {
       remaining: money(expectedAmount - paidAmount),
     };
   });
+  const subtotal = money(
+    feeItems
+      .filter((item: any) => item.name.toUpperCase() !== "VAT")
+      .reduce((sum: number, item: any) => sum + item.amount, 0),
+  );
+  const vat = money(
+    feeItems
+      .filter((item: any) => item.name.toUpperCase() === "VAT")
+      .reduce((sum: number, item: any) => sum + item.amount, 0),
+  );
   return {
     id: a.id,
     registrationId: a.registrationId,
@@ -57,6 +72,11 @@ const accountShape = (a: any) => {
     studentId: a.studentId,
     studentName: a.student.englishName,
     grade: a.student.grade,
+    nationalId: a.student.nationalId,
+    vatExempt: isSaudiNationalId(a.student.nationalId),
+    subtotal,
+    vat,
+    total: expected,
     expectedTotal: expected,
     paid,
     remaining,
@@ -80,9 +100,13 @@ const invoiceShape = (i: any) => {
     invoiceNumber: i.invoiceNumber,
     studentName: i.account.student.englishName,
     feeItem: i.lines[0]?.description || "School Fees",
+    subtotal: money(i.subtotal),
     amountBeforeVat: money(i.subtotal),
     vat: money(i.vatAmount),
     total,
+    totalInvoice: total,
+    nationalId: i.account.student.nationalId,
+    vatExempt: isSaudiNationalId(i.account.student.nationalId),
     paid,
     remaining: money(Math.max(total - paid, 0)),
     paymentMethod: "",
@@ -138,8 +162,10 @@ export class FinanceService {
       if (!account)
         throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
       const subtotal = money(input.amountBeforeVat ?? input.amount);
-      const vat = money(input.vat);
-      const total = money(input.total ?? subtotal + vat);
+      const vat = String(account.student.nationalId || "").trim()
+        ? vatForSubtotal(subtotal, account.student.nationalId)
+        : money(input.vat);
+      const total = money(subtotal + vat);
       if (total <= 0 || total !== money(subtotal + vat))
         throw new ServiceError("Invoice totals are invalid.", 422);
       const invoiceNumber = String(
@@ -266,9 +292,8 @@ export class FinanceService {
             422,
           );
         if (!invoice) {
-          const invoiceTotal = money(
-            Number(account.expectedTotal) - paidForAccount(account),
-          );
+          const shapedAccount = accountShape(account);
+          const invoiceTotal = money(shapedAccount.remaining);
           if (invoiceTotal <= 0)
             throw new ServiceError(
               "Student account has no outstanding balance to invoice.",
@@ -282,6 +307,23 @@ export class FinanceService {
               "Tuition revenue account is not configured.",
               422,
             );
+          const invoiceSubtotal = money(shapedAccount.subtotal);
+          const invoiceVat = vatForSubtotal(
+            invoiceSubtotal,
+            account.student.nationalId,
+          );
+          if (money(invoiceSubtotal + invoiceVat) !== invoiceTotal)
+            throw new ServiceError(
+              "Student finance account VAT totals are inconsistent.",
+              422,
+            );
+          const vatAccount = invoiceVat
+            ? await tx.chartOfAccount.findUnique({
+                where: { systemKey: "vat-payable" },
+              })
+            : null;
+          if (invoiceVat && !vatAccount)
+            throw new ServiceError("VAT payable account is not configured.", 422);
           const invoiceNumber = `INV-AUTO-${Date.now()}-${randomUUID().slice(0, 8)}`;
           invoice = await invoices.create(
             {
@@ -289,8 +331,8 @@ export class FinanceService {
               invoiceNumber,
               accountId: account.id,
               registrationId: account.registrationId,
-              subtotal: invoiceTotal,
-              vatAmount: 0,
+              subtotal: invoiceSubtotal,
+              vatAmount: invoiceVat,
               total: invoiceTotal,
               issuedAt: paidAt,
             },
@@ -298,10 +340,10 @@ export class FinanceService {
               id: randomUUID(),
               description: "School Fees",
               quantity: 1,
-              unitPrice: invoiceTotal,
-              vatRate: 0,
-              netAmount: invoiceTotal,
-              vatAmount: 0,
+              unitPrice: invoiceSubtotal,
+              vatRate: vatRateForStudent(account.student.nationalId),
+              netAmount: invoiceSubtotal,
+              vatAmount: invoiceVat,
               totalAmount: invoiceTotal,
               revenueAccountId: revenue.id,
             },
@@ -335,7 +377,10 @@ export class FinanceService {
                   accountId: customer.receivableAccountId,
                   debit: invoiceTotal,
                 },
-                { accountId: revenue.id, credit: invoiceTotal },
+                { accountId: revenue.id, credit: invoiceSubtotal },
+                ...(invoiceVat
+                  ? [{ accountId: vatAccount!.id, credit: invoiceVat }]
+                  : []),
               ],
             },
             actor,

@@ -1,4 +1,6 @@
 import type { AccountType, PrismaClient } from "@prisma/client";
+import type { Actor } from "../dto/core.dto.js";
+import { AuditRepository } from "../repositories/audit.repository.js";
 import {
   AccountsRepository,
   CostCentersRepository,
@@ -60,6 +62,164 @@ export class AccountService {
       };
     });
   }
+  async details(id: string) {
+    const account = await this.prisma.chartOfAccount.findFirst({
+      where: { id, deletedAt: null },
+      include: { parent: true, costCenter: true },
+    });
+    if (!account)
+      throw new ServiceError("Account not found.", 404, "NOT_FOUND");
+    const [lines, audits, linkedInvoices, linkedPayments, linkedAssets] =
+      await Promise.all([
+        this.prisma.journalLine.findMany({
+          where: {
+            accountId: id,
+            journalEntry: { status: "POSTED", deletedAt: null },
+          },
+          include: {
+            journalEntry: {
+              include: { branch: true, createdBy: true },
+            },
+            costCenter: true,
+          },
+          orderBy: [
+            { journalEntry: { postingDate: "asc" } },
+            { createdAt: "asc" },
+          ],
+        }),
+        this.prisma.auditLog.findMany({
+          where: { entityType: "account", entityId: id },
+          include: { actor: true },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
+        this.prisma.invoiceLine.count({ where: { revenueAccountId: id } }),
+        this.prisma.journalEntry.count({
+          where: {
+            paymentId: { not: null },
+            lines: { some: { accountId: id } },
+            deletedAt: null,
+          },
+        }),
+        this.prisma.fixedAsset.count({
+          where: {
+            deletedAt: null,
+            category: {
+              OR: [
+                { assetAccountId: id },
+                { accumulatedDepreciationAccountId: id },
+                { depreciationExpenseAccountId: id },
+              ],
+            },
+          },
+        }),
+      ]);
+    const opening = Number(account.openingBalance);
+    const debit = lines.reduce((sum, line) => sum + Number(line.debit), 0);
+    const credit = lines.reduce((sum, line) => sum + Number(line.credit), 0);
+    const creditNormal = account.normalBalance === "CREDIT";
+    let running = opening;
+    const transactions = lines.map((line) => {
+      running += creditNormal
+        ? Number(line.credit) - Number(line.debit)
+        : Number(line.debit) - Number(line.credit);
+      return {
+        id: line.id,
+        journalId: line.journalEntryId,
+        entryNumber: line.journalEntry.entryNumber,
+        date: line.journalEntry.postingDate.toISOString().slice(0, 10),
+        description: line.description || line.journalEntry.description,
+        referenceNumber: line.journalEntry.referenceNumber,
+        debit: Number(line.debit),
+        credit: Number(line.credit),
+        runningBalance: Math.round(running * 100) / 100,
+        branch: line.journalEntry.branch.name,
+        costCenter: line.costCenter?.nameEn,
+        createdBy: line.journalEntry.createdBy?.displayName,
+      };
+    });
+    const movement = (unit: "month" | "quarter" | "year") => {
+      const result = new Map<string, { period: string; debit: number; credit: number }>();
+      for (const line of lines) {
+        const date = line.journalEntry.postingDate;
+        const year = date.getUTCFullYear();
+        const period =
+          unit === "year"
+            ? String(year)
+            : unit === "quarter"
+              ? `${year}-Q${Math.floor(date.getUTCMonth() / 3) + 1}`
+              : `${year}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+        const row = result.get(period) || { period, debit: 0, credit: 0 };
+        row.debit += Number(line.debit);
+        row.credit += Number(line.credit);
+        result.set(period, row);
+      }
+      return [...result.values()].map((row) => ({
+        ...row,
+        debit: Math.round(row.debit * 100) / 100,
+        credit: Math.round(row.credit * 100) / 100,
+        net: Math.round((row.debit - row.credit) * 100) / 100,
+      }));
+    };
+    const branches = new Set(
+      lines.map((line) => line.journalEntry.branch.name).filter(Boolean),
+    );
+    const costCenters = new Set(
+      lines.map((line) => line.costCenter?.nameEn).filter(Boolean),
+    );
+    if (account.costCenter?.nameEn) costCenters.add(account.costCenter.nameEn);
+    return {
+      ...shape(account),
+      parentAccount: account.parent
+        ? { id: account.parent.id, code: account.parent.code, name: account.parent.name }
+        : null,
+      branch: branches.size === 1 ? [...branches][0] : branches.size ? "Multiple" : null,
+      costCenter: account.costCenter?.nameEn,
+      debitTotal: debit,
+      creditTotal: credit,
+      currentBalance: Math.round(running * 100) / 100,
+      transactionCount: lines.length,
+      journalCount: new Set(lines.map((line) => line.journalEntryId)).size,
+      firstTransactionDate: transactions[0]?.date,
+      lastTransactionDate: transactions.at(-1)?.date,
+      createdBy: audits.find((item) => item.action.includes("create"))?.actor
+        ?.displayName,
+      lastModifiedBy: audits[0]?.actor?.displayName,
+      linkedReports: ["Trial Balance", "Balance Sheet", "Income Statement", "Cash Flow"],
+      linkedJournals: new Set(lines.map((line) => line.journalEntryId)).size,
+      linkedInvoices,
+      linkedPayments,
+      linkedAssets,
+      linkedCostCenters: costCenters.size,
+      linkedBranches: branches.size,
+      recentJournalEntries: transactions.slice(-10).reverse(),
+      transactions,
+      monthlyMovement: movement("month"),
+      quarterlyMovement: movement("quarter"),
+      yearlyMovement: movement("year"),
+      recentActivity: [
+        ...audits.slice(0, 10).map((item) => ({
+          type: "audit",
+          title: item.action,
+          date: item.createdAt.toISOString(),
+          by: item.actor?.displayName || item.actorRole,
+        })),
+        ...transactions.slice(-10).map((item) => ({
+          type: "journal",
+          title: `${item.entryNumber} · ${item.description}`,
+          date: item.date,
+          amount: item.debit || item.credit,
+        })),
+      ].sort((a, b) => String(b.date).localeCompare(String(a.date))),
+      auditLog: audits.map((item) => ({
+        id: item.id,
+        action: item.action,
+        actor: item.actor?.displayName || item.actorRole,
+        details: item.details,
+        date: item.createdAt.toISOString(),
+      })),
+    };
+  }
   async costCenters() {
     return new CostCentersRepository(this.prisma).list();
   }
@@ -84,33 +244,42 @@ export class AccountService {
       (account) => account.isPayableAccount,
     );
   }
-  async create(input: any) {
+  async create(input: any, actor: Actor = {}) {
     const type = String(input.accountType).toUpperCase() as AccountType;
     await this.assertValidParent("__new_account__", input.parentId || null, type);
-    const row = await new AccountsRepository(this.prisma).create({
-      code: input.code,
-      name: input.nameEn,
-      nameAr: input.nameAr,
-      type,
-      parentId: input.parentId || null,
-      openingBalance: Number(input.openingBalance || 0),
-      openingDate: input.openingDate ? new Date(input.openingDate) : null,
-      currency: input.currency || "SAR",
-      costCenterId: input.costCenterId || null,
-      notes: input.notes,
-      normalBalance: String(
-        input.normalBalance ||
-          (["asset", "expense"].includes(input.accountType)
-            ? "debit"
-            : "credit"),
-      ).toUpperCase(),
-      allowPosting: input.postingAccount !== false,
-      allowManualJournal: input.allowManualJournal !== false,
-      active: input.status !== "inactive",
-    } as any);
-    return shape(row);
+    return this.prisma.$transaction(async (tx) => {
+      const row = await new AccountsRepository(tx).create({
+        code: input.code,
+        name: input.nameEn,
+        nameAr: input.nameAr,
+        type,
+        parentId: input.parentId || null,
+        openingBalance: Number(input.openingBalance || 0),
+        openingDate: input.openingDate ? new Date(input.openingDate) : null,
+        currency: input.currency || "SAR",
+        costCenterId: input.costCenterId || null,
+        notes: input.notes,
+        normalBalance: String(
+          input.normalBalance ||
+            (["asset", "expense"].includes(input.accountType)
+              ? "debit"
+              : "credit"),
+        ).toUpperCase(),
+        allowPosting: input.postingAccount !== false,
+        allowManualJournal: input.allowManualJournal !== false,
+        active: input.status !== "inactive",
+      } as any);
+      await new AuditRepository(tx).create({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "create account",
+        entityType: "account",
+        entityId: row.id,
+      });
+      return shape(row);
+    });
   }
-  async update(id: string, input: any) {
+  async update(id: string, input: any, actor: Actor = {}) {
     const repo = new AccountsRepository(this.prisma);
     const current = await repo.find(id);
     if (!current)
@@ -133,8 +302,8 @@ export class AccountService {
       throw new ServiceError("System accounts cannot be reclassified.", 422);
     if (input.parentId !== undefined)
       await this.assertValidParent(id, input.parentId || null, current.type);
-    return shape(
-      await repo.update(id, {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await new AccountsRepository(tx).update(id, {
         name: input.nameEn,
         nameAr: input.nameAr,
         parentId: input.parentId,
@@ -143,8 +312,16 @@ export class AccountService {
         allowPosting: input.postingAccount,
         allowManualJournal: input.allowManualJournal,
         active: input.status ? input.status === "active" : undefined,
-      }),
-    );
+      });
+      await new AuditRepository(tx).create({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "update account",
+        entityType: "account",
+        entityId: id,
+      });
+      return shape(row);
+    });
   }
   async archive(id: string) {
     const repo = new AccountsRepository(this.prisma);

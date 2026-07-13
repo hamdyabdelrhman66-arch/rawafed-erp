@@ -37,7 +37,6 @@ export class GenerateInvoice implements OnInit {
   @ViewChild('invoiceSheet') invoiceSheet?: ElementRef<HTMLElement>;
 
   readonly englishSellerName = 'RAWAFED INTERNATIONAL SCHOOL';
-  readonly vatRate = 0.15;
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Online Payment'];
   readonly billingEntities = ['Parent / Student', 'Company Sponsor', 'Scholarship', 'School'];
   readonly schoolOptions = ['Rawafed International School', 'Rawafed Middle East International'];
@@ -92,8 +91,10 @@ export class GenerateInvoice implements OnInit {
   }
 
   get selectedAccountFeeItems(): any[] {
-    return this.selectedAccount?.services || [];
+    return (this.selectedAccount?.services || []).filter((item: any) => String(item.service).toUpperCase() !== 'VAT');
   }
+
+  get vatRate(): number { return this.selectedAccount?.vatExempt ? 0 : 0.15; }
 
   get subtotal(): number {
     return this.toNumber(this.form.amountBeforeVat);
@@ -144,7 +145,7 @@ export class GenerateInvoice implements OnInit {
 
     this.form.patientName = account.patient || '';
     this.form.fileNumber = account.registrationNumber || String(account.id || '');
-    this.form.patientId = account.registrationNumber || '';
+    this.form.patientId = account.nationalId || '';
     this.form.paidAmount = Number(account.paid || 0);
     this.selectedFeeItem = this.selectedAccountFeeItems[0]?.service || 'School Fees';
     this.onFeeItemChange();
@@ -159,7 +160,7 @@ export class GenerateInvoice implements OnInit {
       return;
     }
 
-    this.form.amountBeforeVat = Number(this.selectedAccount?.total || 0);
+    this.form.amountBeforeVat = Number(this.selectedAccount?.subtotal || this.selectedAccount?.total || 0);
   }
 
   async showInvoice(): Promise<void> {

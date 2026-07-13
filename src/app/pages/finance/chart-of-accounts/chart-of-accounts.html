@@ -6,6 +6,7 @@
       <p>Professional account tree with balances, posting controls, archive, movement, and backend validation.</p>
     </div>
   </header>
+  <div class="breadcrumb">{{ selectedAccount ? breadcrumb(selectedAccount) : 'Accounting / Chart of Accounts' }}</div>
 
   <section class="toolbar-card">
     <div class="toolbar">
@@ -58,10 +59,12 @@
           {{ expanded.has(account.id) ? '−' : '+' }}
         </button>
         <span class="toggle ghost" *ngIf="!account.hasChildren"></span>
-        <div>
+        <span class="account-icon" [attr.data-type]="account.type">{{ account.postingAccount === false ? '▦' : '●' }}</span>
+        <div class="account-title">
           <strong>{{ account.code }} · {{ account.nameEn }}</strong>
           <small>{{ account.nameAr }} <span *ngIf="flagText(account)">· {{ flagText(account) }}</span></small>
         </div>
+        <div class="hover-actions"><button type="button" title="View account" (click)="select(account); $event.stopPropagation()">View</button><button type="button" title="Edit account" *ngIf="canWrite" (click)="selectedId = account.id; editSelected(); $event.stopPropagation()">Edit</button></div>
       </div>
       <div>{{ account.type }}</div>
       <div>{{ money(account.openingBalance) }} {{ account.currency }}</div>
@@ -76,21 +79,31 @@
     <p class="empty" *ngIf="!visibleRows.length">No accounts match your filters.</p>
   </section>
 
-  <section class="details-card" *ngIf="selectedAccount">
-    <div>
-      <span>Selected Account</span>
-      <h2>{{ selectedAccount.code }} - {{ selectedAccount.nameEn }}</h2>
-      <p>{{ selectedAccount.nameAr || '-' }}</p>
+  <div class="drawer-backdrop" *ngIf="drawerOpen" (click)="closeDrawer()"></div>
+  <aside class="account-drawer" *ngIf="drawerOpen" [class.loading]="detailsLoading">
+    <header class="drawer-head">
+      <div><span>Account Ledger</span><h2>{{ selectedAccount?.code }} · {{ selectedAccount?.nameEn }}</h2><p>{{ selectedAccount?.nameAr }}</p></div>
+      <button class="close" type="button" (click)="closeDrawer()">×</button>
+    </header>
+    <div class="drawer-actions">
+      <button (click)="editSelected()" [disabled]="!canWrite">Edit Account</button><button (click)="newChild()" [disabled]="!canWrite">Add Child</button><button (click)="drawerTab = 'transactions'">View Full Ledger</button><button (click)="createJournalForAccount()" [disabled]="!canWrite">Create Journal Entry</button><button (click)="exportLedgerPdf()">Export PDF</button><button (click)="exportLedgerExcel()">Export Excel</button><button (click)="printLedger()">Print</button>
     </div>
-    <div class="detail-grid">
-      <p><span>Parent</span>{{ selectedAccount.parentCode || 'Root' }}</p>
-      <p><span>Normal Balance</span>{{ selectedAccount.normalBalance || '-' }}</p>
-      <p><span>Posting</span>{{ selectedAccount.postingAccount === false ? 'No' : 'Yes' }}</p>
-      <p><span>Current Balance</span>{{ money(selectedAccount.currentBalance) }}</p>
-      <p><span>Journal Entries</span>{{ selectedAccount.journalEntries || 0 }}</p>
-      <p><span>Can Delete</span>{{ selectedAccount.canDelete ? 'Yes' : 'No' }}</p>
+    <nav class="drawer-tabs"><button [class.active]="drawerTab === 'overview'" (click)="drawerTab = 'overview'">Overview</button><button [class.active]="drawerTab === 'transactions'" (click)="drawerTab = 'transactions'">Transactions</button><button [class.active]="drawerTab === 'movement'" (click)="drawerTab = 'movement'">Movement</button><button [class.active]="drawerTab === 'links'" (click)="drawerTab = 'links'">Links</button><button [class.active]="drawerTab === 'audit'" (click)="drawerTab = 'audit'">Activity & Audit</button></nav>
+    <div class="drawer-loading" *ngIf="detailsLoading">Loading account ledger from PostgreSQL…</div>
+    <div class="drawer-body" *ngIf="!detailsLoading && accountDetails">
+      <ng-container *ngIf="drawerTab === 'overview'">
+        <section class="metrics"><article><span>Opening Balance</span><strong>{{ money(accountDetails.openingBalance) }}</strong></article><article class="accent"><span>Current Balance</span><strong>{{ money(accountDetails.currentBalance) }}</strong></article><article><span>Debit Total</span><strong>{{ money(accountDetails.debitTotal) }}</strong></article><article><span>Credit Total</span><strong>{{ money(accountDetails.creditTotal) }}</strong></article><article><span>Transactions</span><strong>{{ accountDetails.transactionCount }}</strong></article><article><span>Journals</span><strong>{{ accountDetails.journalCount }}</strong></article></section>
+        <section class="info-card"><h3>Account Information</h3><div class="info-grid"><p><span>Account Code</span>{{ accountDetails.code }}</p><p><span>Arabic Name</span>{{ accountDetails.nameAr || '—' }}</p><p><span>English Name</span>{{ accountDetails.nameEn }}</p><p><span>Parent Account</span>{{ accountDetails.parentAccount?.code || 'Root' }} {{ accountDetails.parentAccount?.name || '' }}</p><p><span>Account Type</span><b class="type-pill" [attr.data-type]="accountDetails.accountType">{{ accountDetails.accountType }}</b></p><p><span>Normal Balance</span>{{ accountDetails.normalBalance }}</p><p><span>Status</span>{{ accountDetails.status }}</p><p><span>Branch</span>{{ accountDetails.branch || 'All / none' }}</p><p><span>Cost Center</span>{{ accountDetails.costCenter || '—' }}</p><p><span>Created By</span>{{ accountDetails.createdBy || 'System' }}</p><p><span>Created Date</span>{{ accountDetails.createdAt | date:'medium' }}</p><p><span>Last Updated</span>{{ accountDetails.updatedAt | date:'medium' }}</p><p><span>Last Modified By</span>{{ accountDetails.lastModifiedBy || 'System' }}</p><p><span>First Transaction</span>{{ accountDetails.firstTransactionDate || '—' }}</p><p><span>Last Transaction</span>{{ accountDetails.lastTransactionDate || '—' }}</p><p class="wide"><span>Notes</span>{{ accountDetails.notes || 'No notes' }}</p></div></section>
+        <section class="chart-grid"><article><h3>Monthly Balance Trend</h3><div class="bars"><div *ngFor="let row of accountDetails.monthlyMovement"><i [style.height.%]="chartHeight(row.net, accountDetails.monthlyMovement, 'net')"></i><small>{{ row.period }}</small></div></div></article><article><h3>Debit vs Credit</h3><div class="donut-summary"><div class="donut" [style.--debit]="accountDetails.debitTotal"></div><p><span><i class="debit"></i>Debit {{ money(accountDetails.debitTotal) }}</span><span><i class="credit"></i>Credit {{ money(accountDetails.creditTotal) }}</span></p></div></article></section>
+        <section class="info-card"><h3>Recent Journal Entries</h3><div class="mini-table"><div class="mini-head"><span>Date</span><span>Entry</span><span>Description</span><span>Debit</span><span>Credit</span><span>Balance</span></div><div *ngFor="let row of accountDetails.recentJournalEntries"><span>{{ row.date }}</span><span>{{ row.entryNumber }}</span><span>{{ row.description }}</span><span>{{ money(row.debit) }}</span><span>{{ money(row.credit) }}</span><span>{{ money(row.runningBalance) }}</span></div></div></section>
+      </ng-container>
+      <section class="info-card" *ngIf="drawerTab === 'transactions'"><h3>Full Account Ledger & Running Balance</h3><div class="mini-table ledger"><div class="mini-head"><span>Date</span><span>Entry</span><span>Description</span><span>Reference</span><span>Debit</span><span>Credit</span><span>Running</span></div><div *ngFor="let row of accountDetails.transactions"><span>{{ row.date }}</span><span>{{ row.entryNumber }}</span><span>{{ row.description }}</span><span>{{ row.referenceNumber || '—' }}</span><span>{{ money(row.debit) }}</span><span>{{ money(row.credit) }}</span><span><strong>{{ money(row.runningBalance) }}</strong></span></div></div></section>
+      <ng-container *ngIf="drawerTab === 'movement'"><section class="movement-grid"><article *ngFor="let movement of [{title:'Monthly Movement',rows:accountDetails.monthlyMovement},{title:'Quarterly Movement',rows:accountDetails.quarterlyMovement},{title:'Yearly Movement',rows:accountDetails.yearlyMovement}]"><h3>{{ movement.title }}</h3><div class="movement-row" *ngFor="let row of movement.rows"><strong>{{ row.period }}</strong><span>Debit {{ money(row.debit) }}</span><span>Credit {{ money(row.credit) }}</span><b>{{ money(row.net) }}</b></div></article></section><section class="info-card"><h3>Running Balance Chart</h3><div class="running-chart"><div *ngFor="let row of accountDetails.transactions"><i [style.height.%]="chartHeight(row.runningBalance, accountDetails.transactions, 'runningBalance')"></i></div></div></section></ng-container>
+      <section class="link-grid" *ngIf="drawerTab === 'links'"><article><span>Linked Journals</span><strong>{{ accountDetails.linkedJournals }}</strong></article><article><span>Linked Invoices</span><strong>{{ accountDetails.linkedInvoices }}</strong></article><article><span>Linked Payments</span><strong>{{ accountDetails.linkedPayments }}</strong></article><article><span>Linked Assets</span><strong>{{ accountDetails.linkedAssets }}</strong></article><article><span>Linked Cost Centers</span><strong>{{ accountDetails.linkedCostCenters }}</strong></article><article><span>Linked Branches</span><strong>{{ accountDetails.linkedBranches }}</strong></article><article class="wide"><span>Linked Reports</span><p>{{ accountDetails.linkedReports.join(' · ') }}</p></article></section>
+      <ng-container *ngIf="drawerTab === 'audit'"><section class="timeline"><article *ngFor="let item of accountDetails.recentActivity"><i></i><div><strong>{{ item.title }}</strong><span>{{ item.date | date:'medium' }} · {{ item.by || '' }}</span></div></article></section><section class="info-card"><h3>Audit Log</h3><div class="audit-row" *ngFor="let item of accountDetails.auditLog"><strong>{{ item.action }}</strong><span>{{ item.actor || 'System' }}</span><time>{{ item.date | date:'medium' }}</time></div></section></ng-container>
     </div>
-  </section>
+    <footer class="drawer-footer"><button (click)="closeDrawer()">Close</button></footer>
+  </aside>
 
   <div class="modal-backdrop" *ngIf="modalOpen">
     <section class="account-modal">

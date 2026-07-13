@@ -37,6 +37,10 @@ export interface FinancePackage {
   registrationNumber?: string;
   backendId?: string;
   canonicalInvoiceId?: string;
+  subtotal?: number;
+  vat?: number;
+  vatExempt?: boolean;
+  nationalId?: string;
 }
 
 export interface FinanceFeeItem {
@@ -85,6 +89,7 @@ export interface FinanceInvoice {
   fileNo?: string;
   notes?: string;
   user?: string;
+  vatExempt?: boolean;
   registrationId?: string;
   registrationNumber?: string;
   accountId?: number | string;

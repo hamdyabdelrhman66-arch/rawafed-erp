@@ -47,11 +47,14 @@ export class AccountingController {
       ),
     ),
   );
+  accountDetails = asyncController(async (req, res) =>
+    res.json(await this.accounts.details(req.params.id)),
+  );
   createAccount = asyncController(async (req, res) =>
-    res.status(201).json(await this.accounts.create(req.body)),
+    res.status(201).json(await this.accounts.create(req.body, actor(req))),
   );
   updateAccount = asyncController(async (req, res) =>
-    res.json(await this.accounts.update(req.params.id, req.body)),
+    res.json(await this.accounts.update(req.params.id, req.body, actor(req))),
   );
   archiveAccount = asyncController(async (req, res) =>
     res.json(await this.accounts.archive(req.params.id)),

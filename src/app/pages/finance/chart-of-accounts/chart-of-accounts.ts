@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AccountingAccount, AccountingService } from '../../../core/finance/accounting.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
+import { jsPDF } from 'jspdf';
 
 interface AccountRow extends AccountingAccount {
   level: number;
@@ -23,6 +24,10 @@ export class ChartOfAccounts implements OnInit {
   typeFilter = '';
   statusFilter = '';
   selectedId = '';
+  accountDetails: any = null;
+  drawerOpen = false;
+  detailsLoading = false;
+  drawerTab: 'overview' | 'transactions' | 'movement' | 'links' | 'audit' = 'overview';
   expanded = new Set<string>();
   modalOpen = false;
   modalMode: 'create' | 'edit' = 'create';
@@ -103,8 +108,74 @@ export class ChartOfAccounts implements OnInit {
     await this.load();
   }
 
-  select(account: AccountingAccount): void {
+  async select(account: AccountingAccount): Promise<void> {
     this.selectedId = account.id;
+    this.drawerOpen = true;
+    this.drawerTab = 'overview';
+    this.detailsLoading = true;
+    try {
+      this.accountDetails = await this.accounting.getAccountDetails(account.id);
+    } catch (error) {
+      this.drawerOpen = false;
+      this.feedback.error('Account details could not be loaded.', safeErrorMessage(error));
+    } finally { this.detailsLoading = false; }
+  }
+
+  closeDrawer(): void { this.drawerOpen = false; }
+
+  breadcrumb(account: AccountingAccount): string {
+    const names: string[] = [account.nameEn];
+    let current = account;
+    const visited = new Set<string>();
+    while (current.parentId && !visited.has(current.parentId)) {
+      visited.add(current.parentId);
+      const parent = this.accounts.find((item) => item.id === current.parentId);
+      if (!parent) break;
+      names.unshift(parent.nameEn);
+      current = parent;
+    }
+    return ['Chart of Accounts', ...names].join(' / ');
+  }
+
+  chartHeight(value: unknown, rows: any[], key: string): number {
+    const max = Math.max(1, ...rows.map((row) => Math.abs(Number(row[key] || 0))));
+    return Math.max(4, Math.round(Math.abs(Number(value || 0)) / max * 100));
+  }
+
+  exportLedgerExcel(): void {
+    const details = this.accountDetails;
+    if (!details) return;
+    const header = ['Date', 'Entry', 'Description', 'Reference', 'Debit', 'Credit', 'Running Balance', 'Branch', 'Cost Center'];
+    const rows = (details.transactions || []).map((row: any) => [row.date, row.entryNumber, row.description, row.referenceNumber || '', row.debit, row.credit, row.runningBalance, row.branch || '', row.costCenter || '']);
+    this.downloadCsv(`ledger-${details.code}.csv`, [header, ...rows]);
+  }
+
+  exportLedgerPdf(): void {
+    const details = this.accountDetails;
+    if (!details) return;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(17); doc.text(`Account Ledger ${details.code} - ${details.nameEn}`, 14, 16);
+    doc.setFontSize(10); doc.text(`Opening: ${this.money(details.openingBalance)}   Current: ${this.money(details.currentBalance)}   Debit: ${this.money(details.debitTotal)}   Credit: ${this.money(details.creditTotal)}`, 14, 24);
+    let y = 34;
+    doc.text('Date', 14, y); doc.text('Entry', 42, y); doc.text('Description', 78, y); doc.text('Debit', 205, y); doc.text('Credit', 235, y); doc.text('Balance', 265, y);
+    for (const row of (details.transactions || []).slice(0, 38)) {
+      y += 6; doc.text(String(row.date), 14, y); doc.text(String(row.entryNumber).slice(0, 18), 42, y); doc.text(String(row.description).slice(0, 58), 78, y); doc.text(this.money(row.debit), 205, y); doc.text(this.money(row.credit), 235, y); doc.text(this.money(row.runningBalance), 265, y);
+    }
+    doc.save(`ledger-${details.code}.pdf`);
+  }
+
+  printLedger(): void {
+    const details = this.accountDetails;
+    if (!details) return;
+    const popup = window.open('', '_blank', 'width=1100,height=800');
+    if (!popup) return;
+    const rows = (details.transactions || []).map((row: any) => `<tr><td>${row.date}</td><td>${row.entryNumber}</td><td>${row.description}</td><td>${this.money(row.debit)}</td><td>${this.money(row.credit)}</td><td>${this.money(row.runningBalance)}</td></tr>`).join('');
+    popup.document.write(`<html><head><title>Ledger ${details.code}</title><style>body{font-family:Arial;padding:30px;color:#14233b}h1{color:#123d73}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#123d73;color:white}</style></head><body><h1>${details.code} · ${details.nameEn}</h1><p>${details.nameAr || ''}</p><p>Opening ${this.money(details.openingBalance)} · Current ${this.money(details.currentBalance)} · Debit ${this.money(details.debitTotal)} · Credit ${this.money(details.creditTotal)}</p><table><thead><tr><th>Date</th><th>Entry</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    popup.document.close(); popup.focus(); popup.print();
+  }
+
+  createJournalForAccount(): void {
+    window.location.href = `/finance/accounting?tab=journal&accountId=${encodeURIComponent(this.selectedId)}`;
   }
 
   toggle(account: AccountingAccount): void {
@@ -239,13 +310,7 @@ export class ChartOfAccounts implements OnInit {
       account.status
     ]);
     const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'chart-of-accounts.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    this.downloadCsv('chart-of-accounts.csv', [header, ...rows]);
     this.feedback.success('Chart of Accounts exported successfully.');
   }
 
@@ -303,6 +368,13 @@ export class ChartOfAccounts implements OnInit {
   private async suggestCode(): Promise<void> {
     const result = await this.accounting.suggestAccountCode(this.form.parentId, this.form.type);
     this.form.code = result.code;
+  }
+
+  private downloadCsv(filename: string, rows: any[][]): void {
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
   }
 
   private childrenOf(parentId?: string): AccountingAccount[] {

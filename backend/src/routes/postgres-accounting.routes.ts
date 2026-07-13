@@ -18,6 +18,12 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
     write = requireRole(["Finance", "Finance Manager", "Chief Accountant"]);
   r.get("/api/accounting/accounts", ...secured, read, c.listAccounts);
   r.get(
+    "/api/accounting/accounts/:id/details",
+    ...secured,
+    read,
+    c.accountDetails,
+  );
+  r.get(
     "/api/accounting/accounts/suggest-code",
     ...secured,
     write,

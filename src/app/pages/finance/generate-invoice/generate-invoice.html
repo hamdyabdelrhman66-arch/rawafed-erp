@@ -116,7 +116,7 @@
 
       <div class="calculation-strip wide">
         <div>
-          <span>VAT 15%</span>
+          <span>VAT {{ vatRate ? '15%' : 'Exempt (Saudi Citizen)' }}</span>
           <strong>{{ formatMoney(vatAmount) }}</strong>
         </div>
         <div>
@@ -172,7 +172,7 @@
               <th>Fee Item</th>
               <th>Amount Before VAT</th>
               <th>Discount</th>
-              <th>VAT 15%</th>
+              <th>VAT {{ vatRate ? '15%' : '0% Exempt' }}</th>
               <th>Total</th>
             </tr>
           </thead>
@@ -188,6 +188,9 @@
         </table>
 
         <section class="invoice-summary totals">
+          <div><span>Subtotal</span><strong>{{ formatMoney(taxableAmount) }} SAR</strong></div>
+          <div><span>VAT</span><strong>{{ formatMoney(vatAmount) }} SAR</strong></div>
+          <div><span>Grand Total</span><strong>{{ formatMoney(totalAmount) }} SAR</strong></div>
           <div><span>Paid</span><strong>{{ formatMoney(paidAmount) }} SAR</strong></div>
           <div><span>Remaining</span><strong>{{ formatMoney(remainingAmount) }} SAR</strong></div>
         </section>

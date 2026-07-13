@@ -1,0 +1,6 @@
+ALTER TABLE "fixed_asset_categories" ADD CONSTRAINT "fixed_asset_categories_asset_account_id_fkey" FOREIGN KEY ("asset_account_id") REFERENCES "chart_of_accounts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "fixed_asset_categories" ADD CONSTRAINT "fixed_asset_categories_accumulated_depreciation_account_id_fkey" FOREIGN KEY ("accumulated_depreciation_account_id") REFERENCES "chart_of_accounts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "fixed_asset_categories" ADD CONSTRAINT "fixed_asset_categories_depreciation_expense_account_id_fkey" FOREIGN KEY ("depreciation_expense_account_id") REFERENCES "chart_of_accounts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "fixed_assets" ADD CONSTRAINT "fixed_assets_acquisition_journal_id_fkey" FOREIGN KEY ("acquisition_journal_id") REFERENCES "journal_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "fixed_asset_depreciation" ADD CONSTRAINT "fixed_asset_depreciation_journal_entry_id_fkey" FOREIGN KEY ("journal_entry_id") REFERENCES "journal_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "fixed_asset_disposals" ADD CONSTRAINT "fixed_asset_disposals_journal_entry_id_fkey" FOREIGN KEY ("journal_entry_id") REFERENCES "journal_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

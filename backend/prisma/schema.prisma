@@ -110,19 +110,22 @@ model RefreshToken {
 }
 
 model Branch {
-  id             String         @id @default(uuid()) @db.Uuid
-  code           String         @unique
-  name           String
-  nameAr         String?        @map("name_ar")
-  active         Boolean        @default(true)
-  registrations  Registration[]
-  students       Student[]
-  staff          Staff[]
-  fiscalYears    AcademicYear[]
-  journalEntries JournalEntry[]
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  deletedAt      DateTime?      @map("deleted_at")
+  id                 String               @id @default(uuid()) @db.Uuid
+  code               String               @unique
+  name               String
+  nameAr             String?              @map("name_ar")
+  active             Boolean              @default(true)
+  registrations      Registration[]
+  students           Student[]
+  staff              Staff[]
+  fiscalYears        AcademicYear[]
+  journalEntries     JournalEntry[]
+  fixedAssets        FixedAsset[]
+  assetTransfersFrom FixedAssetTransfer[] @relation("AssetTransferFromBranch")
+  assetTransfersTo   FixedAssetTransfer[] @relation("AssetTransferToBranch")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  deletedAt          DateTime?            @map("deleted_at")
 
   @@index([active, deletedAt])
   @@map("branches")
@@ -358,45 +361,48 @@ model FinanceExpense {
 }
 
 model ChartOfAccount {
-  id                  String               @id @default(uuid()) @db.Uuid
-  code                String               @unique
-  name                String
-  nameAr              String?              @map("name_ar")
-  type                AccountType
-  parentId            String?              @map("parent_id") @db.Uuid
-  parent              ChartOfAccount?      @relation("AccountTree", fields: [parentId], references: [id], onDelete: Restrict)
-  children            ChartOfAccount[]     @relation("AccountTree")
-  active              Boolean              @default(true)
-  system              Boolean              @default(false)
-  systemKey           String?              @unique @map("system_key")
-  currency            String               @default("SAR") @db.Char(3)
-  openingBalance      Decimal              @default(0) @map("opening_balance") @db.Decimal(14, 2)
-  openingDate         DateTime?            @map("opening_date") @db.Date
-  notes               String?
-  normalBalance       String               @default("DEBIT") @map("normal_balance")
-  allowPosting        Boolean              @default(true) @map("allow_posting")
-  allowManualJournal  Boolean              @default(true) @map("allow_manual_journal")
-  isCashAccount       Boolean              @default(false) @map("is_cash_account")
-  isBankAccount       Boolean              @default(false) @map("is_bank_account")
-  isVatAccount        Boolean              @default(false) @map("is_vat_account")
-  isReceivableAccount Boolean              @default(false) @map("is_receivable_account")
-  isPayableAccount    Boolean              @default(false) @map("is_payable_account")
-  costCenterId        String?              @map("cost_center_id") @db.Uuid
-  costCenter          CostCenter?          @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
-  journalLines        JournalLine[]
-  invoiceLines        InvoiceLine[]
-  expenses            FinanceExpense[]
-  cashbox             Cashbox?
-  bank                Bank?
-  receivableCustomers AccountingCustomer[]
-  payableSuppliers    AccountingSupplier[]
-  accountingExpenses  AccountingExpense[]  @relation("ExpenseAccount")
-  paidExpenses        AccountingExpense[]  @relation("ExpensePaymentAccount")
-  supplierPayments    SupplierPayment[]
-  customerPayments    CustomerPayment[]
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  deletedAt           DateTime?            @map("deleted_at")
+  id                          String               @id @default(uuid()) @db.Uuid
+  code                        String               @unique
+  name                        String
+  nameAr                      String?              @map("name_ar")
+  type                        AccountType
+  parentId                    String?              @map("parent_id") @db.Uuid
+  parent                      ChartOfAccount?      @relation("AccountTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children                    ChartOfAccount[]     @relation("AccountTree")
+  active                      Boolean              @default(true)
+  system                      Boolean              @default(false)
+  systemKey                   String?              @unique @map("system_key")
+  currency                    String               @default("SAR") @db.Char(3)
+  openingBalance              Decimal              @default(0) @map("opening_balance") @db.Decimal(14, 2)
+  openingDate                 DateTime?            @map("opening_date") @db.Date
+  notes                       String?
+  normalBalance               String               @default("DEBIT") @map("normal_balance")
+  allowPosting                Boolean              @default(true) @map("allow_posting")
+  allowManualJournal          Boolean              @default(true) @map("allow_manual_journal")
+  isCashAccount               Boolean              @default(false) @map("is_cash_account")
+  isBankAccount               Boolean              @default(false) @map("is_bank_account")
+  isVatAccount                Boolean              @default(false) @map("is_vat_account")
+  isReceivableAccount         Boolean              @default(false) @map("is_receivable_account")
+  isPayableAccount            Boolean              @default(false) @map("is_payable_account")
+  costCenterId                String?              @map("cost_center_id") @db.Uuid
+  costCenter                  CostCenter?          @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  journalLines                JournalLine[]
+  invoiceLines                InvoiceLine[]
+  expenses                    FinanceExpense[]
+  cashbox                     Cashbox?
+  bank                        Bank?
+  receivableCustomers         AccountingCustomer[]
+  payableSuppliers            AccountingSupplier[]
+  accountingExpenses          AccountingExpense[]  @relation("ExpenseAccount")
+  paidExpenses                AccountingExpense[]  @relation("ExpensePaymentAccount")
+  supplierPayments            SupplierPayment[]
+  customerPayments            CustomerPayment[]
+  assetCategories             FixedAssetCategory[] @relation("AssetCategoryAssetAccount")
+  accumulatedAssetCategories  FixedAssetCategory[] @relation("AssetCategoryAccumulatedAccount")
+  depreciationAssetCategories FixedAssetCategory[] @relation("AssetCategoryExpenseAccount")
+  createdAt                   DateTime             @default(now()) @map("created_at")
+  updatedAt                   DateTime             @updatedAt @map("updated_at")
+  deletedAt                   DateTime?            @map("deleted_at")
 
   @@index([parentId])
   @@index([type, active])
@@ -405,39 +411,42 @@ model ChartOfAccount {
 }
 
 model JournalEntry {
-  id                String             @id @default(uuid()) @db.Uuid
-  entryNumber       String             @unique @map("entry_number")
-  branchId          String             @map("branch_id") @db.Uuid
-  branch            Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  academicYearId    String?            @map("academic_year_id") @db.Uuid
-  academicYear      AcademicYear?      @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  postingDate       DateTime           @map("posting_date") @db.Date
+  id                String                  @id @default(uuid()) @db.Uuid
+  entryNumber       String                  @unique @map("entry_number")
+  branchId          String                  @map("branch_id") @db.Uuid
+  branch            Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  academicYearId    String?                 @map("academic_year_id") @db.Uuid
+  academicYear      AcademicYear?           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  postingDate       DateTime                @map("posting_date") @db.Date
   description       String
-  status            JournalStatus      @default(POSTED)
-  sourceType        String?            @map("source_type")
-  sourceId          String?            @map("source_id")
-  referenceNumber   String?            @map("reference_number")
-  createdById       String?            @map("created_by_id") @db.Uuid
-  createdBy         User?              @relation("JournalCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  postedAt          DateTime?          @map("posted_at")
-  reversedFromId    String?            @unique @map("reversed_from_id") @db.Uuid
-  reversedFrom      JournalEntry?      @relation("JournalReversal", fields: [reversedFromId], references: [id], onDelete: Restrict)
-  reversal          JournalEntry?      @relation("JournalReversal")
-  invoiceId         String?            @map("invoice_id") @db.Uuid
-  invoice           FinanceInvoice?    @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  paymentId         String?            @map("payment_id") @db.Uuid
-  payment           FinancePayment?    @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  expenseId         String?            @map("expense_id") @db.Uuid
-  expense           FinanceExpense?    @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+  status            JournalStatus           @default(POSTED)
+  sourceType        String?                 @map("source_type")
+  sourceId          String?                 @map("source_id")
+  referenceNumber   String?                 @map("reference_number")
+  createdById       String?                 @map("created_by_id") @db.Uuid
+  createdBy         User?                   @relation("JournalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  postedAt          DateTime?               @map("posted_at")
+  reversedFromId    String?                 @unique @map("reversed_from_id") @db.Uuid
+  reversedFrom      JournalEntry?           @relation("JournalReversal", fields: [reversedFromId], references: [id], onDelete: Restrict)
+  reversal          JournalEntry?           @relation("JournalReversal")
+  invoiceId         String?                 @map("invoice_id") @db.Uuid
+  invoice           FinanceInvoice?         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  paymentId         String?                 @map("payment_id") @db.Uuid
+  payment           FinancePayment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  expenseId         String?                 @map("expense_id") @db.Uuid
+  expense           FinanceExpense?         @relation(fields: [expenseId], references: [id], onDelete: Restrict)
   accountingExpense AccountingExpense?
   supplierPayment   SupplierPayment?
   customerPayment   CustomerPayment?
   transfer          CashBankTransfer?
   payrollRun        PayrollRun?
+  acquiredAsset     FixedAsset?
+  assetDepreciation FixedAssetDepreciation?
+  assetDisposal     FixedAssetDisposal?
   lines             JournalLine[]
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  deletedAt         DateTime?          @map("deleted_at")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  deletedAt         DateTime?               @map("deleted_at")
 
   @@unique([sourceType, sourceId])
   @@index([branchId, postingDate, status])
@@ -474,6 +483,7 @@ model CostCenter {
   accounts     ChartOfAccount[]
   journalLines JournalLine[]
   expenses     AccountingExpense[]
+  fixedAssets  FixedAsset[]
   createdAt    DateTime            @default(now()) @map("created_at")
   updatedAt    DateTime            @updatedAt @map("updated_at")
   deletedAt    DateTime?           @map("deleted_at")
@@ -537,6 +547,7 @@ model AccountingSupplier {
   purchaseOrders         PurchaseOrder[]
   goodsReceipts          GoodsReceipt[]
   inventoryItems         InventoryItem[]
+  fixedAssets            FixedAsset[]
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
   deletedAt              DateTime?           @map("deleted_at")
@@ -1156,6 +1167,156 @@ model VatRate {
 
   @@index([active, validFrom, validTo])
   @@map("vat_rates")
+}
+
+model FixedAssetCategory {
+  id                               String         @id @default(uuid()) @db.Uuid
+  code                             String         @unique
+  nameAr                           String         @map("name_ar")
+  nameEn                           String         @map("name_en")
+  usefulLifeMonths                 Int            @default(60) @map("useful_life_months")
+  depreciationMethod               String         @default("STRAIGHT_LINE") @map("depreciation_method")
+  decliningRate                    Decimal?       @map("declining_rate") @db.Decimal(7, 4)
+  assetAccountId                   String         @map("asset_account_id") @db.Uuid
+  assetAccount                     ChartOfAccount @relation("AssetCategoryAssetAccount", fields: [assetAccountId], references: [id], onDelete: Restrict)
+  accumulatedDepreciationAccountId String         @map("accumulated_depreciation_account_id") @db.Uuid
+  accumulatedDepreciationAccount   ChartOfAccount @relation("AssetCategoryAccumulatedAccount", fields: [accumulatedDepreciationAccountId], references: [id], onDelete: Restrict)
+  depreciationExpenseAccountId     String         @map("depreciation_expense_account_id") @db.Uuid
+  depreciationExpenseAccount       ChartOfAccount @relation("AssetCategoryExpenseAccount", fields: [depreciationExpenseAccountId], references: [id], onDelete: Restrict)
+  active                           Boolean        @default(true)
+  notes                            String?
+  assets                           FixedAsset[]
+  createdAt                        DateTime       @default(now()) @map("created_at")
+  updatedAt                        DateTime       @updatedAt @map("updated_at")
+  deletedAt                        DateTime?      @map("deleted_at")
+
+  @@index([active, deletedAt])
+  @@map("fixed_asset_categories")
+}
+
+model FixedAsset {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  assetCode            String                   @unique @map("asset_code")
+  nameAr               String                   @map("name_ar")
+  nameEn               String                   @map("name_en")
+  categoryId           String                   @map("category_id") @db.Uuid
+  category             FixedAssetCategory       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  branchId             String                   @map("branch_id") @db.Uuid
+  branch               Branch                   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  costCenterId         String?                  @map("cost_center_id") @db.Uuid
+  costCenter           CostCenter?              @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  supplierId           String?                  @map("supplier_id") @db.Uuid
+  supplier             AccountingSupplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchaseDate         DateTime                 @map("purchase_date") @db.Date
+  purchaseInvoice      String?                  @map("purchase_invoice")
+  purchaseCost         Decimal                  @map("purchase_cost") @db.Decimal(14, 2)
+  residualValue        Decimal                  @default(0) @map("residual_value") @db.Decimal(14, 2)
+  usefulLifeMonths     Int                      @map("useful_life_months")
+  depreciationMethod   String                   @map("depreciation_method")
+  decliningRate        Decimal?                 @map("declining_rate") @db.Decimal(7, 4)
+  currentBookValue     Decimal                  @map("current_book_value") @db.Decimal(14, 2)
+  status               String                   @default("ACTIVE")
+  custodian            String?
+  location             String?
+  barcode              String?                  @unique
+  warrantyEndsAt       DateTime?                @map("warranty_ends_at") @db.Date
+  notes                String?
+  attachments          Json                     @default("[]")
+  acquisitionJournalId String?                  @unique @map("acquisition_journal_id") @db.Uuid
+  acquisitionJournal   JournalEntry?            @relation(fields: [acquisitionJournalId], references: [id], onDelete: Restrict)
+  depreciationEntries  FixedAssetDepreciation[]
+  transfers            FixedAssetTransfer[]
+  disposals            FixedAssetDisposal[]
+  maintenance          FixedAssetMaintenance[]
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+  deletedAt            DateTime?                @map("deleted_at")
+
+  @@index([categoryId, status])
+  @@index([branchId, status])
+  @@index([costCenterId])
+  @@map("fixed_assets")
+}
+
+model FixedAssetDepreciation {
+  id                String       @id @default(uuid()) @db.Uuid
+  assetId           String       @map("asset_id") @db.Uuid
+  asset             FixedAsset   @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  period            DateTime     @db.Date
+  amount            Decimal      @db.Decimal(14, 2)
+  accumulatedAmount Decimal      @map("accumulated_amount") @db.Decimal(14, 2)
+  bookValueAfter    Decimal      @map("book_value_after") @db.Decimal(14, 2)
+  journalEntryId    String       @unique @map("journal_entry_id") @db.Uuid
+  journalEntry      JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  @@unique([assetId, period])
+  @@index([period])
+  @@map("fixed_asset_depreciation")
+}
+
+model FixedAssetTransfer {
+  id            String     @id @default(uuid()) @db.Uuid
+  assetId       String     @map("asset_id") @db.Uuid
+  asset         FixedAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  transferDate  DateTime   @map("transfer_date") @db.Date
+  fromBranchId  String     @map("from_branch_id") @db.Uuid
+  fromBranch    Branch     @relation("AssetTransferFromBranch", fields: [fromBranchId], references: [id], onDelete: Restrict)
+  toBranchId    String     @map("to_branch_id") @db.Uuid
+  toBranch      Branch     @relation("AssetTransferToBranch", fields: [toBranchId], references: [id], onDelete: Restrict)
+  fromLocation  String?    @map("from_location")
+  toLocation    String?    @map("to_location")
+  fromCustodian String?    @map("from_custodian")
+  toCustodian   String?    @map("to_custodian")
+  notes         String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@index([assetId, transferDate])
+  @@map("fixed_asset_transfers")
+}
+
+model FixedAssetDisposal {
+  id             String       @id @default(uuid()) @db.Uuid
+  assetId        String       @map("asset_id") @db.Uuid
+  asset          FixedAsset   @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  disposalDate   DateTime     @map("disposal_date") @db.Date
+  disposalType   String       @map("disposal_type")
+  proceeds       Decimal      @default(0) @db.Decimal(14, 2)
+  bookValue      Decimal      @map("book_value") @db.Decimal(14, 2)
+  gainLoss       Decimal      @map("gain_loss") @db.Decimal(14, 2)
+  reason         String?
+  buyer          String?
+  journalEntryId String       @unique @map("journal_entry_id") @db.Uuid
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  notes          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([assetId, disposalDate])
+  @@map("fixed_asset_disposals")
+}
+
+model FixedAssetMaintenance {
+  id              String     @id @default(uuid()) @db.Uuid
+  assetId         String     @map("asset_id") @db.Uuid
+  asset           FixedAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  maintenanceDate DateTime   @map("maintenance_date") @db.Date
+  maintenanceType String     @map("maintenance_type")
+  supplierName    String?    @map("supplier_name")
+  cost            Decimal    @default(0) @db.Decimal(14, 2)
+  nextDueDate     DateTime?  @map("next_due_date") @db.Date
+  status          String     @default("COMPLETED")
+  description     String
+  notes           String?
+  attachments     Json       @default("[]")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@index([assetId, maintenanceDate])
+  @@index([nextDueDate])
+  @@map("fixed_asset_maintenance")
 }
 
 model Notification {
