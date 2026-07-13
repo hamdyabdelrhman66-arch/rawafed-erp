@@ -34,6 +34,10 @@ describe('school fee accounting behavior', () => {
     cancelVat: 0,
     invoiceVoid: 1,
     invoiceVoidJournals: 1,
+    automaticInvoiceCreated: 1,
+    automaticPaymentRecorded: 1,
+    automaticPostingCount: 2,
+    automaticPostingsBalanced: 1,
   };
 
   beforeAll(async () => {
@@ -293,6 +297,79 @@ describe('school fee accounting behavior', () => {
           observed.invoiceVoidJournals = await tx.journalEntry.count({
             where: { sourceType: 'finance_invoice_void', sourceId: originalInvoiceJournal.id },
           });
+
+          const automaticRegistration = await tx.registration.create({
+            data: {
+              registrationNumber: `TEST-AUTO-${suffix}`,
+              branchId: branch.id,
+              status: 'approved',
+              studentName: 'Automatic Invoice Student',
+              grade: 'KG1',
+              data: {},
+            },
+          });
+          const automaticStudent = await tx.student.create({
+            data: {
+              registrationId: automaticRegistration.id,
+              registrationNumber: automaticRegistration.registrationNumber,
+              branchId: branch.id,
+              englishName: 'Automatic Invoice Student',
+              grade: 'KG1',
+            },
+          });
+          const automaticAccount = await tx.financeAccount.create({
+            data: {
+              registrationId: automaticRegistration.id,
+              studentId: automaticStudent.id,
+              expectedTotal: 5000,
+              feeItems: { create: { name: 'Tuition', amount: 5000 } },
+            },
+          });
+          await tx.accountingCustomer.create({
+            data: {
+              customerCode: `TC-AUTO-${suffix}`,
+              studentId: automaticStudent.id,
+              registrationId: automaticRegistration.id,
+              registrationNumber: automaticRegistration.registrationNumber,
+              nameEn: automaticStudent.englishName,
+              receivableAccountId: receivable.id,
+            },
+          });
+          const automaticResult = await finance.createPayment(
+            {
+              accountId: automaticAccount.id,
+              receiptNumber: `REC-AUTO-${suffix}`,
+              amount: 1250,
+              method: 'Cash',
+              paidAt: '2026-07-13',
+              lines: [{ feeItem: 'Tuition', amount: 1250 }],
+            },
+            {},
+          );
+          observed.automaticInvoiceCreated =
+            automaticResult.invoice.total === 5000 ? 1 : 0;
+          observed.automaticPaymentRecorded =
+            automaticResult.payment.amount === 1250 &&
+            automaticResult.invoice.paid === 1250
+              ? 1
+              : 0;
+          const automaticPostings = await tx.journalEntry.findMany({
+            where: {
+              OR: [
+                { invoiceId: automaticResult.invoice.id },
+                { paymentId: automaticResult.payment.id },
+              ],
+            },
+            include: { lines: true },
+          });
+          observed.automaticPostingCount = automaticPostings.length;
+          observed.automaticPostingsBalanced = automaticPostings.every(
+            (entry) =>
+              entry.lines.reduce((sum, line) => sum + Number(line.debit), 0) ===
+              entry.lines.reduce((sum, line) => sum + Number(line.credit), 0),
+          )
+            ? 1
+            : 0;
           throw new RollbackFixture();
         },
         { timeout: 120_000 },

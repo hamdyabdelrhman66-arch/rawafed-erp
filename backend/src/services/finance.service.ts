@@ -256,6 +256,7 @@ export class FinanceService {
           : await invoices.findOpenForAccount(account.id);
         if (input.invoiceId && !invoice)
           throw new ServiceError("Invoice not found.", 404, "NOT_FOUND");
+        const paidAt = new Date(input.paidAt || Date.now());
         const customer = await tx.accountingCustomer.findUnique({
           where: { studentId: account.studentId },
         });
@@ -264,12 +265,86 @@ export class FinanceService {
             "Student receivable account is not configured.",
             422,
           );
-        if (!invoice)
-          throw new ServiceError(
-            "Payment must reference an existing open invoice.",
-            422,
-            "INVOICE_REQUIRED",
+        if (!invoice) {
+          const invoiceTotal = money(
+            Number(account.expectedTotal) - paidForAccount(account),
           );
+          if (invoiceTotal <= 0)
+            throw new ServiceError(
+              "Student account has no outstanding balance to invoice.",
+              422,
+            );
+          const revenue = await tx.chartOfAccount.findUnique({
+            where: { systemKey: "tuition-revenue" },
+          });
+          if (!revenue)
+            throw new ServiceError(
+              "Tuition revenue account is not configured.",
+              422,
+            );
+          const invoiceNumber = `INV-AUTO-${Date.now()}-${randomUUID().slice(0, 8)}`;
+          invoice = await invoices.create(
+            {
+              id: randomUUID(),
+              invoiceNumber,
+              accountId: account.id,
+              registrationId: account.registrationId,
+              subtotal: invoiceTotal,
+              vatAmount: 0,
+              total: invoiceTotal,
+              issuedAt: paidAt,
+            },
+            {
+              id: randomUUID(),
+              description: "School Fees",
+              quantity: 1,
+              unitPrice: invoiceTotal,
+              vatRate: 0,
+              netAmount: invoiceTotal,
+              vatAmount: 0,
+              totalAmount: invoiceTotal,
+              revenueAccountId: revenue.id,
+            },
+          );
+          await new AuditRepository(tx).create({
+            actorId: actor.id,
+            actorRole: actor.role,
+            action: "auto-create invoice for payment",
+            entityType: "finance_invoice",
+            entityId: invoice.id,
+          });
+          const invoiceOutbox = await tx.accountingOutbox.create({
+            data: {
+              eventType: "INVOICE_CREATED",
+              aggregateType: "finance_invoice",
+              aggregateId: invoice.id,
+              payload: { invoiceId: invoice.id },
+            },
+          });
+          await JournalService.postUsing(
+            tx,
+            {
+              postingDate: invoice.issuedAt,
+              description: `Sales invoice ${invoice.invoiceNumber}`,
+              referenceNumber: invoice.invoiceNumber,
+              sourceType: "finance_invoice",
+              sourceId: invoice.id,
+              invoiceId: invoice.id,
+              lines: [
+                {
+                  accountId: customer.receivableAccountId,
+                  debit: invoiceTotal,
+                },
+                { accountId: revenue.id, credit: invoiceTotal },
+              ],
+            },
+            actor,
+          );
+          await tx.accountingOutbox.update({
+            where: { id: invoiceOutbox.id },
+            data: { processedAt: new Date() },
+          });
+        }
         if (invoice.accountId !== account.id)
           throw new ServiceError(
             "Invoice does not belong to finance account.",
@@ -353,7 +428,7 @@ export class FinanceService {
           method: input.method || "Cash",
           referenceNumber: input.referenceNumber,
           notes: input.notes,
-          paidAt: new Date(input.paidAt || Date.now()),
+          paidAt,
           collectedBy: actor.displayName || "Finance",
           invoiceId: invoice.id,
           feeAllocations,
