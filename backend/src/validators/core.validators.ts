@@ -90,9 +90,22 @@ export const payment = z
     paymentItem: z.string().max(160).default("School Fees"),
     amount: z.coerce.number().positive().max(10000000),
     method: z.string().max(60).default("Cash"),
-    paidAt: z.string().datetime().optional(),
+    paidAt: z
+      .union([z.string().date(), z.string().datetime()])
+      .optional(),
     referenceNumber: z.string().max(120).optional(),
     notes: z.string().max(2000).optional(),
+    lines: z
+      .array(
+        z
+          .object({
+            feeItem: z.string().trim().min(1).max(160),
+            amount: z.coerce.number().positive().max(10000000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .optional(),
   })
   .strict();
 export const invoice = z.object({

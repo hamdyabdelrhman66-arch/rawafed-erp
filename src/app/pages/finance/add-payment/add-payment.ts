@@ -153,7 +153,6 @@ export class AddPayment implements OnInit {
         accountId: this.selectedAccount.backendId || this.selectedAccount.id,
         invoiceId: this.selectedAccount.canonicalInvoiceId,
         receiptNumber,
-        idempotencyKey: receiptNumber,
         amount,
         method: this.paymentMethod,
         paidAt: this.paymentDate,
