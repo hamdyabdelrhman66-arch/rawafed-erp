@@ -19,7 +19,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: "./reports.html",
-  styleUrls: ["./reports.css", "../../../shared/finance/finance-ui.scss"],
+  styleUrls: ["../../../shared/finance/finance-ui.scss", "./reports.css"],
 })
 export class Reports implements OnInit {
   catalog: ReportDefinition[] = [];

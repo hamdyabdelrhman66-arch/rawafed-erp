@@ -1,0 +1,60 @@
+<section class="users-page" dir="rtl">
+  <header class="hero">
+    <div>
+      <span class="eyebrow">SUPER ADMIN · إدارة الوصول</span>
+      <h1>المستخدمون وبيانات الموظفين</h1>
+      <p>أنشئ حسابات آمنة، اختر أي دور معتمد، واربط كل حساب ببيانات الموظف.</p>
+    </div>
+    <div class="hero-stat">
+      <strong>{{ users.length }}</strong><span>إجمالي الحسابات</span>
+    </div>
+    <div class="hero-stat active">
+      <strong>{{ filteredUsers.length }}</strong><span>النتائج الظاهرة</span>
+    </div>
+  </header>
+
+  <p class="notice success" *ngIf="message"><mat-icon>check_circle</mat-icon>{{ message }}</p>
+  <p class="notice error" *ngIf="error"><mat-icon>error</mat-icon>{{ error }}</p>
+
+  <div class="user-layout">
+    <form class="create-card" (ngSubmit)="createUser()" #userForm="ngForm">
+      <div class="card-heading">
+        <div><span>حساب جديد</span><h2>إضافة موظف للنظام</h2></div>
+        <mat-icon>person_add</mat-icon>
+      </div>
+
+      <div class="form-grid">
+        <label class="wide"><span>الاسم الكامل *</span><input required minlength="2" name="displayName" [(ngModel)]="form.displayName" placeholder="مثال: أحمد محمد" /></label>
+        <label><span>اسم المستخدم *</span><input required minlength="3" name="username" [(ngModel)]="form.username" autocomplete="off" placeholder="ahmed.m" /></label>
+        <label><span>البريد الإلكتروني *</span><input required type="email" name="email" [(ngModel)]="form.email" autocomplete="off" placeholder="name@school.edu" /></label>
+        <label><span>الدور والصلاحيات *</span><select required name="role" [(ngModel)]="form.role"><option value="" disabled>اختر الدور</option><option *ngFor="let role of roles" [value]="role.name">{{ role.name }}</option></select></label>
+        <label><span>كود الموظف</span><input name="employeeCode" [(ngModel)]="form.employeeCode" placeholder="EMP-001" /></label>
+        <label><span>القسم</span><input name="department" [(ngModel)]="form.department" placeholder="المالية، القبول..." /></label>
+        <label><span>المسمى الوظيفي</span><input name="jobTitle" [(ngModel)]="form.jobTitle" placeholder="Finance Officer" /></label>
+        <label class="wide"><span>رقم الهاتف</span><input name="phone" [(ngModel)]="form.phone" placeholder="+966..." /></label>
+        <label><span>كلمة المرور *</span><div class="password-field"><input required [type]="showPassword ? 'text' : 'password'" name="password" [(ngModel)]="form.password" autocomplete="new-password" /><button type="button" (click)="showPassword = !showPassword" [attr.aria-label]="showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'"><mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon></button></div></label>
+        <label><span>تأكيد كلمة المرور *</span><input required type="password" name="confirmPassword" [(ngModel)]="form.confirmPassword" autocomplete="new-password" /></label>
+      </div>
+      <p class="password-rule" [class.valid]="passwordValid"><mat-icon>{{ passwordValid ? 'verified_user' : 'shield' }}</mat-icon>12 حرفًا على الأقل، حرف كبير وصغير، رقم ورمز.</p>
+      <button class="submit" type="submit" [disabled]="saving || userForm.invalid"><mat-icon>person_add</mat-icon>{{ saving ? 'جارٍ الإنشاء...' : 'إنشاء حساب الموظف' }}</button>
+    </form>
+
+    <section class="directory-card">
+      <div class="card-heading directory-heading">
+        <div><span>دليل المستخدمين</span><h2>الحسابات والصلاحيات</h2></div>
+        <label class="search"><mat-icon>search</mat-icon><input [(ngModel)]="search" placeholder="بحث بالاسم، البريد، الدور..." /></label>
+      </div>
+      <div class="loading" *ngIf="loading">جارٍ تحميل المستخدمين...</div>
+      <div class="user-list" *ngIf="!loading">
+        <article *ngFor="let user of filteredUsers">
+          <div class="avatar">{{ user.displayName.slice(0, 1) }}</div>
+          <div class="identity"><strong>{{ user.displayName }}</strong><span>@{{ user.username }} · {{ user.email || 'بدون بريد' }}</span><small>{{ user.jobTitle || 'موظف' }}<ng-container *ngIf="user.department"> · {{ user.department }}</ng-container></small></div>
+          <div class="role"><span>{{ user.role }}</span><small>{{ user.employeeCode || '—' }}</small></div>
+          <span class="status" [class.inactive]="!user.active">{{ user.active ? 'نشط' : 'موقوف' }}</span>
+          <button class="status-action" type="button" (click)="toggleStatus(user)">{{ user.active ? 'إيقاف' : 'تفعيل' }}</button>
+        </article>
+        <div class="empty" *ngIf="!filteredUsers.length"><mat-icon>group_off</mat-icon><strong>لا توجد حسابات مطابقة</strong></div>
+      </div>
+    </section>
+  </div>
+</section>

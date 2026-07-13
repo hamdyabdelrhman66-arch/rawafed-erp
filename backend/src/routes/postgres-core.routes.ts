@@ -19,6 +19,7 @@ export function postgresCoreRoutes(
   r.post("/api/auth/refresh", validate(validators.refresh), c.refresh);
   r.post("/api/auth/logout", ...secured, c.logout);
   r.get("/api/users", ...secured, requireRole(["Super Admin"]), c.listUsers);
+  r.get("/api/roles", ...secured, requireRole(["Super Admin"]), c.listRoles);
   r.post(
     "/api/users",
     ...secured,

@@ -20,12 +20,22 @@ export const createUser = z.object({
     .max(60)
     .transform((v) => v.trim().toLowerCase()),
   password: strongPassword,
+  email: z.string().trim().email().optional().or(z.literal("")),
   displayName: z.string().min(2).max(120),
+  employeeCode: z.string().trim().min(2).max(40).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  department: z.string().trim().max(100).optional().or(z.literal("")),
+  jobTitle: z.string().trim().max(100).optional().or(z.literal("")),
   role,
 });
 export const updateUser = z
   .object({
     displayName: z.string().min(2).max(120).optional(),
+    email: z.string().trim().email().nullable().optional().or(z.literal("")),
+    employeeCode: z.string().trim().max(40).nullable().optional(),
+    phone: z.string().trim().max(40).nullable().optional(),
+    department: z.string().trim().max(100).nullable().optional(),
+    jobTitle: z.string().trim().max(100).nullable().optional(),
     role: role.optional(),
   })
   .strict();

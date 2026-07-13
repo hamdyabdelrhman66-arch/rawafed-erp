@@ -11,6 +11,7 @@ let server: ChildProcess;
 const username = `runtime-${randomUUID().slice(0, 12)}`;
 const password = `Runtime!${randomUUID()}Aa1`;
 let userId = "";
+const employeeUserIds: string[] = [];
 
 async function startServer(): Promise<void> {
   server = spawn(process.execPath, ["dist/server.js"], {
@@ -75,6 +76,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await stopServer();
+  if (employeeUserIds.length) {
+    await prisma.auditLog.deleteMany({
+      where: { entityType: "user", entityId: { in: employeeUserIds } },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: employeeUserIds } } });
+  }
   if (userId) {
     await prisma.auditLog.deleteMany({
       where: { entityType: "user", entityId: userId },
@@ -157,6 +164,62 @@ describe.sequential("PostgreSQL runtime API", () => {
     });
     expect(revoked.status).toBe(401);
   });
+
+  it("lets Super Admin create and manage a role-backed employee account", async () => {
+    const login = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const session = await login.json();
+    const suffix = randomUUID().slice(0, 8);
+    const rolesResponse = await fetch(`${baseUrl}/api/roles`, {
+      headers: { authorization: `Bearer ${session.token}` },
+    });
+    const roles = await rolesResponse.json();
+    expect(rolesResponse.status).toBe(200);
+    expect(roles.some((role: { name: string }) => role.name === "Admissions")).toBe(true);
+
+    const create = await fetch(`${baseUrl}/api/users`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({
+        username: `employee-${suffix}`,
+        email: `employee-${suffix}@school.test`,
+        password: `Employee!${suffix}Aa1`,
+        displayName: "Admissions Test Employee",
+        employeeCode: `EMP-${suffix}`,
+        phone: "+966500000000",
+        department: "Admissions",
+        jobTitle: "Admissions Officer",
+        role: "Admissions",
+      }),
+    });
+    const employee = await create.json();
+    expect(create.status).toBe(201);
+    employeeUserIds.push(employee.id);
+    expect(employee).toMatchObject({
+      role: "Admissions",
+      email: `employee-${suffix}@school.test`,
+      department: "Admissions",
+      jobTitle: "Admissions Officer",
+      active: true,
+    });
+
+    const disable = await fetch(`${baseUrl}/api/users/${employee.id}/status`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({ active: false }),
+    });
+    expect(disable.status).toBe(200);
+    expect((await disable.json()).active).toBe(false);
+  }, 30_000);
 
   it("persists a saved report template across a backend restart", async () => {
     const login = await fetch(`${baseUrl}/api/auth/login`, {

@@ -40,6 +40,14 @@
     <nav [attr.aria-label]="'nav.dashboard' | t">
       <a
         class="nav-link"
+        routerLink="/users"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        *ngIf="canAccess(['Super Admin'])"
+        ><mat-icon>manage_accounts</mat-icon><span>إدارة المستخدمين</span></a
+      >
+      <a
+        class="nav-link"
         routerLink="/admin"
         routerLinkActive="active"
         [routerLinkActiveOptions]="{ exact: true }"

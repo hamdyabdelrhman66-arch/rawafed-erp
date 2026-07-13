@@ -59,6 +59,9 @@ export class CoreController {
   listUsers = asyncController(async (req, res) =>
     res.json(await this.users.list(page(req).skip, page(req).take)),
   );
+  listRoles = asyncController(async (_req, res) =>
+    res.json(await this.users.roles()),
+  );
   createUser = asyncController(async (req, res) =>
     res.status(201).json(await this.users.create(req.body, actor(req))),
   );

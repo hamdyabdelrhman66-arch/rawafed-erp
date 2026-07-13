@@ -9,7 +9,12 @@ import { ServiceError } from "./service.error.js";
 const shape = (u: any) => ({
   id: u.id,
   username: u.username,
+  email: u.email,
   displayName: u.displayName,
+  employeeCode: u.employeeCode,
+  phone: u.phone,
+  department: u.department,
+  jobTitle: u.jobTitle,
   role: u.role.name,
   active: u.active,
   createdAt: u.createdAt.toISOString(),
@@ -20,11 +25,23 @@ export class UsersService {
   async list(skip?: number, take?: number) {
     return (await new UsersRepository(this.prisma).list(skip, take)).map(shape);
   }
+  async roles() {
+    return (await new UsersRepository(this.prisma).roles()).map((role) => ({
+      id: role.id,
+      name: role.name,
+      description: role.description,
+    }));
+  }
   async create(
     input: {
       username: string;
+      email?: string;
       password: string;
       displayName: string;
+      employeeCode?: string;
+      phone?: string;
+      department?: string;
+      jobTitle?: string;
       role: string;
     },
     actor: Actor,
@@ -35,8 +52,13 @@ export class UsersService {
     try {
       const user = await repo.create({
         username: input.username,
+        email: input.email?.trim().toLowerCase() || undefined,
         passwordHash: await bcrypt.hash(input.password, 12),
         displayName: input.displayName,
+        employeeCode: input.employeeCode || undefined,
+        phone: input.phone || undefined,
+        department: input.department || undefined,
+        jobTitle: input.jobTitle || undefined,
         roleId: role.id,
       });
       await new AuditRepository(this.prisma).create({
@@ -49,13 +71,25 @@ export class UsersService {
       return shape(user);
     } catch (error: any) {
       if (error?.code === "P2002")
-        throw new ServiceError("Username already exists.", 409, "CONFLICT");
+        throw new ServiceError(
+          "Username, email, or employee code already exists.",
+          409,
+          "CONFLICT",
+        );
       throw error;
     }
   }
   async update(
     id: string,
-    input: { displayName?: string; role?: string },
+    input: {
+      displayName?: string;
+      email?: string | null;
+      employeeCode?: string | null;
+      phone?: string | null;
+      department?: string | null;
+      jobTitle?: string | null;
+      role?: string;
+    },
     actor: Actor,
   ) {
     const repo = new UsersRepository(this.prisma);
@@ -63,6 +97,24 @@ export class UsersService {
     if (input.role && !role) throw new ServiceError("Role not found.");
     const user = await repo.update(id, {
       displayName: input.displayName,
+      email:
+        input.email === undefined
+          ? undefined
+          : input.email?.trim().toLowerCase() || null,
+      employeeCode:
+        input.employeeCode === undefined
+          ? undefined
+          : input.employeeCode?.trim() || null,
+      phone:
+        input.phone === undefined ? undefined : input.phone?.trim() || null,
+      department:
+        input.department === undefined
+          ? undefined
+          : input.department?.trim() || null,
+      jobTitle:
+        input.jobTitle === undefined
+          ? undefined
+          : input.jobTitle?.trim() || null,
       roleId: role?.id,
     });
     await new AuditRepository(this.prisma).create({

@@ -50,8 +50,13 @@ model Role {
 model User {
   id              String           @id @default(uuid()) @db.Uuid
   username        String           @unique
+  email           String?          @unique
   passwordHash    String           @map("password_hash")
   displayName     String           @map("display_name")
+  employeeCode    String?          @unique @map("employee_code")
+  phone           String?
+  department      String?
+  jobTitle        String?          @map("job_title")
   roleId          String           @map("role_id") @db.Uuid
   role            Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
   active          Boolean          @default(true)
@@ -65,6 +70,7 @@ model User {
   deletedAt       DateTime?        @map("deleted_at")
 
   @@index([roleId, active])
+  @@index([department, active])
   @@index([deletedAt])
   @@map("users")
 }

@@ -33,8 +33,13 @@ export class UsersRepository {
   }
   create(data: {
     username: string;
+    email?: string;
     passwordHash: string;
     displayName: string;
+    employeeCode?: string;
+    phone?: string;
+    department?: string;
+    jobTitle?: string;
     roleId: string;
   }) {
     return this.db.user.create({ data, include: userInclude });
@@ -43,11 +48,19 @@ export class UsersRepository {
     id: string,
     data: {
       displayName?: string;
+      email?: string | null;
+      employeeCode?: string | null;
+      phone?: string | null;
+      department?: string | null;
+      jobTitle?: string | null;
       roleId?: string;
       passwordHash?: string;
       active?: boolean;
     },
   ) {
     return this.db.user.update({ where: { id }, data, include: userInclude });
+  }
+  roles() {
+    return this.db.role.findMany({ orderBy: { name: "asc" } });
   }
 }
