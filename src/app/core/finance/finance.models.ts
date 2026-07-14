@@ -70,6 +70,7 @@ export interface FinancePayment {
   nationalId?: string;
   vatExempt?: boolean;
   feeItems?: Array<{ name: string; amount: number }>;
+  invoices?: Array<{ invoiceId: string; invoiceNumber: string; category: string; categoryLabel: string; subtotal: number; vat: number; total: number; amount: number }>;
 }
 
 export interface FinanceInvoice {
@@ -82,7 +83,7 @@ export interface FinanceInvoice {
   vat?: number;
   total?: number;
   date: string;
-  status: "Pending" | "Paid";
+  status: "Pending" | "Partially Paid" | "Paid" | "Void";
   paid?: number;
   remaining?: number;
   paymentMethod?: string;
@@ -97,6 +98,14 @@ export interface FinanceInvoice {
   registrationNumber?: string;
   accountId?: number | string;
   feeItem?: string;
+  category?: string;
+  categoryLabel?: string;
+  vatStatus?: string;
+  accountingAccount?: string;
+  accountingAccountId?: string;
+  costCenterId?: string;
+  branchId?: string;
+  legacyCombined?: boolean;
 }
 
 export interface FinanceExpense {

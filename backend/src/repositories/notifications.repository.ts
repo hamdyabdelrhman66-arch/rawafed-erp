@@ -3,9 +3,10 @@ import type { DatabaseClient } from "./repository.types.js";
 
 export class NotificationsRepository {
   constructor(private readonly db: DatabaseClient) {}
-  list(skip = 0, take = 100) {
+  list(skip = 0, take = 100, userId?: string) {
     return this.db.notification.findMany({
       where: { deletedAt: null },
+      include: userId ? { reads: { where: { userId } } } : undefined,
       orderBy: { createdAt: "desc" },
       skip,
       take,
@@ -42,5 +43,19 @@ export class NotificationsRepository {
   }
   updateReadBy(id: string, readBy: Prisma.InputJsonValue) {
     return this.db.notification.update({ where: { id }, data: { readBy } });
+  }
+  markRead(id: string, userId: string) {
+    return this.db.notificationRead.upsert({
+      where: { notificationId_userId: { notificationId: id, userId } },
+      update: { readAt: new Date() },
+      create: { notificationId: id, userId },
+    });
+  }
+  markAllRead(notificationIds: string[], userId: string) {
+    if (!notificationIds.length) return Promise.resolve({ count: 0 });
+    return this.db.notificationRead.createMany({
+      data: notificationIds.map((notificationId) => ({ notificationId, userId })),
+      skipDuplicates: true,
+    });
   }
 }

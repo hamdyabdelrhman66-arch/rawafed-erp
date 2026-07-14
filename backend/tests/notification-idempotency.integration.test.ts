@@ -9,10 +9,27 @@ class RollbackNotificationFixture extends Error {}
 
 describe("canonical notifications", () => {
   it("stores one record per event and updates read state in the same source", async () => {
-    const result = { count: 0, read: false };
+    const result = { count: 0, firstUserRead: false, secondUserRead: false };
     await expect(
       prisma.$transaction(
         async (tx) => {
+          const admissionsRole = await tx.role.findUniqueOrThrow({ where: { name: "Admissions" } });
+          const firstUser = await tx.user.create({
+            data: {
+              username: `notification-first-${randomUUID()}`,
+              passwordHash: "test-only",
+              displayName: "Notification First User",
+              roleId: admissionsRole.id,
+            },
+          });
+          const secondUser = await tx.user.create({
+            data: {
+              username: `notification-second-${randomUUID()}`,
+              passwordHash: "test-only",
+              displayName: "Notification Second User",
+              roleId: admissionsRole.id,
+            },
+          });
           const sourceId = randomUUID();
           const repository = new NotificationsRepository(tx);
           const payload = {
@@ -38,18 +55,16 @@ describe("canonical notifications", () => {
           const service = new NotificationsService(
             tx as unknown as PrismaClient,
           );
-          await service.markRead(first.id, "Admissions", "test-user-id");
-          const updated = await tx.notification.findUnique({
-            where: { id: first.id },
-          });
-          result.read =
-            Array.isArray(updated?.readBy) &&
-            updated.readBy.includes("test-user-id");
+          await service.markRead(first.id, "Admissions", firstUser.id);
+          const firstView = await service.list("Admissions", firstUser.id);
+          const secondView = await service.list("Admissions", secondUser.id);
+          result.firstUserRead = Boolean(firstView.find((note) => note.id === first.id)?.read);
+          result.secondUserRead = Boolean(secondView.find((note) => note.id === first.id)?.read);
           throw new RollbackNotificationFixture();
         },
         { timeout: 20_000 },
       ),
     ).rejects.toBeInstanceOf(RollbackNotificationFixture);
-    expect(result).toEqual({ count: 1, read: true });
+    expect(result).toEqual({ count: 1, firstUserRead: true, secondUserRead: false });
   }, 20_000);
 });

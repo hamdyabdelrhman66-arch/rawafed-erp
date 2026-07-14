@@ -92,6 +92,7 @@ export class EnterpriseReportService {
         "warehouseId",
         "itemId",
         "paymentMethod",
+        "serviceCategory",
         "status",
         "quarter",
         "month",
@@ -273,7 +274,47 @@ export class EnterpriseReportService {
             s.payments.reduce((n, p) => n + Number(p.amount), 0),
         ),
       }));
-    if (["cash-bank", "revenue", "expenses"].includes(type)) {
+    if (type === "revenue") {
+      const status = filters.status ? String(filters.status).toUpperCase() as any : undefined;
+      return (await this.prisma.financeInvoice.findMany({
+        where: {
+          deletedAt: null,
+          issuedAt: dates,
+          status,
+          serviceCategory: filters.serviceCategory,
+          branchId: filters.branchId,
+          account: {
+            studentId: filters.studentId,
+            student: { grade: filters.grade },
+            registration: { academicYearId: filters.academicYearId },
+          },
+          ...(filters.paymentMethod ? { payments: { some: { payment: { method: filters.paymentMethod, status: "COMPLETED", deletedAt: null } } } } : {}),
+        },
+        include: {
+          account: { include: { student: true, registration: true } },
+          lines: { include: { revenueAccount: true } },
+          payments: { where: { payment: { status: "COMPLETED", deletedAt: null } }, include: { payment: true } },
+        },
+        orderBy: { issuedAt: "asc" },
+      })).map((invoice) => ({
+        date: iso(invoice.issuedAt),
+        invoice: invoice.invoiceNumber,
+        category: invoice.serviceCategory === "LEGACY_COMBINED" ? "Legacy Combined Invoice" : invoice.serviceCategory,
+        student: invoice.account.student.englishName,
+        grade: invoice.account.student.grade,
+        branch: invoice.branchId || invoice.account.registration.branchId,
+        subtotal: money(invoice.subtotal),
+        vat: money(invoice.vatAmount),
+        total: money(invoice.total),
+        paid: money(invoice.payments.reduce((sum, allocation) => sum + Number(allocation.amount), 0)),
+        remaining: money(Number(invoice.total) - invoice.payments.reduce((sum, allocation) => sum + Number(allocation.amount), 0)),
+        paymentMethod: invoice.payments.map((allocation) => allocation.payment.method).filter((value, index, all) => all.indexOf(value) === index).join(", "),
+        status: invoice.status,
+        accountingAccount: invoice.lines[0]?.revenueAccount ? `${invoice.lines[0].revenueAccount.code} - ${invoice.lines[0].revenueAccount.name}` : "",
+        costCenter: invoice.costCenterId || "",
+      }));
+    }
+    if (["cash-bank", "expenses"].includes(type)) {
       const accountTypes =
         type === "revenue"
           ? ["REVENUE"]
@@ -310,17 +351,49 @@ export class EnterpriseReportService {
         ),
       }));
     }
-    if (["inventory", "books", "uniforms"].includes(type)) {
+    if (["books", "uniforms", "activities", "transportation"].includes(type)) {
+      const category = ({ books: "BOOKS", uniforms: "UNIFORM", activities: "ACTIVITIES", transportation: "TRANSPORTATION" } as Record<string, string>)[type];
+      const [invoices, costs] = await Promise.all([
+        this.prisma.financeInvoice.findMany({
+          where: {
+            deletedAt: null, serviceCategory: category, issuedAt: dates, status: filters.status ? String(filters.status).toUpperCase() as any : undefined,
+            account: { studentId: filters.studentId, student: { grade: filters.grade }, registration: { academicYearId: filters.academicYearId, branchId: filters.branchId } },
+          },
+          include: { account: { include: { student: true, registration: true } } },
+        }),
+        this.prisma.directCostEvent.findMany({ where: { category, eventDate: dates, studentId: filters.studentId } }),
+      ]);
+      if (type === "transportation") {
+        const groups = new Map<string, { students: Set<string>; revenue: number; directCost: number }>();
+        for (const invoice of invoices) {
+          const data = invoice.account.registration.data as any;
+          const area = String(data?.financial?.transportationArea || data?.financial?.transportationAreaName || "Unassigned");
+          const group = groups.get(area) || { students: new Set<string>(), revenue: 0, directCost: 0 };
+          group.students.add(invoice.account.studentId);
+          group.revenue = money(group.revenue + Number(invoice.subtotal));
+          groups.set(area, group);
+        }
+        for (const cost of costs) {
+          const area = cost.area || "Unassigned";
+          const group = groups.get(area) || { students: new Set<string>(), revenue: 0, directCost: 0 };
+          group.directCost = money(group.directCost + Number(cost.amount));
+          groups.set(area, group);
+        }
+        return [...groups.entries()].map(([area, value]) => ({
+          area, studentsPerRoute: value.students.size, revenuePerArea: value.revenue,
+          costPerArea: value.directCost, grossProfit: money(value.revenue - value.directCost),
+        }));
+      }
+      const revenue = money(invoices.reduce((sum, invoice) => sum + Number(invoice.subtotal), 0));
+      const directCost = money(costs.reduce((sum, cost) => sum + Number(cost.amount), 0));
+      return [{ category, invoices: invoices.length, revenue, directCost, grossProfit: money(revenue - directCost) }];
+    }
+    if (type === "inventory") {
       const items = await this.prisma.inventoryItem.findMany({
         where: {
           deletedAt: null,
           id: filters.itemId,
           active: filters.status ? filters.status === "active" : undefined,
-          ...(type === "books"
-            ? { itemType: "BOOK" }
-            : type === "uniforms"
-              ? { itemType: "UNIFORM" }
-              : {}),
         },
         include: {
           category: true,
@@ -344,27 +417,6 @@ export class EnterpriseReportService {
           valuation: money(value),
         };
       });
-    }
-    if (["activities", "transportation"].includes(type)) {
-      const token = type === "activities" ? "activit" : "transport";
-      const lines = await this.prisma.invoiceLine.findMany({
-        where: {
-          description: { contains: token, mode: "insensitive" },
-          invoice: { deletedAt: null, issuedAt: dates },
-        },
-        include: {
-          invoice: { include: { account: { include: { student: true } } } },
-        },
-      });
-      return lines.map((l) => ({
-        date: iso(l.invoice.issuedAt),
-        student: l.invoice.account.student.englishName,
-        invoice: l.invoice.invoiceNumber,
-        fee: l.description,
-        net: money(l.netAmount),
-        vat: money(l.vatAmount),
-        total: money(l.totalAmount),
-      }));
     }
     if (type === "purchases")
       return (

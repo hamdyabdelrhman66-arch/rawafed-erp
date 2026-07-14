@@ -6,6 +6,8 @@ import { InventoryRepository } from "../repositories/inventory.repository.js";
 import { StockRepository } from "../repositories/stock.repository.js";
 import { NotificationService } from "./inventory-notification.service.js";
 import { ServiceError } from "./service.error.js";
+import { JournalService } from "./journal.service.js";
+import { mappingFor } from "./revenue-category.js";
 
 export class StockMovementService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -27,12 +29,16 @@ export class StockMovementService {
         "ADJUSTMENT IN",
         "RETURN",
       ].includes(type);
+      const currentStock = await stock.stock(item.id, input.warehouseId);
+      const actualUnitCost = inbound
+        ? Number(input.unitCost || item.purchasePrice)
+        : Number(currentStock?.averageCost || item.purchasePrice);
       if (inbound)
         await stock.increase(
           item.id,
           input.warehouseId,
           qty,
-          Number(input.unitCost || item.purchasePrice),
+          actualUnitCost,
         );
       else if (
         !(await stock.decrease(
@@ -50,10 +56,11 @@ export class StockMovementService {
         movementType: type,
         movementDate: new Date(input.date || Date.now()),
         itemId: item.id,
+        studentId: input.studentId,
         warehouseId: input.warehouseId,
         toWarehouseId: input.toWarehouseId,
         quantity: inbound ? qty : -qty,
-        unitCost: Number(input.unitCost || item.purchasePrice),
+        unitCost: actualUnitCost,
         referenceType: input.referenceType,
         referenceId: input.referenceId,
         referenceNo: input.referenceNo,
@@ -71,6 +78,38 @@ export class StockMovementService {
         eventDate: movement.movementDate,
         amount: qty * Number(movement.unitCost),
       });
+      if (!inbound && ["BOOK", "UNIFORM"].includes(String(item.itemType).toUpperCase())) {
+        const category = String(item.itemType).toUpperCase() === "BOOK" ? "BOOKS" : "UNIFORM";
+        const mapping = await mappingFor(tx, category);
+        if (!mapping.cost || !mapping.inventory)
+          throw new ServiceError(`Cost and inventory accounts are required for ${category}.`, 422, "MAPPING_REQUIRED");
+        const directCost = Math.round(qty * actualUnitCost * 100) / 100;
+        await tx.directCostEvent.upsert({
+          where: { sourceType_sourceId_category: { sourceType: "stock_movement", sourceId: movement.id, category } },
+          update: {},
+          create: {
+            category,
+            amount: directCost,
+            sourceType: "stock_movement",
+            sourceId: movement.id,
+            studentId: input.studentId,
+            invoiceId: input.invoiceId,
+            eventDate: movement.movementDate,
+            notes: input.reason || `Issued ${item.name}`,
+          },
+        });
+        await JournalService.postUsing(tx, {
+          postingDate: movement.movementDate,
+          description: `${category} cost recognition ${movement.movementNo}`,
+          referenceNumber: movement.movementNo,
+          sourceType: "inventory_cost",
+          sourceId: movement.id,
+          lines: [
+            { accountId: mapping.cost.id, debit: directCost, costCenterId: mapping.costCenterId || undefined },
+            { accountId: mapping.inventory.id, credit: directCost, costCenterId: mapping.costCenterId || undefined },
+          ],
+        }, actor);
+      }
       await new AuditRepository(tx).create({
         actorId: actor.id,
         actorRole: actor.role,
@@ -130,6 +169,30 @@ export class StockMovementService {
         eventDate: new Date(),
         amount: Math.abs(qty) * Number(original.unitCost),
       });
+      const costEvent = await tx.directCostEvent.findFirst({
+        where: { sourceType: "stock_movement", sourceId: original.id },
+      });
+      if (costEvent) {
+        await tx.directCostEvent.upsert({
+          where: { sourceType_sourceId_category: { sourceType: "stock_reversal", sourceId: reversal.id, category: costEvent.category } },
+          update: {},
+          create: {
+            category: costEvent.category,
+            amount: -Number(costEvent.amount),
+            sourceType: "stock_reversal",
+            sourceId: reversal.id,
+            studentId: costEvent.studentId,
+            invoiceId: costEvent.invoiceId,
+            eventDate: reversal.movementDate,
+            notes: `Reversal of ${original.movementNo}`,
+          },
+        });
+        const originalJournal = await tx.journalEntry.findFirst({
+          where: { sourceType: "inventory_cost", sourceId: original.id, deletedAt: null },
+        });
+        if (originalJournal)
+          await JournalService.reverseUsing(tx, originalJournal.id, actor, "inventory_cost_reversal");
+      }
       await new AuditRepository(tx).create({
         actorId: actor.id,
         actorRole: actor.role,

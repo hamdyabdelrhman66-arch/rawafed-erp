@@ -57,12 +57,20 @@ export class AppComponent {
   readonly sidebarCollapsed = signal(false);
   readonly currentUrl = signal("");
   readonly notificationsOpen = signal(false);
+  readonly notificationFilter = signal<'all' | 'unread' | 'read'>('all');
   readonly shellHidden = computed(() =>
     ["/login", "/register"].includes(this.currentUrl().split("?")[0]),
   );
   readonly visibleNotifications = computed(() =>
     this.storage.notificationsFor(this.auth.session()?.role),
   );
+  readonly filteredNotifications = computed(() => {
+    const userId = this.auth.session()?.id || this.auth.session()?.username;
+    return this.visibleNotifications().filter((note) => {
+      const read = Boolean(note.read) || Boolean(userId && note.readBy.includes(userId));
+      return this.notificationFilter() === 'all' || (this.notificationFilter() === 'read' ? read : !read);
+    });
+  });
   readonly unreadNotifications = computed(() =>
     this.storage.unreadNotificationsFor(
       this.auth.session()?.role,
@@ -161,6 +169,28 @@ export class AppComponent {
       this.auth.session()?.id || this.auth.session()?.username,
     );
     this.closeNotifications();
+  }
+
+  async markNotificationRead(note: { id: string }, event?: Event): Promise<void> {
+    event?.preventDefault();
+    event?.stopPropagation();
+    await this.storage.markNotificationRead(
+      note.id,
+      this.auth.session()?.role,
+      this.auth.session()?.id || this.auth.session()?.username,
+    );
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    await this.storage.markAllNotificationsRead(
+      this.auth.session()?.role,
+      this.auth.session()?.id || this.auth.session()?.username,
+    );
+  }
+
+  notificationIsRead(note: { read?: boolean; readBy: string[] }): boolean {
+    const userId = this.auth.session()?.id || this.auth.session()?.username;
+    return Boolean(note.read) || Boolean(userId && note.readBy.includes(userId));
   }
 
   closeNotifications(returnFocus = false): void {

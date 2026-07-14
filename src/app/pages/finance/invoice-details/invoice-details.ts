@@ -31,6 +31,7 @@ interface InvoiceTemplateData {
   user: string;
   insuranceAmount: number;
   vatExempt: boolean;
+  lines: Array<{ invoiceNumber: string; category: string; service: string; amount: number; discount: number; vat: number; total: number }>;
 }
 
 @Component({
@@ -117,7 +118,16 @@ export class InvoiceDetails implements OnInit {
       notes: this.toText(this.firstValue(foundInvoice, 'notes')),
       user: this.toText(this.firstValue(foundInvoice, 'user', 'createdBy'), 'Finance'),
       insuranceAmount: this.toNumber(this.firstValue(foundInvoice, 'insuranceAmount'), 0),
-      vatExempt
+      vatExempt,
+      lines: [{
+        invoiceNumber: this.toText(this.firstValue(foundInvoice, 'no', 'invoiceNumber', 'invoiceNo', 'id')),
+        category: this.toText(this.firstValue(foundInvoice, 'categoryLabel', 'category'), foundInvoice?.legacyCombined ? 'Legacy Combined Invoice' : 'School Fees'),
+        service: this.toText(this.firstValue(foundInvoice, 'service', 'serviceName', 'feeItem')),
+        amount,
+        discount,
+        vat,
+        total,
+      }]
     };
   }
 
@@ -130,6 +140,24 @@ export class InvoiceDetails implements OnInit {
     const service = Array.isArray(payment.feeItems) && payment.feeItems.length
       ? payment.feeItems.map((item: any) => item.name).join(' + ')
       : this.toText(payment.feeItem || payment.package, base.service);
+
+    const lines = Array.isArray(payment.invoices) && payment.invoices.length
+      ? payment.invoices.map((invoice: any) => {
+          const lineTotal = this.roundMoney(this.toNumber(invoice.amount));
+          const lineVat = vatExempt || !this.toNumber(invoice.total)
+            ? 0
+            : this.roundMoney(lineTotal * this.toNumber(invoice.vat) / this.toNumber(invoice.total));
+          return {
+            invoiceNumber: this.toText(invoice.invoiceNumber, invoice.invoiceId),
+            category: this.toText(invoice.categoryLabel, invoice.category),
+            service: this.toText(invoice.categoryLabel, service),
+            amount: this.roundMoney(lineTotal - lineVat),
+            discount: 0,
+            vat: lineVat,
+            total: lineTotal,
+          };
+        })
+      : [{ invoiceNumber: this.toText(payment.receipt, base.no), category: service, service, amount: tax.amountBeforeVat, discount: 0, vat: tax.vat, total: tax.total }];
 
     return {
       ...base,
@@ -147,7 +175,8 @@ export class InvoiceDetails implements OnInit {
       notes: this.toText(payment.notes, base.notes),
       user: this.toText(payment.collectedBy, base.user),
       patientId: this.toText(payment.nationalId, base.patientId),
-      vatExempt
+      vatExempt,
+      lines
     };
   }
 

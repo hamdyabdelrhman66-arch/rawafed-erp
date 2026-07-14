@@ -48,26 +48,27 @@ model Role {
 }
 
 model User {
-  id              String           @id @default(uuid()) @db.Uuid
-  username        String           @unique
-  email           String?          @unique
-  passwordHash    String           @map("password_hash")
-  displayName     String           @map("display_name")
-  employeeCode    String?          @unique @map("employee_code")
-  phone           String?
-  department      String?
-  jobTitle        String?          @map("job_title")
-  roleId          String           @map("role_id") @db.Uuid
-  role            Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  active          Boolean          @default(true)
-  refreshTokens   RefreshToken[]
-  auditLogs       AuditLog[]
-  createdJournals JournalEntry[]   @relation("JournalCreator")
-  payrollRuns     PayrollRun[]     @relation("PayrollCreator")
-  reportTemplates ReportTemplate[]
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  deletedAt       DateTime?        @map("deleted_at")
+  id                String             @id @default(uuid()) @db.Uuid
+  username          String             @unique
+  email             String?            @unique
+  passwordHash      String             @map("password_hash")
+  displayName       String             @map("display_name")
+  employeeCode      String?            @unique @map("employee_code")
+  phone             String?
+  department        String?
+  jobTitle          String?            @map("job_title")
+  roleId            String             @map("role_id") @db.Uuid
+  role              Role               @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  active            Boolean            @default(true)
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  createdJournals   JournalEntry[]     @relation("JournalCreator")
+  payrollRuns       PayrollRun[]       @relation("PayrollCreator")
+  reportTemplates   ReportTemplate[]
+  notificationReads NotificationRead[]
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  deletedAt         DateTime?          @map("deleted_at")
 
   @@index([roleId, active])
   @@index([department, active])
@@ -231,6 +232,9 @@ model FinanceAccountFeeItem {
   account            FinanceAccount         @relation(fields: [accountId], references: [id], onDelete: Cascade)
   name               String
   amount             Decimal                @db.Decimal(14, 2)
+  serviceCategory    String                 @default("LEGACY_COMBINED") @map("service_category")
+  subtotal           Decimal?               @db.Decimal(14, 2)
+  vatAmount          Decimal?               @map("vat_amount") @db.Decimal(14, 2)
   createdAt          DateTime               @default(now()) @map("created_at")
   updatedAt          DateTime               @updatedAt @map("updated_at")
   paymentAllocations PaymentFeeAllocation[]
@@ -241,28 +245,70 @@ model FinanceAccountFeeItem {
 }
 
 model FinanceInvoice {
-  id             String              @id @default(uuid()) @db.Uuid
-  invoiceNumber  String              @unique @map("invoice_number")
-  accountId      String              @map("account_id") @db.Uuid
-  account        FinanceAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  registrationId String?             @map("registration_id") @db.Uuid
-  registration   Registration?       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  subtotal       Decimal             @db.Decimal(14, 2)
-  vatAmount      Decimal             @default(0) @map("vat_amount") @db.Decimal(14, 2)
-  total          Decimal             @db.Decimal(14, 2)
-  status         InvoiceStatus       @default(ISSUED)
-  issuedAt       DateTime            @map("issued_at")
-  dueAt          DateTime?           @map("due_at")
-  lines          InvoiceLine[]
-  payments       PaymentAllocation[]
-  journalEntries JournalEntry[]
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
-  deletedAt      DateTime?           @map("deleted_at")
+  id              String              @id @default(uuid()) @db.Uuid
+  invoiceNumber   String              @unique @map("invoice_number")
+  accountId       String              @map("account_id") @db.Uuid
+  account         FinanceAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  registrationId  String?             @map("registration_id") @db.Uuid
+  registration    Registration?       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  subtotal        Decimal             @db.Decimal(14, 2)
+  vatAmount       Decimal             @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  total           Decimal             @db.Decimal(14, 2)
+  serviceCategory String              @default("LEGACY_COMBINED") @map("service_category")
+  costCenterId    String?             @map("cost_center_id") @db.Uuid
+  branchId        String?             @map("branch_id") @db.Uuid
+  legacyCombined  Boolean             @default(true) @map("legacy_combined")
+  status          InvoiceStatus       @default(ISSUED)
+  issuedAt        DateTime            @map("issued_at")
+  dueAt           DateTime?           @map("due_at")
+  lines           InvoiceLine[]
+  payments        PaymentAllocation[]
+  journalEntries  JournalEntry[]
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
 
   @@index([accountId, status])
   @@index([issuedAt])
   @@map("finance_invoices")
+}
+
+model RevenueCategoryMapping {
+  id                  String   @id @default(uuid()) @db.Uuid
+  category            String   @unique
+  revenueAccountId    String   @map("revenue_account_id") @db.Uuid
+  costAccountId       String?  @map("cost_account_id") @db.Uuid
+  receivableAccountId String?  @map("receivable_account_id") @db.Uuid
+  inventoryAccountId  String?  @map("inventory_account_id") @db.Uuid
+  costCenterId        String?  @map("cost_center_id") @db.Uuid
+  branchId            String?  @map("branch_id") @db.Uuid
+  taxTreatment        String   @default("STANDARD") @map("tax_treatment")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([active, category])
+  @@map("revenue_category_mappings")
+}
+
+model DirectCostEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  category   String
+  amount     Decimal  @db.Decimal(14, 2)
+  sourceType String   @map("source_type")
+  sourceId   String   @map("source_id")
+  invoiceId  String?  @map("invoice_id") @db.Uuid
+  studentId  String?  @map("student_id") @db.Uuid
+  route      String?
+  area       String?
+  eventDate  DateTime @map("event_date") @db.Date
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([sourceType, sourceId, category])
+  @@index([category, eventDate])
+  @@index([studentId, eventDate])
+  @@map("direct_cost_events")
 }
 
 model InvoiceLine {
@@ -1320,26 +1366,40 @@ model FixedAssetMaintenance {
 }
 
 model Notification {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String             @id @default(uuid()) @db.Uuid
   message     String
-  targetRoles Json      @map("target_roles")
+  targetRoles Json               @map("target_roles")
   category    String
-  readBy      Json      @default("[]") @map("read_by")
+  readBy      Json               @default("[]") @map("read_by")
   link        String?
-  sourceId    String?   @map("source_id")
-  sourceType  String?   @map("source_type")
-  eventType   String?   @map("event_type")
-  targetRole  String?   @map("target_role")
-  messageKey  String?   @map("message_key")
-  parameters  Json?     @map("parameters")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  sourceId    String?            @map("source_id")
+  sourceType  String?            @map("source_type")
+  eventType   String?            @map("event_type")
+  targetRole  String?            @map("target_role")
+  messageKey  String?            @map("message_key")
+  parameters  Json?              @map("parameters")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+  reads       NotificationRead[]
 
   @@unique([sourceType, sourceId, eventType, targetRole])
   @@index([category, createdAt])
   @@index([sourceId])
   @@map("notifications")
+}
+
+model NotificationRead {
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @map("notification_id") @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String       @map("user_id") @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now()) @map("read_at")
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_reads")
 }
 
 model AuditLog {

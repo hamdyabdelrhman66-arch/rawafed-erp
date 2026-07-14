@@ -17,7 +17,7 @@ import {
   safeErrorMessage,
 } from "../../../core/feedback/feedback.service";
 
-type AccountingTab = "overview" | "accounts" | "journal" | "ledger" | "trial";
+type AccountingTab = "overview" | "accounts" | "journal" | "ledger" | "trial" | "mappings";
 type AccountFormMode = "details" | "create" | "edit";
 type AccountFormModel = {
   id?: string;
@@ -67,6 +67,7 @@ export class AccountingErp implements OnInit {
   ledger: any;
   trialBalance: any;
   dashboard: any;
+  revenueMappings: any[] = [];
   costCenters: Array<{
     id: string;
     code: string;
@@ -132,7 +133,7 @@ export class AccountingErp implements OnInit {
       }
       if (
         tab &&
-        ["overview", "accounts", "journal", "ledger", "trial"].includes(tab)
+        ["overview", "accounts", "journal", "ledger", "trial", "mappings"].includes(tab)
       ) {
         this.activeTab = tab;
       } else {
@@ -387,18 +388,20 @@ export class AccountingErp implements OnInit {
     this.loading = true;
     this.error = "";
     try {
-      const [accounts, entries, trialBalance, _costCenters, dashboard] =
+      const [accounts, entries, trialBalance, _costCenters, dashboard, revenueMappings] =
         await Promise.all([
           this.accounting.getAccounts(),
           this.accounting.getJournalEntries(),
           this.loadTrialBalance(),
           this.loadCostCenters(),
           this.accounting.getDashboard(this.fromDate, this.toDate),
+          this.accounting.getRevenueMappings(),
         ]);
       this.accounts = accounts;
       this.entries = entries;
       this.trialBalance = trialBalance;
       this.dashboard = dashboard;
+      this.revenueMappings = revenueMappings;
       this.selectedAccountId ||=
         accounts.find((account) => account.systemKey === "main-cashbox")?.id ||
         accounts[0]?.id ||
@@ -408,6 +411,16 @@ export class AccountingErp implements OnInit {
       this.error = safeErrorMessage(error) || "Could not load accounting data.";
     } finally {
       this.loading = false;
+    }
+  }
+
+  async saveRevenueMapping(mapping: any): Promise<void> {
+    try {
+      await this.accounting.updateRevenueMapping(mapping.category, mapping);
+      this.feedback.success(this.i18n.label('Accounting mapping saved.', 'تم حفظ الربط المحاسبي.'));
+      this.revenueMappings = await this.accounting.getRevenueMappings();
+    } catch (error) {
+      this.feedback.error(this.i18n.label('Mapping could not be saved.', 'تعذر حفظ الربط.'), safeErrorMessage(error));
     }
   }
 

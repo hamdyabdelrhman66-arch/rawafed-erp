@@ -99,7 +99,7 @@ export class FinanceAccountsRepository {
     registrationId: string,
     studentId: string,
     expectedTotal: number,
-    feeItems: Array<{ name: string; amount: number }>,
+    feeItems: Array<{ name: string; amount: number; serviceCategory?: string; subtotal?: number; vatAmount?: number }>,
   ) {
     const account = await this.db.financeAccount.upsert({
       where: { registrationId },

@@ -1,116 +1,34 @@
-<div class="page-header">
-
-  <div>
-    <h1>School Invoices</h1>
-    <p>Manage all school invoices</p>
-  </div>
-
-</div>
-
-<div class="stats-grid">
-
-  <div class="stat-card">
-    <h3>Total School Invoices</h3>
-    <h2>{{totalInvoices}}</h2>
-  </div>
-
-  <div class="stat-card">
-    <h3>Total Revenue</h3>
-    <h2>{{totalRevenue | number}} SAR</h2>
-  </div>
-
-  <div class="stat-card">
-    <h3>Paid</h3>
-    <h2>{{paidInvoices | number}} SAR</h2>
-  </div>
-
-  <div class="stat-card">
-    <h3>Pending</h3>
-    <h2>{{pendingInvoices | number}} SAR</h2>
-  </div>
-
-</div>
-
-<div class="table-card">
-
-  <input
-    class="search-box"
-    placeholder="Search School Invoice..."
-  >
-
-  <table>
-
-    <thead>
-      <tr>
-        <th>School Invoice Number</th>
-        <th>Student</th>
-        <th>Fee Item</th>
-        <th>Total</th>
-        <th>Date</th>
-        <th>Status</th>
-        <th>Action</th>
+<section class="finance-list-page">
+  <header class="page-header finance-hero">
+    <div><span class="page-eyebrow">{{ l('Finance · Revenue', 'المالية · الإيرادات') }}</span><h1>{{ l('School Invoices', 'فواتير المدرسة') }}</h1><p>{{ l('Separate invoices by revenue category with VAT, collection, and accounting mapping details.', 'فواتير مستقلة حسب فئة الإيراد مع تفاصيل الضريبة والتحصيل والربط المحاسبي.') }}</p></div>
+    <a class="primary-action" routerLink="/finance/generate-invoice">+ {{ l('New Invoice', 'فاتورة جديدة') }}</a>
+  </header>
+  <nav class="breadcrumb">{{ l('Finance / Invoices', 'المالية / الفواتير') }}</nav>
+  <section class="stats-grid">
+    <article class="stat-card"><span>{{ l('Total Invoices', 'إجمالي الفواتير') }}</span><strong>{{ totalInvoices }}</strong></article>
+    <article class="stat-card"><span>{{ l('Total Revenue', 'إجمالي الإيرادات') }}</span><strong>{{ totalRevenue | number:'1.2-2' }} {{ l('SAR', 'ريال') }}</strong></article>
+    <article class="stat-card"><span>{{ l('Paid', 'المدفوع') }}</span><strong>{{ paidInvoices | number:'1.2-2' }} {{ l('SAR', 'ريال') }}</strong></article>
+    <article class="stat-card"><span>{{ l('Outstanding', 'المتبقي') }}</span><strong>{{ pendingInvoices | number:'1.2-2' }} {{ l('SAR', 'ريال') }}</strong></article>
+  </section>
+  <section class="info-card">
+    <div class="filters-row">
+      <input type="search" [(ngModel)]="search" [placeholder]="l('Search invoice, student, or category...', 'ابحث بالفاتورة أو الطالب أو الفئة...')" />
+      <select [(ngModel)]="categoryFilter"><option value="">{{ l('All Categories', 'كل الفئات') }}</option><option *ngFor="let category of categories" [value]="category">{{ categoryLabel({category, legacyCombined: category === 'LEGACY_COMBINED'}) }}</option></select>
+      <select [(ngModel)]="statusFilter"><option value="">{{ l('All Statuses', 'كل الحالات') }}</option><option value="Pending">{{ statusLabel('Pending') }}</option><option value="Partially Paid">{{ statusLabel('Partially Paid') }}</option><option value="Paid">{{ statusLabel('Paid') }}</option><option value="Void">{{ statusLabel('Void') }}</option></select>
+    </div>
+    <div class="table-scroll"><table><thead><tr>
+      <th>{{ l('Invoice Number', 'رقم الفاتورة') }}</th><th>{{ l('Category', 'الفئة') }}</th><th>{{ l('Student', 'الطالب') }}</th>
+      <th>{{ l('Subtotal', 'قبل الضريبة') }}</th><th>{{ l('VAT Status', 'حالة الضريبة') }}</th><th>{{ l('VAT', 'الضريبة') }}</th><th>{{ l('Total', 'الإجمالي') }}</th>
+      <th>{{ l('Paid', 'المدفوع') }}</th><th>{{ l('Remaining', 'المتبقي') }}</th><th>{{ l('Accounting Account', 'الحساب المحاسبي') }}</th><th>{{ l('Status', 'الحالة') }}</th><th>{{ l('Actions', 'الإجراءات') }}</th>
+    </tr></thead><tbody>
+      <tr *ngFor="let invoice of filteredInvoices">
+        <td><strong>{{ invoice.invoiceNumber }}</strong><small>{{ invoice.date }}</small></td><td>{{ categoryLabel(invoice) }}</td><td>{{ invoice.patient }}</td>
+        <td>{{ invoice.amount | number:'1.2-2' }}</td><td>{{ vatLabel(invoice) }}</td><td>{{ invoice.vat | number:'1.2-2' }}</td><td>{{ invoice.total | number:'1.2-2' }}</td>
+        <td>{{ invoice.paid | number:'1.2-2' }}</td><td>{{ invoice.remaining | number:'1.2-2' }}</td><td>{{ invoice.accountingAccount || '—' }}<small>{{ invoice.costCenterId || '' }}</small></td>
+        <td><span class="status" [class.paid]="invoice.status === 'Paid'" [class.pending]="invoice.status !== 'Paid'">{{ statusLabel(invoice.status) }}</span></td>
+        <td><a class="table-action" [routerLink]="['/finance/invoice-details', invoice.id]">{{ l('View', 'عرض') }}</a></td>
       </tr>
-    </thead>
-
-    <tbody>
-
-      <tr *ngFor="let invoice of invoices">
-
-        <td>{{ invoice.invoiceNumber }}</td>
-        <td>{{ invoice.patient }}</td>
-        <td>{{ invoice.service }}</td>
-        <td>{{ (invoice.total || invoice.amount) | number }} SAR</td>
-        <td>{{ invoice.date }}</td>
-
-        <td>
-
-          <span
-            class="status"
-            [class.paid]="invoice.status === 'Paid'"
-            [class.pending]="invoice.status === 'Pending'">
-
-            {{ invoice.status }}
-
-          </span>
-
-        </td>
-
-        <td>
-
-          <button
-  class="action-btn view-btn"
-  [routerLink]="[
-    '/finance/invoice-details',
-    invoice.id
-  ]">
-
-  View
-
-</button>
-
-<button
-  class="action-btn edit-btn"
-  [routerLink]="[
-    '/finance/edit-invoice',
-    invoice.id
-  ]">
-
-  Edit
-
-</button>
-          <button
-            class="action-btn print-btn">
-
-            Print
-
-          </button>
-
-        </td>
-
-      </tr>
-
-    </tbody>
-
-  </table>
-
-</div>
+      <tr *ngIf="!filteredInvoices.length"><td colspan="12" class="empty-cell">{{ l('No invoices match the selected filters.', 'لا توجد فواتير مطابقة للفلاتر المحددة.') }}</td></tr>
+    </tbody></table></div>
+  </section>
+</section>

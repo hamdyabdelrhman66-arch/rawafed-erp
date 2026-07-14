@@ -191,6 +191,7 @@
               ><mat-icon>balance</mat-icon
               ><span>{{ "nav.trial_balance" | t }}</span></a
             >
+            <a routerLink="/finance/accounting" [queryParams]="{ tab: 'mappings' }" [class.active]="isQueryTabActive('/finance/accounting', 'mappings')"><mat-icon>account_tree</mat-icon><span>{{ i18n.label('Revenue Mappings', 'ربط الإيرادات') }}</span></a>
           </div>
         </details>
 
@@ -477,7 +478,7 @@
       </div>
       <div class="topbar-meta">
         <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
-        <span class="pill"
+        <span class="pill" *ngIf="storage.settings().academicYear?.trim()"
           ><mat-icon>calendar_month</mat-icon
           >{{ storage.settings().academicYear }}</span
         >
@@ -493,6 +494,7 @@
             type="button"
             [attr.aria-label]="'nav.alerts' | t"
             [attr.aria-expanded]="notificationsOpen()"
+            [class.has-unread]="unreadNotifications() > 0"
             (click)="toggleNotifications()"
           >
             <mat-icon
@@ -507,26 +509,24 @@
           <div class="notification-panel" *ngIf="notificationsOpen()">
             <header>
               <strong>{{ "nav.notification_center" | t }}</strong>
-              <button type="button" (click)="storage.clearNotifications()">
-                {{ "common.clear" | t }}
+              <button type="button" (click)="markAllNotificationsRead()" [disabled]="!unreadNotifications()">
+                {{ i18n.label('Mark All as Read', 'تحديد الكل كمقروء') }}
               </button>
             </header>
-            <a
-              *ngFor="let note of visibleNotifications()"
-              [routerLink]="note.link || currentUrl()"
-              (click)="openNotification(note)"
-            >
-              <mat-icon>{{
-                note.category === "finance"
-                  ? "payments"
-                  : note.category === "registration"
-                    ? "app_registration"
-                    : "campaign"
-              }}</mat-icon>
-              <span>{{ note.message }}</span>
-              <small>{{ note.createdAt | date: "short" }}</small>
-            </a>
-            <p *ngIf="!visibleNotifications().length">
+            <nav class="notification-filters" [attr.aria-label]="i18n.label('Notification filters', 'فلاتر الإشعارات')">
+              <button type="button" [class.active]="notificationFilter() === 'all'" (click)="notificationFilter.set('all')">{{ i18n.label('All', 'الكل') }}</button>
+              <button type="button" [class.active]="notificationFilter() === 'unread'" (click)="notificationFilter.set('unread')">{{ i18n.label('Unread', 'غير مقروء') }}</button>
+              <button type="button" [class.active]="notificationFilter() === 'read'" (click)="notificationFilter.set('read')">{{ i18n.label('Read', 'مقروء') }}</button>
+            </nav>
+            <article *ngFor="let note of filteredNotifications()" [class.unread]="!notificationIsRead(note)">
+              <a [routerLink]="note.link || currentUrl()" (click)="openNotification(note)">
+                <mat-icon>{{ note.category === "finance" ? "payments" : note.category === "registration" ? "app_registration" : "campaign" }}</mat-icon>
+                <span>{{ note.message }}</span>
+                <small>{{ note.createdAt | date: "short" }}</small>
+              </a>
+              <button *ngIf="!notificationIsRead(note)" type="button" (click)="markNotificationRead(note, $event)">{{ i18n.label('Mark as Read', 'تحديد كمقروء') }}</button>
+            </article>
+            <p *ngIf="!filteredNotifications().length">
               {{ "nav.no_notifications" | t }}
             </p>
           </div>

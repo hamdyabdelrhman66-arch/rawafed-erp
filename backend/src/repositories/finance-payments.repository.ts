@@ -7,7 +7,7 @@ export class FinancePaymentsRepository {
       where: { deletedAt: null },
       include: {
         account: { include: { student: true, registration: true } },
-        allocations: true,
+        allocations: { include: { invoice: { include: { lines: true } } } },
         feeAllocations: { include: { feeItem: true } },
       },
       orderBy: { paidAt: "desc" },
@@ -23,7 +23,7 @@ export class FinancePaymentsRepository {
       where: { id, deletedAt: null },
       include: {
         account: { include: { student: true, registration: true } },
-        allocations: { include: { invoice: true } },
+        allocations: { include: { invoice: { include: { lines: true } } } },
         feeAllocations: { include: { feeItem: true } },
         journalEntries: { where: { deletedAt: null }, include: { lines: true } },
       },
@@ -39,19 +39,21 @@ export class FinancePaymentsRepository {
     notes?: string;
     paidAt: Date;
     collectedBy?: string;
-    invoiceId: string;
+    invoiceId?: string;
+    invoiceAllocations?: Array<{ invoiceId: string; amount: number }>;
     feeAllocations?: Array<{ feeItemId: string; amount: number }>;
   }) {
-    const { invoiceId, feeAllocations = [], ...payment } = data;
+    const { invoiceId, invoiceAllocations, feeAllocations = [], ...payment } = data;
+    const allocations = invoiceAllocations || (invoiceId ? [{ invoiceId, amount: payment.amount }] : []);
     return this.db.financePayment.create({
       data: {
         ...payment,
-        allocations: { create: { invoiceId, amount: payment.amount } },
+        allocations: { create: allocations },
         feeAllocations: { create: feeAllocations },
       },
       include: {
         account: { include: { student: true, registration: true } },
-        allocations: true,
+        allocations: { include: { invoice: { include: { lines: true } } } },
         feeAllocations: { include: { feeItem: true } },
       },
     });

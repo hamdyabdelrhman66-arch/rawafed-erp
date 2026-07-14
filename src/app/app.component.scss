@@ -361,6 +361,58 @@ nav a.active,
   text-decoration: none;
 }
 
+.notification-center > button.has-unread {
+  color: #b42318;
+  border-color: #f04438;
+  background: #fff1f0;
+}
+
+.notification-filters {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e6ebf2;
+}
+
+.notification-filters button {
+  border: 1px solid #d7dfeb;
+  border-radius: 999px;
+  background: #fff;
+  padding: 5px 10px;
+  color: #53657d;
+}
+
+.notification-filters button.active {
+  background: #123d73;
+  border-color: #123d73;
+  color: #fff;
+}
+
+.notification-panel article {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.notification-panel article.unread {
+  background: #f2f7ff;
+  box-shadow: inset 3px 0 #1d64c8;
+}
+
+.notification-panel article > a {
+  border-bottom: 0;
+}
+
+.notification-panel article > button {
+  margin-inline-end: 10px;
+  border: 0;
+  background: transparent;
+  color: #145eb3;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .notification-panel a:hover {
   background: rgba(30, 37, 95, .06);
 }

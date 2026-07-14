@@ -27,6 +27,7 @@
     <button type="button" [class.active]="activeTab === 'journal'" (click)="setActiveTab('journal')">{{ 'nav.general_journal' | t }}</button>
     <button type="button" [class.active]="activeTab === 'ledger'" (click)="setActiveTab('ledger')">{{ 'nav.general_ledger' | t }}</button>
     <button type="button" [class.active]="activeTab === 'trial'" (click)="setActiveTab('trial')">{{ 'nav.trial_balance' | t }}</button>
+    <button type="button" [class.active]="activeTab === 'mappings'" (click)="setActiveTab('mappings')">{{ i18n.label('Revenue Mappings', 'ربط الإيرادات') }}</button>
   </nav>
 
   <section class="filter-row">
@@ -653,6 +654,22 @@
         </tfoot>
       </table>
     </div>
+  </section>
+
+  <section class="erp-panel" *ngIf="activeTab === 'mappings'">
+    <div class="section-heading"><div><span>{{ i18n.label('Accounting Controls', 'الضوابط المحاسبية') }}</span><h2>{{ i18n.label('Revenue, Cost & Tax Mapping', 'ربط الإيرادات والتكاليف والضريبة') }}</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>{{ i18n.label('Category', 'الفئة') }}</th><th>{{ i18n.label('Revenue Account', 'حساب الإيراد') }}</th><th>{{ i18n.label('Cost Account', 'حساب التكلفة') }}</th><th>{{ i18n.label('Inventory Account', 'حساب المخزون') }}</th><th>{{ i18n.label('Receivable Account', 'حساب المدينين') }}</th><th>{{ i18n.label('Cost Center', 'مركز التكلفة') }}</th><th>{{ i18n.label('Tax Treatment', 'المعاملة الضريبية') }}</th><th></th></tr></thead><tbody>
+      <tr *ngFor="let mapping of revenueMappings">
+        <td><strong>{{ mapping.category }}</strong></td>
+        <td><select [(ngModel)]="mapping.revenueAccountId"><option *ngFor="let account of accounts" [value]="account.id" [hidden]="account.type !== 'revenue'">{{ accountDisplayName(account) }}</option></select></td>
+        <td><select [(ngModel)]="mapping.costAccountId"><option value="">—</option><option *ngFor="let account of accounts" [value]="account.id" [hidden]="account.type !== 'expense'">{{ accountDisplayName(account) }}</option></select></td>
+        <td><select [(ngModel)]="mapping.inventoryAccountId"><option value="">—</option><option *ngFor="let account of accounts" [value]="account.id" [hidden]="account.type !== 'asset'">{{ accountDisplayName(account) }}</option></select></td>
+        <td><select [(ngModel)]="mapping.receivableAccountId"><option value="">—</option><option *ngFor="let account of accounts" [value]="account.id" [hidden]="account.type !== 'asset'">{{ accountDisplayName(account) }}</option></select></td>
+        <td><select [(ngModel)]="mapping.costCenterId"><option value="">—</option><option *ngFor="let center of costCenters" [value]="center.id">{{ center.code }} - {{ i18n.label(center.nameEn, center.nameAr) }}</option></select></td>
+        <td><select [(ngModel)]="mapping.taxTreatment"><option value="STANDARD">{{ i18n.label('Standard 15%', 'قياسية 15%') }}</option><option value="EXEMPT">{{ i18n.label('Exempt', 'معفى') }}</option><option value="ZERO_RATED">{{ i18n.label('Zero Rated', 'ضريبة صفرية') }}</option></select></td>
+        <td><button class="primary" type="button" (click)="saveRevenueMapping(mapping)">{{ i18n.label('Save', 'حفظ') }}</button></td>
+      </tr>
+    </tbody></table></div>
   </section>
 
   <div class="voucher-modal" *ngIf="selectedJournal">

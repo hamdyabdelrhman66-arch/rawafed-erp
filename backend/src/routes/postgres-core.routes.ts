@@ -106,6 +106,7 @@ export function postgresCoreRoutes(
   );
   r.get("/api/notifications", ...secured, c.notificationsList);
   r.post("/api/notifications/:id/read", ...secured, c.notificationRead);
+  r.post("/api/notifications/read-all", ...secured, c.notificationsReadAll);
   r.get(
     "/api/settings",
     ...secured,
@@ -159,6 +160,10 @@ export function postgresCoreRoutes(
     validate(validators.payment),
     c.createPayment,
   );
+  r.get("/api/finance/revenue-mappings", ...secured, requireRole(["Finance"]), c.revenueMappings);
+  r.put("/api/finance/revenue-mappings/:category", ...secured, requireRole(["Finance Manager"]), c.updateRevenueMapping);
+  r.get("/api/finance/direct-costs", ...secured, requireRole(["Finance"]), c.directCosts);
+  r.post("/api/finance/direct-costs", ...secured, requireRole(["Finance Manager"]), c.createDirectCost);
   r.post(
     "/api/finance/payments/:id/refund",
     ...secured,

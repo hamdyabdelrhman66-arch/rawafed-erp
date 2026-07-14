@@ -8,7 +8,7 @@ export class FinanceInvoicesRepository {
       where: { deletedAt: null },
       include: {
         account: { include: { student: true, registration: true } },
-        lines: true,
+        lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
@@ -23,7 +23,7 @@ export class FinanceInvoicesRepository {
       where: { id, deletedAt: null },
       include: {
         account: { include: { student: true, registration: true } },
-        lines: true,
+        lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
@@ -35,7 +35,7 @@ export class FinanceInvoicesRepository {
       where: { invoiceNumber },
       include: {
         account: { include: { student: true, registration: true } },
-        lines: true,
+        lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
@@ -51,10 +51,21 @@ export class FinanceInvoicesRepository {
       },
       include: {
         account: { include: { student: true, registration: true } },
-        lines: true,
+        lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
+      },
+      orderBy: { issuedAt: "asc" },
+    });
+  }
+  findOpenAllForAccount(accountId: string) {
+    return this.db.financeInvoice.findMany({
+      where: { accountId, deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID"] } },
+      include: {
+        account: { include: { student: true, registration: true } },
+        lines: { include: { revenueAccount: true } },
+        payments: { where: { payment: { status: "COMPLETED", deletedAt: null } } },
       },
       orderBy: { issuedAt: "asc" },
     });
@@ -67,7 +78,7 @@ export class FinanceInvoicesRepository {
       data: { ...data, lines: { create: line } },
       include: {
         account: { include: { student: true, registration: true } },
-        lines: true,
+        lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },

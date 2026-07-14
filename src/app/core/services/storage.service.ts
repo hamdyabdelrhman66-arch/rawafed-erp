@@ -24,6 +24,7 @@ export interface AppNotification {
   category: "registration" | "finance" | "admin";
   createdAt: string;
   readBy: string[];
+  read?: boolean;
   link?: string;
   sourceId?: string;
 }
@@ -203,7 +204,7 @@ export class StorageService {
   unreadNotificationsFor(role?: UserRole, userId?: string): number {
     if (!role || !userId) return 0;
     return this.notificationsFor(role).filter(
-      (item) => !item.readBy.includes(userId),
+      (item) => !item.read && !item.readBy.includes(userId),
     ).length;
   }
 
@@ -212,8 +213,8 @@ export class StorageService {
     const notifications = this.notificationsState().map((item) => {
       const visible =
         item.targetRoles === "all" || item.targetRoles.includes(role);
-      if (!visible || item.readBy.includes(userId)) return item;
-      return { ...item, readBy: [...item.readBy, userId] };
+      if (!visible || item.read || item.readBy.includes(userId)) return item;
+      return { ...item, read: true, readBy: [...item.readBy, userId] };
     });
     this.notificationsState.set(notifications);
   }
@@ -223,13 +224,26 @@ export class StorageService {
     const previous = this.notificationsState();
     this.notificationsState.set(
       previous.map((item) =>
-        item.id === id && !item.readBy.includes(userId)
-          ? { ...item, readBy: [...item.readBy, userId] }
+        item.id === id && !item.read && !item.readBy.includes(userId)
+          ? { ...item, read: true, readBy: [...item.readBy, userId] }
           : item,
       ),
     );
     try {
       await this.api.post(`/notifications/${id}/read`, {});
+    } catch (error) {
+      this.notificationsState.set(previous);
+      throw error;
+    }
+  }
+
+  async markAllNotificationsRead(role?: UserRole, userId?: string): Promise<void> {
+    if (!role || !userId) return;
+    const previous = this.notificationsState();
+    this.markNotificationsRead(role, userId);
+    try {
+      await this.api.post('/notifications/read-all', {});
+      await this.syncNotificationsFromApi();
     } catch (error) {
       this.notificationsState.set(previous);
       throw error;
@@ -306,6 +320,7 @@ export class StorageService {
         category: value.category || "admin",
         createdAt: value.createdAt || new Date().toISOString(),
         readBy: value.readBy || [],
+        read: Boolean(value.read),
         link: value.link,
         sourceId: value.sourceId,
       };

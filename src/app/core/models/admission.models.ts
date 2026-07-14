@@ -220,7 +220,7 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
   address: 'Riyadh, Kingdom of Saudi Arabia',
   phone: '+966 11 000 0000',
   email: 'admissions@rawafed.school',
-  academicYear: '2026-2027',
+  academicYear: '',
   vat: 15,
   fees: {
     registrationFee: 1500,

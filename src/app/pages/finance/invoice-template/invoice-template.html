@@ -57,6 +57,8 @@
     <table class="line-table">
       <thead>
         <tr>
+          <th>رقم الفاتورة<br /><small>Invoice No.</small></th>
+          <th>الفئة<br /><small>Category</small></th>
           <th>بند الرسوم<br /><small>Fee Item</small></th>
           <th>العدد<br /><small>Count</small></th>
           <th>المبلغ قبل الضريبة<br /><small>Amount Before VAT</small></th>
@@ -66,13 +68,15 @@
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>{{ invoice.service || 'School Fees' }}</td>
+        <tr *ngFor="let line of invoice.lines">
+          <td>{{ line.invoiceNumber || invoice.no }}</td>
+          <td>{{ line.category || '-' }}</td>
+          <td>{{ line.service || invoice.service || 'School Fees' }}</td>
           <td>{{ invoice.count || 1 }}</td>
-          <td>{{ formatMoney(invoice.amount) }}</td>
-          <td>{{ formatMoney(invoice.discount) }}</td>
-          <td>{{ formatMoney(invoice.vat) }}</td>
-          <td>{{ formatMoney(invoice.total) }}</td>
+          <td>{{ formatMoney(line.amount) }}</td>
+          <td>{{ formatMoney(line.discount) }}</td>
+          <td>{{ formatMoney(line.vat) }}</td>
+          <td>{{ formatMoney(line.total) }}</td>
         </tr>
       </tbody>
     </table>

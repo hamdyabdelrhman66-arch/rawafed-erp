@@ -78,6 +78,9 @@ export class AccountingService {
     return this.api.get<any>(`/accounting/dashboard${params.toString() ? `?${params}` : ''}`);
   }
 
+  getRevenueMappings(): Promise<any[]> { return this.api.get<any[]>('/finance/revenue-mappings'); }
+  updateRevenueMapping(category: string, payload: any): Promise<any> { return this.api.put<any>(`/finance/revenue-mappings/${category}`, payload); }
+
   createAccount(payload: any): Promise<AccountingAccount> {
     return this.api.post<AccountingAccount>('/accounting/accounts', payload);
   }

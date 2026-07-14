@@ -8,6 +8,7 @@ import { RegistrationsRepository } from "../repositories/registrations.repositor
 import { StudentsRepository } from "../repositories/students.repository.js";
 import { ServiceError } from "./service.error.js";
 import { money, vatForSubtotal } from "./student-vat.js";
+import { revenueCategory } from "./revenue-category.js";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const unpack = (row: any) => ({
@@ -35,10 +36,17 @@ const subtotal = (r: RegistrationInput) =>
 const vat = (r: RegistrationInput) =>
   vatForSubtotal(subtotal(r), r.student?.nationalId);
 const total = (r: RegistrationInput) => money(subtotal(r) + vat(r));
-const fees = (r: RegistrationInput) => [
-  ...baseFees(r),
-  ...(vat(r) ? [{ name: "VAT", amount: vat(r) }] : []),
-];
+const fees = (r: RegistrationInput) =>
+  baseFees(r).map((item) => {
+    const itemVat = vatForSubtotal(item.amount, r.student?.nationalId);
+    return {
+      name: item.name,
+      serviceCategory: revenueCategory(item.name),
+      subtotal: money(item.amount),
+      vatAmount: itemVat,
+      amount: money(item.amount + itemVat),
+    };
+  });
 
 export class RegistrationsService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -145,11 +153,19 @@ export class RegistrationsService {
             profile: json(data),
           },
         );
+        const feeRows = fees(data);
+        const mappings = await tx.revenueCategoryMapping.findMany({ where: { active: true } });
+        const mappedFees = feeRows.map((item) => {
+          const mapping = mappings.find((row) => row.category === item.serviceCategory);
+          return mapping && mapping.taxTreatment !== "STANDARD"
+            ? { ...item, vatAmount: 0, amount: item.subtotal }
+            : item;
+        });
         await new FinanceAccountsRepository(tx).upsert(
           id,
           student.id,
-          total(data),
-          fees(data),
+          money(mappedFees.reduce((sum, item) => sum + item.amount, 0)),
+          mappedFees,
         );
         let customer = await tx.accountingCustomer.findUnique({
           where: { studentId: student.id },

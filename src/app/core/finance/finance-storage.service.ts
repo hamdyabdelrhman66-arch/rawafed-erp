@@ -489,6 +489,9 @@ export class FinanceStorageService {
       feeItems: Array.isArray(payment.feeItems)
         ? payment.feeItems.map((item: any) => ({ name: item.name, amount: Number(item.amount || 0) }))
         : [],
+      invoices: Array.isArray(payment.invoices)
+        ? payment.invoices.map((invoice: any) => ({ ...invoice, subtotal: Number(invoice.subtotal || 0), vat: Number(invoice.vat || 0), total: Number(invoice.total || 0), amount: Number(invoice.amount || 0) }))
+        : [],
     };
   }
 
@@ -513,6 +516,14 @@ export class FinanceStorageService {
       paymentMethod: invoice.paymentMethod,
       accountId: this.numericId(invoice.accountId),
       feeItem: invoice.feeItem,
+      category: invoice.category || 'LEGACY_COMBINED',
+      categoryLabel: invoice.categoryLabel || (invoice.legacyCombined ? 'Legacy Combined Invoice' : invoice.feeItem),
+      vatStatus: invoice.vatStatus || (Number(invoice.vat || 0) > 0 ? 'STANDARD_15' : 'EXEMPT'),
+      accountingAccount: invoice.accountingAccount || '',
+      accountingAccountId: invoice.accountingAccountId,
+      costCenterId: invoice.costCenterId,
+      branchId: invoice.branchId,
+      legacyCombined: Boolean(invoice.legacyCombined),
       registrationId: invoice.registrationId,
       registrationNumber: invoice.registrationNumber,
       patientId: invoice.nationalId || '',

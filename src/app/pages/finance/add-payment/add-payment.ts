@@ -176,7 +176,6 @@ export class AddPayment implements OnInit {
     try {
       const result = await this.paymentsService.recordPayment({
         accountId: this.selectedAccount.backendId || this.selectedAccount.id,
-        invoiceId: this.selectedAccount.canonicalInvoiceId,
         receiptNumber,
         amount,
         method: this.paymentMethod,

@@ -123,6 +123,7 @@ export class CoreController {
     res.json(
       await this.notifications.list(
         req.user!.role,
+        req.user!.id,
         page(req).skip,
         page(req).take,
       ),
@@ -136,6 +137,9 @@ export class CoreController {
     );
     res.status(204).send();
   });
+  notificationsReadAll = asyncController(async (req, res) =>
+    res.json(await this.notifications.markAllRead(req.user!.role, req.user!.id)),
+  );
   settingsGet = asyncController(async (_req, res) =>
     res.json(await this.settings.get()),
   );
@@ -188,6 +192,18 @@ export class CoreController {
     res
       .status(201)
       .json(await this.finance.createPayment(req.body, actor(req))),
+  );
+  revenueMappings = asyncController(async (_req, res) =>
+    res.json(await this.finance.revenueMappings()),
+  );
+  updateRevenueMapping = asyncController(async (req, res) =>
+    res.json(await this.finance.updateRevenueMapping(req.params.category, req.body)),
+  );
+  directCosts = asyncController(async (req, res) =>
+    res.json(await this.finance.directCosts(req.query as Record<string, string>)),
+  );
+  createDirectCost = asyncController(async (req, res) =>
+    res.status(201).json(await this.finance.createDirectCost(req.body, actor(req))),
   );
   refundPayment = asyncController(async (req, res) =>
     res.json(await this.finance.refundPayment(req.params.id, actor(req))),

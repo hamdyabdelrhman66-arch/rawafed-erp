@@ -51,23 +51,27 @@ export async function recalculateStudentVatUsing(
     });
   if (!account || account.payments.length) return { recalculated: false };
 
-  const subtotal = money(
-    account.feeItems
-      .filter((item: any) => item.name.toUpperCase() !== "VAT")
-      .reduce((sum: number, item: any) => sum + Number(item.amount), 0),
-  );
-  const vat = vatForSubtotal(subtotal, nationalId);
-  await tx.financeAccount.update({
-    where: { id: account.id },
-    data: { expectedTotal: money(subtotal + vat) },
-  });
-  await tx.financeAccountFeeItem.deleteMany({
-    where: { accountId: account.id, name: "VAT" },
-  });
-  if (vat)
-    await tx.financeAccountFeeItem.create({
-      data: { accountId: account.id, name: "VAT", amount: vat },
-    });
+  const categorized = account.feeItems.some((item: any) => item.serviceCategory !== "LEGACY_COMBINED");
+  const subtotal = money(account.feeItems
+    .filter((item: any) => item.name.toUpperCase() !== "VAT")
+    .reduce((sum: number, item: any) => sum + Number(categorized ? (item.subtotal ?? item.amount) : item.amount), 0));
+  let vat = vatForSubtotal(subtotal, nationalId);
+  if (categorized) {
+    const mappings = await tx.revenueCategoryMapping.findMany({ where: { active: true } });
+    let mappedVat = 0;
+    for (const item of account.feeItems) {
+      const itemSubtotal = money(item.subtotal ?? item.amount);
+      const mapping = mappings.find((row) => row.category === item.serviceCategory);
+      const itemVat = mapping && mapping.taxTreatment !== "STANDARD" ? 0 : vatForSubtotal(itemSubtotal, nationalId);
+      mappedVat = money(mappedVat + itemVat);
+      await tx.financeAccountFeeItem.update({ where: { id: item.id }, data: { subtotal: itemSubtotal, vatAmount: itemVat, amount: money(itemSubtotal + itemVat) } });
+    }
+    vat = mappedVat;
+  } else {
+    await tx.financeAccountFeeItem.deleteMany({ where: { accountId: account.id, name: "VAT" } });
+    if (vat) await tx.financeAccountFeeItem.create({ data: { accountId: account.id, name: "VAT", amount: vat } });
+  }
+  await tx.financeAccount.update({ where: { id: account.id }, data: { expectedTotal: money(subtotal + vat) } });
 
   const vatAccount = await tx.chartOfAccount.findUnique({
     where: { systemKey: "vat-payable" },
@@ -79,7 +83,10 @@ export async function recalculateStudentVatUsing(
   for (const invoice of account.invoices) {
     if (invoice.payments.length) continue;
     const invoiceSubtotal = money(invoice.subtotal);
-    const invoiceVat = vatForSubtotal(invoiceSubtotal, nationalId);
+    const mapping = invoice.serviceCategory !== "LEGACY_COMBINED"
+      ? await tx.revenueCategoryMapping.findUnique({ where: { category: invoice.serviceCategory } })
+      : null;
+    const invoiceVat = mapping && mapping.taxTreatment !== "STANDARD" ? 0 : vatForSubtotal(invoiceSubtotal, nationalId);
     const invoiceTotal = money(invoiceSubtotal + invoiceVat);
     if (!customer || !revenue || (invoiceVat && !vatAccount))
       throw new Error("Required VAT recalculation accounts are not configured.");
@@ -109,7 +116,7 @@ export async function recalculateStudentVatUsing(
           },
           {
             journalEntryId: journal.id,
-            accountId: revenue.id,
+            accountId: invoice.lines[0]?.revenueAccountId || revenue.id,
             credit: invoiceSubtotal,
           },
           ...(invoiceVat && vatAccount

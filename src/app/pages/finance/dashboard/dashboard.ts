@@ -110,7 +110,7 @@ export class Dashboard implements OnInit {
         note: this.i18n.t("finance.kpi.total_revenue_note"),
         icon: "payments",
         tone: "positive",
-        route: "/finance/payments",
+        route: "/finance/reports?report=revenue",
       },
       {
         label: this.i18n.t("finance.kpi.collections_today"),
