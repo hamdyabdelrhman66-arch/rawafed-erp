@@ -1,43 +1,43 @@
 <header class="page-header">
   <div>
-    <span>Payments & Receipts</span>
-    <h1>Add Student Payment</h1>
-    <p>Select a student, review the grade fees, then record one or more paid items in the same receipt.</p>
+    <span>{{ l('Payments & Receipts', 'المدفوعات والإيصالات') }}</span>
+    <h1>{{ l('Add Student Payment', 'إضافة دفعة طالب') }}</h1>
+    <p>{{ l('Select a student, review the grade fees, then record one or more paid items in the same receipt.', 'اختر طالبًا وراجع رسوم الصف، ثم سجّل بندًا واحدًا أو أكثر في الإيصال نفسه.') }}</p>
   </div>
 
   <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving">
-    {{ saving ? 'Saving...' : 'Save Payment' }}
+    {{ saving ? l('Saving...', 'جاري الحفظ...') : l('Save Payment', 'حفظ الدفعة') }}
   </button>
 </header>
 
 <section class="info-card">
-  <h2>Student Account</h2>
+  <h2>{{ l('Student Account', 'حساب الطالب') }}</h2>
 
   <div class="info-grid">
     <div class="form-group wide">
-      <label>Student</label>
+      <label>{{ l('Student', 'الطالب') }}</label>
       <app-searchable-select
         [options]="accounts"
         [value]="selectedAccount"
         (valueChange)="selectAccount($event)"
         [labelWith]="accountLabel"
-        placeholder="Select student account"
-        searchPlaceholder="Search by student, grade, registration, or balance..."
-        emptyText="No student accounts found">
+        [placeholder]="l('Select student account', 'اختر حساب الطالب')"
+        [searchPlaceholder]="l('Search by student, grade, registration, or balance...', 'ابحث بالطالب أو الصف أو التسجيل أو الرصيد...')"
+        [emptyText]="l('No student accounts found', 'لا توجد حسابات طلاب')">
       </app-searchable-select>
     </div>
 
     <div class="form-group">
-      <label>Payment Date</label>
+      <label>{{ l('Payment Date', 'تاريخ الدفع') }}</label>
       <input type="date" [(ngModel)]="paymentDate" />
     </div>
 
     <div class="form-group">
-      <label>Payment Method</label>
+      <label>{{ l('Payment Method', 'طريقة الدفع') }}</label>
       <select [(ngModel)]="paymentMethod">
-        <option>Cash</option>
-        <option>Card</option>
-        <option>Bank Transfer</option>
+        <option value="Cash">{{ paymentMethodLabel('Cash') }}</option>
+        <option value="Card">{{ paymentMethodLabel('Card') }}</option>
+        <option value="Bank Transfer">{{ paymentMethodLabel('Bank Transfer') }}</option>
       </select>
     </div>
   </div>
@@ -45,56 +45,56 @@
 
 <section class="stats" *ngIf="selectedAccount">
   <article class="stat-card">
-    <h3>Subtotal</h3>
-    <h2>{{ selectedAccount.subtotal | number }} SAR</h2>
+    <h3>{{ l('Subtotal', 'الإجمالي قبل الضريبة') }}</h3>
+    <h2>{{ selectedAccount.subtotal | number }} {{ currency() }}</h2>
   </article>
 
   <article class="stat-card">
-    <h3>VAT {{ selectedAccount.vatExempt ? '(Exempt)' : '15%' }}</h3>
-    <h2>{{ selectedAccount.vat | number }} SAR</h2>
+    <h3>{{ l('VAT', 'ضريبة القيمة المضافة') }} {{ selectedAccount.vatExempt ? l('(Exempt)', '(معفى)') : '15%' }}</h3>
+    <h2>{{ selectedAccount.vat | number }} {{ currency() }}</h2>
   </article>
 
   <article class="stat-card">
-    <h3>Amount Paid</h3>
-    <h2>{{ selectedAccount.paid | number }} SAR</h2>
+    <h3>{{ l('Amount Paid', 'المبلغ المدفوع') }}</h3>
+    <h2>{{ selectedAccount.paid | number }} {{ currency() }}</h2>
   </article>
 
   <article class="stat-card">
-    <h3>Remaining</h3>
-    <h2>{{ outstanding | number }} SAR</h2>
+    <h3>{{ l('Remaining', 'المتبقي') }}</h3>
+    <h2>{{ outstanding | number }} {{ currency() }}</h2>
   </article>
   <article class="stat-card">
-    <h3>Total Invoice</h3>
-    <h2>{{ selectedAccount.total | number }} SAR</h2>
+    <h3>{{ l('Total Invoice', 'إجمالي الفاتورة') }}</h3>
+    <h2>{{ selectedAccount.total | number }} {{ currency() }}</h2>
   </article>
  </section>
 
 <section class="info-card" *ngIf="selectedAccount">
   <div class="section-title">
     <div>
-      <h2>Fee Items</h2>
-      <p>Enter amounts beside each item. You can pay tuition, bus, books, uniform, or multiple items together.</p>
+      <h2>{{ l('Fee Items', 'بنود الرسوم') }}</h2>
+      <p>{{ l('Enter amounts beside each item. You can pay tuition, bus, books, uniform, or multiple items together.', 'أدخل المبالغ أمام كل بند. يمكن دفع الرسوم أو النقل أو الكتب أو الزي أو أكثر من بند معًا.') }}</p>
     </div>
 
     <div class="quick-actions">
-      <button type="button" (click)="payHalf()">Pay 50%</button>
-      <button type="button" (click)="payRemaining()">Pay Remaining</button>
-      <button type="button" (click)="clearPaymentLines()">Clear</button>
+      <button type="button" (click)="payHalf()">{{ l('Pay 50%', 'دفع 50%') }}</button>
+      <button type="button" (click)="payRemaining()">{{ l('Pay Remaining', 'دفع المتبقي') }}</button>
+      <button type="button" (click)="clearPaymentLines()">{{ l('Clear', 'مسح') }}</button>
     </div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>Fee Item</th>
-        <th>Grade Fee</th>
-        <th>Pay Now</th>
+        <th>{{ l('Fee Item', 'بند الرسوم') }}</th>
+        <th>{{ l('Grade Fee', 'رسوم الصف') }}</th>
+        <th>{{ l('Pay Now', 'ادفع الآن') }}</th>
       </tr>
     </thead>
     <tbody>
       <tr *ngFor="let line of paymentLines">
-        <td>{{ line.feeItem }}</td>
-        <td>{{ line.expected | number }} SAR</td>
+        <td>{{ feeItemLabel(line.feeItem) }}</td>
+        <td>{{ line.expected | number }} {{ currency() }}</td>
         <td>
           <input class="amount-input" type="number" min="0" [(ngModel)]="line.amount" />
         </td>
@@ -104,31 +104,31 @@
 </section>
 
 <section class="info-card">
-  <h2>Payment Details</h2>
+  <h2>{{ l('Payment Details', 'تفاصيل الدفع') }}</h2>
 
   <div class="info-grid">
     <div class="form-group">
-      <label>Total Payment Amount</label>
-      <input [value]="(totalPaymentAmount | number) + ' SAR'" readonly />
+      <label>{{ l('Total Payment Amount', 'إجمالي مبلغ الدفع') }}</label>
+      <input [value]="(totalPaymentAmount | number) + ' ' + currency()" readonly />
     </div>
 
     <div class="form-group">
-      <label>Receipt Number</label>
-      <input value="Auto generated after save" readonly />
+      <label>{{ l('Receipt Number', 'رقم الإيصال') }}</label>
+      <input [value]="l('Auto generated after save', 'يُنشأ تلقائيًا بعد الحفظ')" readonly />
     </div>
 
     <div class="form-group">
-      <label>Collected By</label>
+      <label>{{ l('Collected By', 'تم التحصيل بواسطة') }}</label>
       <input [(ngModel)]="collectedBy" />
     </div>
 
     <div class="form-group">
-      <label>Reference Number</label>
-      <input [(ngModel)]="referenceNumber" placeholder="Optional" />
+      <label>{{ l('Reference Number', 'الرقم المرجعي') }}</label>
+      <input [(ngModel)]="referenceNumber" [placeholder]="l('Optional', 'اختياري')" />
     </div>
 
     <div class="form-group wide">
-      <label>Notes</label>
+      <label>{{ l('Notes', 'ملاحظات') }}</label>
       <textarea rows="4" [(ngModel)]="notes"></textarea>
     </div>
   </div>
@@ -136,43 +136,43 @@
 
 <section class="stats" *ngIf="selectedAccount">
   <article class="stat-card">
-    <h3>Outstanding Before</h3>
-    <h2>{{ outstanding | number }} SAR</h2>
+    <h3>{{ l('Outstanding Before', 'المتبقي قبل الدفع') }}</h3>
+    <h2>{{ outstanding | number }} {{ currency() }}</h2>
   </article>
 
   <article class="stat-card">
-    <h3>Payment Amount</h3>
-    <h2>{{ totalPaymentAmount | number }} SAR</h2>
+    <h3>{{ l('Payment Amount', 'مبلغ الدفع') }}</h3>
+    <h2>{{ totalPaymentAmount | number }} {{ currency() }}</h2>
   </article>
 
   <article class="stat-card">
-    <h3>Outstanding After</h3>
-    <h2>{{ outstandingAfterPayment | number }} SAR</h2>
+    <h3>{{ l('Outstanding After', 'المتبقي بعد الدفع') }}</h3>
+    <h2>{{ outstandingAfterPayment | number }} {{ currency() }}</h2>
   </article>
 </section>
 
 <section class="info-card">
-  <h2>Previous Payments</h2>
+  <h2>{{ l('Previous Payments', 'الدفعات السابقة') }}</h2>
   <table>
     <thead>
       <tr>
-        <th>Date</th>
-        <th>Receipt</th>
-        <th>Payment Item</th>
-        <th>Method</th>
-        <th>Amount</th>
+        <th>{{ l('Date', 'التاريخ') }}</th>
+        <th>{{ l('Receipt', 'الإيصال') }}</th>
+        <th>{{ l('Payment Item', 'بند الدفع') }}</th>
+        <th>{{ l('Method', 'الطريقة') }}</th>
+        <th>{{ l('Amount', 'المبلغ') }}</th>
       </tr>
     </thead>
     <tbody>
       <tr *ngFor="let payment of previousPayments">
         <td>{{ payment.date }}</td>
         <td>{{ payment.receipt }}</td>
-        <td>{{ payment.feeItem || payment.package }}</td>
-        <td>{{ payment.method }}</td>
-        <td>{{ payment.amount | number }} SAR</td>
+        <td>{{ feeItemLabel(payment.feeItem || payment.package) }}</td>
+        <td>{{ paymentMethodLabel(payment.method) }}</td>
+        <td>{{ payment.amount | number }} {{ currency() }}</td>
       </tr>
       <tr *ngIf="!previousPayments.length">
-        <td colspan="5" class="empty-cell">No previous payments for this student.</td>
+        <td colspan="5" class="empty-cell">{{ l('No previous payments for this student.', 'لا توجد دفعات سابقة لهذا الطالب.') }}</td>
       </tr>
     </tbody>
   </table>

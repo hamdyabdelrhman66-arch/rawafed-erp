@@ -21,7 +21,7 @@
       </div>
       <div>
         <span>حالة الفاتورة</span>
-        <strong>{{ invoice.status || '-' }}</strong>
+        <strong>{{ statusLabel(invoice.status) }}</strong>
         <small>Invoice Status</small>
       </div>
       <div>
@@ -78,7 +78,7 @@
     </table>
 
     <section class="invoice-body">
-      <div class="qr-panel" *ngIf="hasVat()">
+      <div class="qr-panel">
         <img *ngIf="qrImageDataUrl" [src]="qrImageDataUrl" alt="School invoice QR code" />
         <span>رمز الاستجابة السريع للفاتورة</span>
       </div>
@@ -91,7 +91,7 @@
         </div>
         <div>
           <span>طريقة الدفع</span>
-          <strong>{{ invoice.paymentMethod || '-' }}</strong>
+          <strong>{{ paymentMethodLabel(invoice.paymentMethod) }}</strong>
           <small>Payment Method</small>
         </div>
         <div>

@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { AuthService } from '../../../core/auth/auth.service';
 import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
 import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
+import { I18nService } from '../../../core/i18n/i18n.service';
 
 interface GenerateInvoiceForm {
   invoiceNumber: string;
@@ -69,8 +70,49 @@ export class GenerateInvoice implements OnInit {
   constructor(
     private readonly accountService: PatientPackagesService,
     private readonly auth: AuthService,
-    private readonly zatcaInvoice: ZatcaInvoiceService
+    private readonly zatcaInvoice: ZatcaInvoiceService,
+    public readonly i18n: I18nService
   ) {}
+
+  l(en: string, ar: string): string { return this.i18n.label(en, ar); }
+
+  currency(): string { return this.l('SAR', 'ريال'); }
+
+  paymentMethodLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      Cash: ['Cash', 'نقدي'], Card: ['Card', 'بطاقة'], 'Bank Transfer': ['Bank Transfer', 'تحويل بنكي'],
+      'Online Payment': ['Online Payment', 'دفع إلكتروني']
+    };
+    const label = labels[value];
+    return label ? this.l(label[0], label[1]) : value;
+  }
+
+  billingEntityLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      'Parent / Student': ['Parent / Student', 'ولي الأمر / الطالب'], 'Company Sponsor': ['Company Sponsor', 'الشركة الراعية'],
+      Scholarship: ['Scholarship', 'منحة دراسية'], School: ['School', 'المدرسة']
+    };
+    const label = labels[value];
+    return label ? this.l(label[0], label[1]) : value;
+  }
+
+  feeItemLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      'School Fees': ['School Fees', 'الرسوم الدراسية'], Tuition: ['Tuition', 'رسوم التعليم'],
+      'Registration Fee': ['Registration Fee', 'رسوم التسجيل'], Uniform: ['Uniform', 'الزي المدرسي'],
+      'Bus Transportation': ['Bus Transportation', 'النقل المدرسي'], Books: ['Books', 'الكتب'], Activities: ['Activities', 'الأنشطة']
+    };
+    const label = labels[value];
+    return label ? this.l(label[0], label[1]) : value;
+  }
+
+  schoolLabel(value: string): string {
+    const labels: Record<string, string> = {
+      'Rawafed International School': 'مدارس روافد العالمية',
+      'Rawafed Middle East International': 'مدارس روافد الشرق الأوسط العالمية'
+    };
+    return this.i18n.language() === 'ar' ? (labels[value] || value) : value;
+  }
 
   ngOnInit(): void {
     this.form.invoiceNumber = `INV-${Date.now()}`;
@@ -204,7 +246,7 @@ export class GenerateInvoice implements OnInit {
   }
 
   formatMoney(value: number): string {
-    return this.roundMoney(value).toFixed(2);
+    return this.roundMoney(value).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   private toNumber(value: number | null): number {

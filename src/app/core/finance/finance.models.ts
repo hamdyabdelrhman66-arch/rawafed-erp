@@ -67,6 +67,9 @@ export interface FinancePayment {
   feeItem?: string;
   accountId?: number | string;
   registrationNumber?: string;
+  nationalId?: string;
+  vatExempt?: boolean;
+  feeItems?: Array<{ name: string; amount: number }>;
 }
 
 export interface FinanceInvoice {

@@ -2,8 +2,10 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { InvoicesService } from '../../../core/finance/invoices.service';
+import { PaymentsService } from '../../../core/finance/payments.service';
 import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
 import { InvoiceTemplate } from '../invoice-template/invoice-template';
+import { firstValueFrom } from 'rxjs';
 
 interface InvoiceTemplateData {
   no: string;
@@ -47,22 +49,27 @@ export class InvoiceDetails implements OnInit {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly invoicesService: InvoicesService,
+    private readonly paymentsService: PaymentsService,
     private readonly zatcaInvoice: ZatcaInvoiceService
   ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     const id = Number(this.route.snapshot.paramMap.get('id'));
+    const receipt = this.route.snapshot.queryParamMap.get('receipt');
+    const [foundInvoice, payments] = await Promise.all([
+      firstValueFrom(this.invoicesService.getInvoice(id)),
+      receipt ? firstValueFrom(this.paymentsService.getPayments()) : Promise.resolve([])
+    ]);
+    if (!foundInvoice) return;
 
-    this.invoicesService.getInvoice(id).subscribe((foundInvoice: any) => {
-      if (!foundInvoice) return;
-
-      this.invoice = this.mapInvoice(foundInvoice);
-      this.qrData = this.invoice.vatExempt ? '' : this.zatcaInvoice.qrData({
-        taxNumber: this.invoice.taxNumber,
-        date: this.invoice.date,
-        total: this.invoice.total,
-        vat: this.invoice.vat
-      });
+    const baseInvoice = this.mapInvoice(foundInvoice);
+    const payment = receipt ? payments.find((item: any) => item.receipt === receipt) : null;
+    this.invoice = payment ? this.mapPaymentReceipt(baseInvoice, payment) : baseInvoice;
+    this.qrData = this.zatcaInvoice.qrData({
+      taxNumber: this.invoice.taxNumber,
+      date: this.invoice.date,
+      total: this.invoice.total,
+      vat: this.invoice.vat
     });
   }
 
@@ -110,6 +117,36 @@ export class InvoiceDetails implements OnInit {
       notes: this.toText(this.firstValue(foundInvoice, 'notes')),
       user: this.toText(this.firstValue(foundInvoice, 'user', 'createdBy'), 'Finance'),
       insuranceAmount: this.toNumber(this.firstValue(foundInvoice, 'insuranceAmount'), 0),
+      vatExempt
+    };
+  }
+
+  private mapPaymentReceipt(base: InvoiceTemplateData, payment: any): InvoiceTemplateData {
+    const total = this.roundMoney(this.toNumber(payment.amount));
+    const vatExempt = Boolean(payment.vatExempt) || base.vatExempt;
+    const tax = vatExempt
+      ? { amountBeforeVat: total, vat: 0, total }
+      : this.zatcaInvoice.fromVatInclusive(total);
+    const service = Array.isArray(payment.feeItems) && payment.feeItems.length
+      ? payment.feeItems.map((item: any) => item.name).join(' + ')
+      : this.toText(payment.feeItem || payment.package, base.service);
+
+    return {
+      ...base,
+      no: this.toText(payment.receipt, base.no),
+      service,
+      amount: tax.amountBeforeVat,
+      discount: 0,
+      vat: tax.vat,
+      total: tax.total,
+      paid: tax.total,
+      remaining: 0,
+      date: this.toText(payment.date, base.date),
+      status: 'Paid',
+      paymentMethod: this.toText(payment.method, base.paymentMethod),
+      notes: this.toText(payment.notes, base.notes),
+      user: this.toText(payment.collectedBy, base.user),
+      patientId: this.toText(payment.nationalId, base.patientId),
       vatExempt
     };
   }

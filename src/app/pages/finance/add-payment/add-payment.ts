@@ -15,6 +15,7 @@ import {
   safeErrorMessage,
 } from "../../../core/feedback/feedback.service";
 import { SearchableSelectComponent } from "../../../shared/components/searchable-select/searchable-select.component";
+import { I18nService } from "../../../core/i18n/i18n.service";
 
 interface PaymentLine {
   feeItem: string;
@@ -42,7 +43,7 @@ export class AddPayment implements OnInit {
   saving = false;
   readonly accountLabel = (account: any) =>
     account
-      ? `${account.patient} - ${account.registrationNumber || account.fileNo || "-"} - Grade ${account.grade || "-"} - Remaining ${Number(account.remaining || 0).toLocaleString("en-US")} SAR`
+      ? `${account.patient} - ${account.registrationNumber || account.fileNo || "-"} - ${this.l('Grade', 'الصف')} ${account.grade || "-"} - ${this.l('Remaining', 'المتبقي')} ${Number(account.remaining || 0).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US')} ${this.currency()}`
       : "";
 
   constructor(
@@ -52,7 +53,31 @@ export class AddPayment implements OnInit {
     private readonly paymentsService: PaymentsService,
     private readonly invoicesService: InvoicesService,
     private readonly feedback: FeedbackService,
+    public readonly i18n: I18nService,
   ) {}
+
+  l(en: string, ar: string): string { return this.i18n.label(en, ar); }
+
+  currency(): string { return this.l('SAR', 'ريال'); }
+
+  paymentMethodLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      Cash: ['Cash', 'نقدي'], Card: ['Card', 'بطاقة'], 'Bank Transfer': ['Bank Transfer', 'تحويل بنكي']
+    };
+    const label = labels[value];
+    return label ? this.l(label[0], label[1]) : value;
+  }
+
+  feeItemLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      'School Fees': ['School Fees', 'الرسوم الدراسية'], Tuition: ['Tuition', 'رسوم التعليم'],
+      'Registration Fee': ['Registration Fee', 'رسوم التسجيل'], Uniform: ['Uniform', 'الزي المدرسي'],
+      'Bus Transportation': ['Bus Transportation', 'النقل المدرسي'], Transportation: ['Transportation', 'النقل المدرسي'],
+      Books: ['Books', 'الكتب'], Activities: ['Activities', 'الأنشطة'], VAT: ['VAT', 'ضريبة القيمة المضافة']
+    };
+    const label = labels[value];
+    return label ? this.l(label[0], label[1]) : value;
+  }
 
   ngOnInit(): void {
     this.accountService.getPackages().subscribe((accounts: any[]) => {
@@ -123,7 +148,7 @@ export class AddPayment implements OnInit {
 
     if (!this.selectedAccount || !payableLines.length) {
       this.feedback.validation(
-        "Please select student account and enter at least one payment amount.",
+        this.l("Please select student account and enter at least one payment amount.", "يرجى اختيار حساب الطالب وإدخال مبلغ واحد على الأقل."),
       );
       return;
     }
@@ -131,15 +156,15 @@ export class AddPayment implements OnInit {
     const amount = this.totalPaymentAmount;
     if (amount > this.outstanding) {
       this.feedback.validation(
-        "Payment amount cannot be more than the remaining balance.",
+        this.l("Payment amount cannot be more than the remaining balance.", "لا يمكن أن يزيد مبلغ الدفع عن الرصيد المتبقي."),
       );
       return;
     }
 
     const confirmed = await this.feedback.confirm({
-      title: "Record Student Payment?",
-      message: `This will record ${amount.toLocaleString("en-US")} SAR against the existing invoice and update the student balance.`,
-      confirmText: "Record Payment",
+      title: this.l("Record Student Payment?", "تسجيل دفعة الطالب؟"),
+      message: this.l(`This will record ${amount.toLocaleString("en-US")} SAR against the existing invoice and update the student balance.`, `سيتم تسجيل مبلغ ${amount.toLocaleString("ar-SA")} ريال على الفاتورة الحالية وتحديث رصيد الطالب.`),
+      confirmText: this.l("Record Payment", "تسجيل الدفعة"),
       tone: "primary",
     });
     if (!confirmed) return;
@@ -149,7 +174,7 @@ export class AddPayment implements OnInit {
     const studentName = this.selectedAccount.patient;
 
     try {
-      await this.paymentsService.recordPayment({
+      const result = await this.paymentsService.recordPayment({
         accountId: this.selectedAccount.backendId || this.selectedAccount.id,
         invoiceId: this.selectedAccount.canonicalInvoiceId,
         receiptNumber,
@@ -173,8 +198,8 @@ export class AddPayment implements OnInit {
       this.paymentLines = this.buildPaymentLines();
       this.loadPreviousPayments();
       this.feedback.success(
-        `Payment ${receiptNumber} recorded successfully.`,
-        "Receipt and student balance were updated from PostgreSQL.",
+        this.l(`Payment ${receiptNumber} recorded successfully.`, `تم تسجيل الدفعة ${receiptNumber} بنجاح.`),
+        this.l("Receipt and student balance were updated from PostgreSQL.", "تم تحديث الإيصال ورصيد الطالب من PostgreSQL."),
       );
       const invoices = await firstValueFrom(this.invoicesService.getInvoices());
       const invoice = invoices.find(
@@ -182,9 +207,11 @@ export class AddPayment implements OnInit {
           item.registrationNumber === this.selectedAccount.registrationNumber,
       );
       if (invoice)
-        void this.router.navigate(["/finance/invoice-details", invoice.id]);
+        void this.router.navigate(["/finance/invoice-details", invoice.id], {
+          queryParams: { receipt: result?.payment?.receiptNumber || receiptNumber },
+        });
     } catch (error) {
-      this.feedback.error("Payment was not recorded.", safeErrorMessage(error));
+      this.feedback.error(this.l("Payment was not recorded.", "لم يتم تسجيل الدفعة."), safeErrorMessage(error));
     } finally {
       this.saving = false;
     }

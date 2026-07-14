@@ -69,6 +69,23 @@ export class InvoiceTemplate implements OnChanges {
     return !this.invoice?.vatExempt && this.roundMoney(this.invoice?.vat) > 0;
   }
 
+  statusLabel(value: string): string {
+    const status = String(value || '').toLowerCase();
+    if (status === 'paid') return 'مدفوعة · Paid';
+    if (status === 'pending') return 'معلقة · Pending';
+    if (status === 'partial' || status === 'partially_paid') return 'مدفوعة جزئيًا · Partially Paid';
+    if (status === 'void') return 'ملغاة · Void';
+    return value || '-';
+  }
+
+  paymentMethodLabel(value: string): string {
+    const labels: Record<string, string> = {
+      Cash: 'نقدي · Cash', Card: 'بطاقة · Card', 'Bank Transfer': 'تحويل بنكي · Bank Transfer',
+      'Online Payment': 'دفع إلكتروني · Online Payment'
+    };
+    return labels[value] || value || '-';
+  }
+
   private roundMoney(value: number): number {
     const numberValue = Number(value);
     const safeValue = Number.isFinite(numberValue) ? numberValue : 0;

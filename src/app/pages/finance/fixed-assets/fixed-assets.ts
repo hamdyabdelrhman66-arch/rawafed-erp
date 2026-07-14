@@ -90,7 +90,7 @@ export class FixedAssets implements OnInit, OnDestroy {
   openAsset(): void { this.assetForm = this.emptyAsset(); this.modal = 'asset'; }
   openCategory(): void { this.categoryForm = this.emptyCategory(); this.modal = 'category'; }
   openAction(type: 'transfer' | 'disposal' | 'maintenance'): void {
-    if (!this.selected) { this.feedback.info('Select an asset first.'); return; }
+    if (!this.selected) { this.feedback.info(this.l('Select an asset first.', 'اختر أصلًا أولًا.')); return; }
     this.actionForm = {
       transferDate: this.today(), disposalDate: this.today(), maintenanceDate: this.today(),
       disposalType: 'DISPOSAL', maintenanceType: 'PREVENTIVE', status: 'COMPLETED', cost: 0, proceeds: 0
@@ -100,10 +100,10 @@ export class FixedAssets implements OnInit, OnDestroy {
   closeModal(): void { this.modal = ''; }
 
   async saveAsset(): Promise<void> {
-    await this.perform('Asset acquired and accounting entry posted.', async () => this.service.createAsset(this.assetForm));
+    await this.perform(this.l('Asset acquired and accounting entry posted.', 'تم اقتناء الأصل وترحيل القيد المحاسبي.'), async () => this.service.createAsset(this.assetForm));
   }
   async saveCategory(): Promise<void> {
-    await this.perform('Asset category created.', async () => this.service.createCategory(this.categoryForm));
+    await this.perform(this.l('Asset category created.', 'تم إنشاء فئة الأصل.'), async () => this.service.createCategory(this.categoryForm));
   }
   async initializeCategories(): Promise<void> {
     this.busy = true;
@@ -124,18 +124,18 @@ export class FixedAssets implements OnInit, OnDestroy {
       : this.modal === 'disposal'
         ? this.service.dispose(this.selected.id, this.actionForm)
         : this.service.maintain(this.selected.id, this.actionForm);
-    await this.perform('Asset transaction posted successfully.', async () => operation);
+    await this.perform(this.l('Asset transaction posted successfully.', 'تم ترحيل حركة الأصل بنجاح.'), async () => operation);
   }
   async depreciateSelected(): Promise<void> {
-    if (!this.selected) { this.feedback.info('Select an asset first.'); return; }
-    await this.perform('Monthly depreciation and journal entry posted.', async () => this.service.depreciate(this.selected.id, this.period), false);
+    if (!this.selected) { this.feedback.info(this.l('Select an asset first.', 'اختر أصلًا أولًا.')); return; }
+    await this.perform(this.l('Monthly depreciation and journal entry posted.', 'تم ترحيل الإهلاك الشهري وقيد اليومية.'), async () => this.service.depreciate(this.selected.id, this.period), false);
   }
   async runAllDepreciation(): Promise<void> {
-    await this.perform('Monthly depreciation run completed.', async () => this.service.runDepreciation(this.period), false);
+    await this.perform(this.l('Monthly depreciation run completed.', 'اكتمل تشغيل الإهلاك الشهري.'), async () => this.service.runDepreciation(this.period), false);
   }
   async loadReport(): Promise<void> {
     try { this.reportRows = await this.service.report(this.reportType); }
-    catch (error) { this.feedback.error('Report could not be loaded.', safeErrorMessage(error)); }
+    catch (error) { this.feedback.error(this.l('Report could not be loaded.', 'تعذر تحميل التقرير.'), safeErrorMessage(error)); }
   }
   exportReport(): void {
     if (!this.reportRows.length) return;
@@ -146,6 +146,29 @@ export class FixedAssets implements OnInit, OnDestroy {
     const link = document.createElement('a'); link.href = url; link.download = `${this.reportType}.csv`; link.click(); URL.revokeObjectURL(url);
   }
   reportColumns(): string[] { return this.reportRows[0] ? Object.keys(this.reportRows[0]).filter((key) => typeof this.reportRows[0][key] !== 'object') : []; }
+  reportColumnLabel(column: string): string {
+    const labels: Record<string, [string, string]> = {
+      assetCode: ['Asset Code', 'كود الأصل'], nameAr: ['Arabic Name', 'الاسم العربي'], nameEn: ['English Name', 'الاسم الإنجليزي'],
+      category: ['Category', 'الفئة'], branch: ['Branch', 'الفرع'], purchaseDate: ['Purchase Date', 'تاريخ الشراء'],
+      purchaseCost: ['Purchase Cost', 'تكلفة الشراء'], residualValue: ['Residual Value', 'القيمة المتبقية'],
+      currentBookValue: ['Current Book Value', 'القيمة الدفترية الحالية'], accumulatedDepreciation: ['Accumulated Depreciation', 'مجمع الإهلاك'],
+      depreciationMethod: ['Depreciation Method', 'طريقة الإهلاك'], usefulLifeMonths: ['Useful Life (months)', 'العمر الإنتاجي (بالشهور)'],
+      status: ['Status', 'الحالة'], custodian: ['Custodian', 'مسؤول العهدة'], location: ['Location', 'الموقع'],
+      period: ['Period', 'الفترة'], depreciationAmount: ['Depreciation Amount', 'مبلغ الإهلاك'],
+      movementType: ['Movement Type', 'نوع الحركة'], movementDate: ['Movement Date', 'تاريخ الحركة'],
+      assetCount: ['Asset Count', 'عدد الأصول'], totalCost: ['Total Cost', 'إجمالي التكلفة'], totalBookValue: ['Total Book Value', 'إجمالي القيمة الدفترية']
+    };
+    const label = labels[column];
+    return label ? this.l(label[0], label[1]) : column.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
+  }
+  statusLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      ACTIVE: ['Active', 'نشط'], DISPOSED: ['Disposed', 'مستبعد'], SOLD: ['Sold', 'مباع'], WRITTEN_OFF: ['Written Off', 'مشطوب'],
+      VALID: ['Valid', 'ساري'], EXPIRED: ['Expired', 'منتهي'], NO_WARRANTY: ['No Warranty', 'بدون ضمان']
+    };
+    const label = labels[String(value || '').toUpperCase()];
+    return label ? this.l(label[0], label[1]) : value;
+  }
   money(value: unknown): string { return Number(value || 0).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   l(en: string, ar: string): string { return this.i18n.label(en, ar); }
   methodLabel(value: string): string {
@@ -172,7 +195,7 @@ export class FixedAssets implements OnInit, OnDestroy {
       await this.load();
       if (this.tab === 'reports') await this.loadReport();
       this.feedback.success(message);
-    } catch (error) { this.feedback.error('Asset transaction could not be completed.', safeErrorMessage(error)); }
+    } catch (error) { this.feedback.error(this.l('Asset transaction could not be completed.', 'تعذر إكمال حركة الأصل.'), safeErrorMessage(error)); }
     finally { this.busy = false; }
   }
   private today(): string { return new Date().toISOString().slice(0, 10); }

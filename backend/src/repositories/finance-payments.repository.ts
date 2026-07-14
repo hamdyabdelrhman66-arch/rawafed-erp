@@ -8,6 +8,7 @@ export class FinancePaymentsRepository {
       include: {
         account: { include: { student: true, registration: true } },
         allocations: true,
+        feeAllocations: { include: { feeItem: true } },
       },
       orderBy: { paidAt: "desc" },
       skip,
@@ -23,7 +24,7 @@ export class FinancePaymentsRepository {
       include: {
         account: { include: { student: true, registration: true } },
         allocations: { include: { invoice: true } },
-        feeAllocations: true,
+        feeAllocations: { include: { feeItem: true } },
         journalEntries: { where: { deletedAt: null }, include: { lines: true } },
       },
     });
@@ -51,6 +52,7 @@ export class FinancePaymentsRepository {
       include: {
         account: { include: { student: true, registration: true } },
         allocations: true,
+        feeAllocations: { include: { feeItem: true } },
       },
     });
   }

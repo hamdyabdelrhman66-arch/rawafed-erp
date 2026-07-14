@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AccountingAccount, AccountingService } from '../../../core/finance/accounting.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
+import { I18nService } from '../../../core/i18n/i18n.service';
 import { jsPDF } from 'jspdf';
 
 interface AccountRow extends AccountingAccount {
@@ -45,7 +46,8 @@ export class ChartOfAccounts implements OnInit {
   constructor(
     private readonly accounting: AccountingService,
     private readonly auth: AuthService,
-    private readonly feedback: FeedbackService
+    private readonly feedback: FeedbackService,
+    public readonly i18n: I18nService
   ) {}
 
   get canWrite(): boolean {
@@ -117,24 +119,24 @@ export class ChartOfAccounts implements OnInit {
       this.accountDetails = await this.accounting.getAccountDetails(account.id);
     } catch (error) {
       this.drawerOpen = false;
-      this.feedback.error('Account details could not be loaded.', safeErrorMessage(error));
+      this.feedback.error(this.l('Account details could not be loaded.', 'تعذر تحميل تفاصيل الحساب.'), safeErrorMessage(error));
     } finally { this.detailsLoading = false; }
   }
 
   closeDrawer(): void { this.drawerOpen = false; }
 
   breadcrumb(account: AccountingAccount): string {
-    const names: string[] = [account.nameEn];
+    const names: string[] = [this.accountName(account)];
     let current = account;
     const visited = new Set<string>();
     while (current.parentId && !visited.has(current.parentId)) {
       visited.add(current.parentId);
       const parent = this.accounts.find((item) => item.id === current.parentId);
       if (!parent) break;
-      names.unshift(parent.nameEn);
+      names.unshift(this.accountName(parent));
       current = parent;
     }
-    return ['Chart of Accounts', ...names].join(' / ');
+    return [this.l('Chart of Accounts', 'دليل الحسابات'), ...names].join(' / ');
   }
 
   chartHeight(value: unknown, rows: any[], key: string): number {
@@ -249,10 +251,10 @@ export class ChartOfAccounts implements OnInit {
       else await this.accounting.createAccount(payload);
       this.closeModal();
       await this.load();
-      this.feedback.success('Account saved successfully.');
+      this.feedback.success(this.l('Account saved successfully.', 'تم حفظ الحساب بنجاح.'));
     } catch (error: any) {
       this.errorMessage = safeErrorMessage(error);
-      this.feedback.error('Account could not be saved.', this.errorMessage);
+      this.feedback.error(this.l('Account could not be saved.', 'تعذر حفظ الحساب.'), this.errorMessage);
     }
   }
 
@@ -260,24 +262,24 @@ export class ChartOfAccounts implements OnInit {
     if (!this.selectedAccount || !this.canFullAccess) return;
     const accountCode = this.selectedAccount.code;
     const confirmed = await this.feedback.confirm({
-      title: 'Archive Account?',
-      message: `Account ${accountCode} will be archived and hidden from active account lists.`,
-      confirmText: 'Archive',
+      title: this.l('Archive Account?', 'أرشفة الحساب؟'),
+      message: this.l(`Account ${accountCode} will be archived and hidden from active account lists.`, `سيتم أرشفة الحساب ${accountCode} وإخفاؤه من قوائم الحسابات النشطة.`),
+      confirmText: this.l('Archive', 'أرشفة'),
       tone: 'warning'
     });
     if (!confirmed) return;
     await this.accounting.archiveAccount(this.selectedAccount.id);
     await this.load();
-    this.feedback.success(`Account ${accountCode} archived successfully.`);
+    this.feedback.success(this.l(`Account ${accountCode} archived successfully.`, `تمت أرشفة الحساب ${accountCode} بنجاح.`));
   }
 
   async deleteSelected(): Promise<void> {
     if (!this.selectedAccount || !this.canFullAccess) return;
     const accountCode = this.selectedAccount.code;
     const confirmed = await this.feedback.confirm({
-      title: 'Delete Account?',
-      message: `Account ${accountCode} will be deleted only if no journal entries exist.`,
-      confirmText: 'Delete',
+      title: this.l('Delete Account?', 'حذف الحساب؟'),
+      message: this.l(`Account ${accountCode} will be deleted only if no journal entries exist.`, `سيتم حذف الحساب ${accountCode} فقط إذا لم توجد عليه قيود يومية.`),
+      confirmText: this.l('Delete', 'حذف'),
       tone: 'danger'
     });
     if (!confirmed) return;
@@ -286,10 +288,10 @@ export class ChartOfAccounts implements OnInit {
       await this.accounting.deleteAccount(this.selectedAccount.id);
       this.selectedId = '';
       await this.load();
-      this.feedback.success(`Account ${accountCode} deleted successfully.`);
+      this.feedback.success(this.l(`Account ${accountCode} deleted successfully.`, `تم حذف الحساب ${accountCode} بنجاح.`));
     } catch (error: any) {
-      this.errorMessage = safeErrorMessage(error) || 'This account cannot be deleted because accounting transactions already exist.';
-      this.feedback.error('Account could not be deleted.', this.errorMessage);
+      this.errorMessage = safeErrorMessage(error) || this.l('This account cannot be deleted because accounting transactions already exist.', 'لا يمكن حذف الحساب لوجود حركات محاسبية مرتبطة به.');
+      this.feedback.error(this.l('Account could not be deleted.', 'تعذر حذف الحساب.'), this.errorMessage);
       this.modalOpen = false;
     }
   }
@@ -311,12 +313,12 @@ export class ChartOfAccounts implements OnInit {
     ]);
     const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     this.downloadCsv('chart-of-accounts.csv', [header, ...rows]);
-    this.feedback.success('Chart of Accounts exported successfully.');
+    this.feedback.success(this.l('Chart of Accounts exported successfully.', 'تم تصدير دليل الحسابات بنجاح.'));
   }
 
   importPlaceholder(): void {
-    this.errorMessage = 'Import is ready for the Excel template workflow. Use Export Excel as the current template.';
-    this.feedback.info('Import template workflow is ready.', 'Use Export Excel as the current template.');
+    this.errorMessage = this.l('Import is ready for the Excel template workflow. Use Export Excel as the current template.', 'الاستيراد جاهز للعمل من خلال قالب Excel. استخدم تصدير Excel كقالب حالي.');
+    this.feedback.info(this.l('Import template workflow is ready.', 'مسار استيراد القالب جاهز.'), this.l('Use Export Excel as the current template.', 'استخدم تصدير Excel كقالب حالي.'));
   }
 
   downloadTemplate(): void {
@@ -330,7 +332,7 @@ export class ChartOfAccounts implements OnInit {
     link.download = 'chart-of-accounts-import-template.csv';
     link.click();
     URL.revokeObjectURL(url);
-    this.feedback.success('Chart of Accounts template downloaded successfully.');
+    this.feedback.success(this.l('Chart of Accounts template downloaded successfully.', 'تم تحميل قالب دليل الحسابات بنجاح.'));
   }
 
   closeModal(): void {
@@ -351,17 +353,45 @@ export class ChartOfAccounts implements OnInit {
   }
 
   money(value: unknown): string {
-    return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    return Number(value || 0).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US', { maximumFractionDigits: 2 });
+  }
+
+  l(en: string, ar: string): string { return this.i18n.label(en, ar); }
+
+  accountName(account: AccountingAccount | undefined): string {
+    if (!account) return '';
+    return this.i18n.language() === 'ar' ? (account.nameAr || account.nameEn) : (account.nameEn || account.nameAr);
+  }
+
+  accountTypeLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      asset: ['Asset', 'أصول'], liability: ['Liability', 'خصوم'], equity: ['Equity', 'حقوق ملكية'],
+      revenue: ['Revenue', 'إيرادات'], expense: ['Expense', 'مصروفات']
+    };
+    const label = labels[String(value || '').toLowerCase()];
+    return label ? this.l(label[0], label[1]) : value;
+  }
+
+  statusLabel(value: string): string {
+    const labels: Record<string, [string, string]> = {
+      active: ['Active', 'نشط'], inactive: ['Inactive', 'غير نشط'], archived: ['Archived', 'مؤرشف']
+    };
+    const label = labels[String(value || '').toLowerCase()];
+    return label ? this.l(label[0], label[1]) : value;
+  }
+
+  normalBalanceLabel(value: string): string {
+    return String(value).toLowerCase() === 'credit' ? this.l('Credit', 'دائن') : this.l('Debit', 'مدين');
   }
 
   flagText(account: AccountingAccount): string {
     return [
-      account.postingAccount === false ? 'Header' : 'Posting',
-      account.isCashAccount ? 'Cash' : '',
-      account.isBankAccount ? 'Bank' : '',
-      account.isVatAccount ? 'VAT' : '',
-      account.isReceivableAccount ? 'Receivable' : '',
-      account.isPayableAccount ? 'Payable' : ''
+      account.postingAccount === false ? this.l('Header', 'رئيسي') : this.l('Posting', 'ترحيل'),
+      account.isCashAccount ? this.l('Cash', 'نقدي') : '',
+      account.isBankAccount ? this.l('Bank', 'بنك') : '',
+      account.isVatAccount ? this.l('VAT', 'ضريبة') : '',
+      account.isReceivableAccount ? this.l('Receivable', 'مدينون') : '',
+      account.isPayableAccount ? this.l('Payable', 'دائنون') : ''
     ].filter(Boolean).join(', ');
   }
 

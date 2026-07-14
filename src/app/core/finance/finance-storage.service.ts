@@ -484,6 +484,11 @@ export class FinanceStorageService {
       feeItem: payment.paymentItem,
       accountId: this.numericId(payment.accountId),
       registrationNumber: payment.registrationNumber,
+      nationalId: payment.nationalId || '',
+      vatExempt: Boolean(payment.vatExempt),
+      feeItems: Array.isArray(payment.feeItems)
+        ? payment.feeItems.map((item: any) => ({ name: item.name, amount: Number(item.amount || 0) }))
+        : [],
     };
   }
 

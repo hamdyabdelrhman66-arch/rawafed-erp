@@ -122,7 +122,13 @@ const paymentShape = (p: any) => ({
   registrationId: p.registrationId,
   registrationNumber: p.account.registration.registrationNumber,
   receiptNumber: p.receiptNumber,
-  paymentItem: "School Fees",
+  paymentItem: p.feeAllocations?.length
+    ? p.feeAllocations.map((allocation: any) => allocation.feeItem?.name).filter(Boolean).join(" + ")
+    : "School Fees",
+  feeItems: (p.feeAllocations || []).map((allocation: any) => ({
+    name: allocation.feeItem?.name || "School Fees",
+    amount: money(allocation.amount),
+  })),
   amount: money(p.amount),
   method: p.method,
   status: p.status,
@@ -131,6 +137,8 @@ const paymentShape = (p: any) => ({
   referenceNumber: p.referenceNumber || undefined,
   notes: p.notes || undefined,
   invoiceId: p.allocations[0]?.invoiceId,
+  nationalId: p.account.student.nationalId,
+  vatExempt: isSaudiNationalId(p.account.student.nationalId),
   createdAt: p.createdAt.toISOString(),
 });
 
