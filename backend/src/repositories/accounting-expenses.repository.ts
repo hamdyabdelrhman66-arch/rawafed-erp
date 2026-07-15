@@ -6,8 +6,14 @@ export class AccountingExpensesRepository {
   list() {
     return this.db.accountingExpense.findMany({
       where: { deletedAt: null },
-      include: { supplier: true, expenseAccount: true, journalEntry: true },
+      include: { supplier: true, expenseAccount: true, journalEntry: true, costCenter: true, payments: true },
       orderBy: { expenseDate: "desc" },
+    });
+  }
+  find(id: string) {
+    return this.db.accountingExpense.findFirst({
+      where: { id, deletedAt: null },
+      include: { supplier: true, expenseAccount: true, journalEntry: true, costCenter: true, payments: true },
     });
   }
   create(data: Prisma.AccountingExpenseUncheckedCreateInput) {

@@ -272,6 +272,10 @@ export class FinanceStorageService {
     );
   }
 
+  payExpense(id: string, payload: any): Observable<any> {
+    return from(this.api.post<any>(`/finance/expenses/${id}/payments`, payload));
+  }
+
   private addExpenseLocal(expense: FinanceExpense): Observable<FinanceExpense> {
     const data = this.read();
     const next = { ...expense, id: Number(expense.id || Date.now()) };
@@ -451,7 +455,12 @@ export class FinanceStorageService {
         customPrice: false,
       })),
       grade: account.grade,
-      paymentPlan: "",
+      paymentPlan: account.paymentPlan || "FULL",
+      paidInstallments: Number(account.paidInstallments || 0),
+      remainingInstallments: Number(account.remainingInstallments || 0),
+      overdueInstallments: Number(account.overdueInstallments || 0),
+      nextInstallment: Number(account.nextInstallment || 0),
+      nextDueDate: account.nextDueDate || undefined,
       notificationStatus: Number(account.paid || 0) > 0 ? "seen" : "new",
       registrationId: account.registrationId,
       registrationNumber: account.registrationNumber,
@@ -500,6 +509,9 @@ export class FinanceStorageService {
       id: this.numericId(invoice.id),
       invoiceNumber: invoice.invoiceNumber,
       patient: invoice.studentName || invoice.patient || "",
+      studentArabicName: invoice.studentArabicName || '',
+      customerId: invoice.customerId,
+      nationalId: invoice.nationalId || '',
       service: invoice.feeItem || invoice.service || "School Fees",
       amount: Number(invoice.amountBeforeVat || invoice.amount || 0),
       discount: Number(invoice.discount || 0),
@@ -510,6 +522,7 @@ export class FinanceStorageService {
         invoice.createdAt ||
         new Date().toISOString()
       ).slice(0, 10),
+      dueAt: invoice.dueAt?.slice(0, 10),
       status: invoice.status || "Pending",
       paid: Number(invoice.paid || 0),
       remaining: Number(invoice.remaining || 0),
@@ -534,12 +547,28 @@ export class FinanceStorageService {
   private backendExpenseToExpense(expense: any): FinanceExpense {
     return {
       id: this.numericId(expense.id),
-      category: expense.category,
-      title: expense.title,
-      amount: Number(expense.amount || 0),
-      date: expense.date,
-      status: expense.status,
+      backendId: expense.id,
+      category: expense.expenseAccount?.name || expense.invoiceType || 'Expense',
+      title: expense.description,
+      amount: Number(expense.totalAmount || 0),
+      date: expense.expenseDate,
+      status: expense.paymentStatus || expense.status,
       notes: expense.notes,
+      expenseNo: expense.expenseNo,
+      supplierName: expense.supplier?.nameEn || expense.supplier?.nameAr || '',
+      supplierInvoiceNumber: expense.supplierInvoiceNumber,
+      invoiceType: expense.invoiceType,
+      amountBeforeVat: Number(expense.amountBeforeVat || 0),
+      vatAmount: Number(expense.vatAmount || 0),
+      totalAmount: Number(expense.totalAmount || 0),
+      paidAmount: Number(expense.paidAmount || 0),
+      remaining: Math.max(Number(expense.totalAmount || 0) - Number(expense.paidAmount || 0), 0),
+      paymentStatus: expense.paymentStatus,
+      paymentMethod: expense.paymentMethod,
+      costCenter: expense.costCenter,
+      journalEntryNo: expense.journalEntry?.entryNumber,
+      attachmentUrl: expense.attachmentUrl,
+      recordStatus: expense.status,
     };
   }
 

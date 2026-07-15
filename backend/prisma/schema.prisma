@@ -253,6 +253,7 @@ model FinanceInvoice {
   registration    Registration?       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
   subtotal        Decimal             @db.Decimal(14, 2)
   vatAmount       Decimal             @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  discount        Decimal             @default(0) @db.Decimal(14, 2)
   total           Decimal             @db.Decimal(14, 2)
   serviceCategory String              @default("LEGACY_COMBINED") @map("service_category")
   costCenterId    String?             @map("cost_center_id") @db.Uuid
@@ -271,6 +272,18 @@ model FinanceInvoice {
   @@index([accountId, status])
   @@index([issuedAt])
   @@map("finance_invoices")
+}
+
+model InvoiceSequence {
+  id         String   @id @default(uuid()) @db.Uuid
+  category   String
+  year       Int
+  nextNumber Int      @default(1) @map("next_number")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([category, year])
+  @@map("invoice_sequences")
 }
 
 model RevenueCategoryMapping {
@@ -635,37 +648,64 @@ model Bank {
 }
 
 model AccountingExpense {
-  id                    String              @id @default(uuid()) @db.Uuid
-  expenseNo             String              @unique @map("expense_no")
-  supplierId            String?             @map("supplier_id") @db.Uuid
-  supplier              AccountingSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  expenseAccountId      String              @map("expense_account_id") @db.Uuid
-  expenseAccount        ChartOfAccount      @relation("ExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
-  invoiceType           String              @map("invoice_type")
-  supplierInvoiceNumber String?             @map("supplier_invoice_number")
+  id                    String                     @id @default(uuid()) @db.Uuid
+  expenseNo             String                     @unique @map("expense_no")
+  supplierId            String?                    @map("supplier_id") @db.Uuid
+  supplier              AccountingSupplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  expenseAccountId      String                     @map("expense_account_id") @db.Uuid
+  expenseAccount        ChartOfAccount             @relation("ExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+  invoiceType           String                     @map("invoice_type")
+  supplierInvoiceNumber String?                    @map("supplier_invoice_number")
   description           String
-  costCenterId          String?             @map("cost_center_id") @db.Uuid
-  costCenter            CostCenter?         @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
-  amountBeforeVat       Decimal             @map("amount_before_vat") @db.Decimal(14, 2)
-  vatRate               Decimal             @default(0) @map("vat_rate") @db.Decimal(5, 2)
-  vatAmount             Decimal             @default(0) @map("vat_amount") @db.Decimal(14, 2)
-  totalAmount           Decimal             @map("total_amount") @db.Decimal(14, 2)
-  paymentStatus         String              @map("payment_status")
-  paymentMethod         String?             @map("payment_method")
-  paymentAccountId      String?             @map("payment_account_id") @db.Uuid
-  paymentAccount        ChartOfAccount?     @relation("ExpensePaymentAccount", fields: [paymentAccountId], references: [id], onDelete: Restrict)
-  journalEntryId        String              @unique @map("journal_entry_id") @db.Uuid
-  journalEntry          JournalEntry        @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
-  expenseDate           DateTime            @map("expense_date") @db.Date
+  costCenterId          String?                    @map("cost_center_id") @db.Uuid
+  costCenter            CostCenter?                @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  amountBeforeVat       Decimal                    @map("amount_before_vat") @db.Decimal(14, 2)
+  vatRate               Decimal                    @default(0) @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount             Decimal                    @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  totalAmount           Decimal                    @map("total_amount") @db.Decimal(14, 2)
+  paidAmount            Decimal                    @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  paymentStatus         String                     @map("payment_status")
+  paymentMethod         String?                    @map("payment_method")
+  paymentAccountId      String?                    @map("payment_account_id") @db.Uuid
+  paymentAccount        ChartOfAccount?            @relation("ExpensePaymentAccount", fields: [paymentAccountId], references: [id], onDelete: Restrict)
+  journalEntryId        String                     @unique @map("journal_entry_id") @db.Uuid
+  journalEntry          JournalEntry               @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  expenseDate           DateTime                   @map("expense_date") @db.Date
+  dueDate               DateTime?                  @map("due_date") @db.Date
+  branchId              String?                    @map("branch_id") @db.Uuid
+  vatTreatment          String                     @default("STANDARD") @map("vat_treatment")
+  referenceNumber       String?                    @map("reference_number")
+  attachmentUrl         String?                    @map("attachment_url")
+  recurring             Boolean                    @default(false)
+  createdById           String?                    @map("created_by_id") @db.Uuid
+  payments              AccountingExpensePayment[]
   notes                 String?
-  status                String              @default("posted")
-  createdAt             DateTime            @default(now()) @map("created_at")
-  updatedAt             DateTime            @updatedAt @map("updated_at")
-  deletedAt             DateTime?           @map("deleted_at")
+  status                String                     @default("posted")
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+  deletedAt             DateTime?                  @map("deleted_at")
 
   @@index([supplierId, expenseDate])
   @@index([expenseAccountId, expenseDate])
   @@map("accounting_expenses")
+}
+
+model AccountingExpensePayment {
+  id               String            @id @default(uuid()) @db.Uuid
+  expenseId        String            @map("expense_id") @db.Uuid
+  expense          AccountingExpense @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+  amount           Decimal           @db.Decimal(14, 2)
+  paymentDate      DateTime          @map("payment_date") @db.Date
+  paymentMethod    String            @map("payment_method")
+  paymentAccountId String            @map("payment_account_id") @db.Uuid
+  referenceNumber  String?           @map("reference_number")
+  journalEntryId   String            @unique @map("journal_entry_id") @db.Uuid
+  idempotencyKey   String            @unique @map("idempotency_key")
+  createdById      String?           @map("created_by_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  @@index([expenseId, paymentDate])
+  @@map("accounting_expense_payments")
 }
 
 model SupplierPayment {
@@ -743,6 +783,8 @@ model InstallmentPlan {
   lateFeeType       String?            @map("late_fee_type")
   lateFeeValue      Decimal            @default(0) @map("late_fee_value") @db.Decimal(14, 2)
   gracePeriodDays   Int                @default(0) @map("grace_period_days")
+  reminderDays      Json               @default("[7,3,1,0]") @map("reminder_days")
+  duplicateDueDates Boolean            @default(false) @map("duplicate_due_dates")
   active            Boolean            @default(true)
   notes             String?
   installments      Installment[]
@@ -764,6 +806,7 @@ model Installment {
   amount     Decimal            @db.Decimal(14, 2)
   paidAmount Decimal            @default(0) @map("paid_amount") @db.Decimal(14, 2)
   status     String             @default("unpaid")
+  notes      String?
   createdAt  DateTime           @default(now()) @map("created_at")
   updatedAt  DateTime           @updatedAt @map("updated_at")
 
@@ -1462,22 +1505,23 @@ model Staff {
 }
 
 model PayrollRun {
-  id                String        @id @default(uuid()) @db.Uuid
+  id                String           @id @default(uuid()) @db.Uuid
   period            String
-  paymentDate       DateTime      @map("payment_date") @db.Date
-  status            String        @default("Posted")
-  grossTotal        Decimal       @map("gross_total") @db.Decimal(14, 2)
-  deductionsTotal   Decimal       @map("deductions_total") @db.Decimal(14, 2)
-  employerGosiTotal Decimal       @map("employer_gosi_total") @db.Decimal(14, 2)
-  netTotal          Decimal       @map("net_total") @db.Decimal(14, 2)
-  journalEntryId    String        @unique @map("journal_entry_id") @db.Uuid
-  journalEntry      JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
-  createdById       String?       @map("created_by_id") @db.Uuid
-  createdBy         User?         @relation("PayrollCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  paymentDate       DateTime         @map("payment_date") @db.Date
+  status            String           @default("Posted")
+  grossTotal        Decimal          @map("gross_total") @db.Decimal(14, 2)
+  deductionsTotal   Decimal          @map("deductions_total") @db.Decimal(14, 2)
+  employerGosiTotal Decimal          @map("employer_gosi_total") @db.Decimal(14, 2)
+  netTotal          Decimal          @map("net_total") @db.Decimal(14, 2)
+  journalEntryId    String           @unique @map("journal_entry_id") @db.Uuid
+  journalEntry      JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdById       String?          @map("created_by_id") @db.Uuid
+  createdBy         User?            @relation("PayrollCreator", fields: [createdById], references: [id], onDelete: SetNull)
   lines             PayrollLine[]
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
-  deletedAt         DateTime?     @map("deleted_at")
+  payments          PayrollPayment[]
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  deletedAt         DateTime?        @map("deleted_at")
 
   @@unique([period, status])
   @@index([paymentDate, status])
@@ -1507,12 +1551,36 @@ model PayrollLine {
   gross                   Decimal    @db.Decimal(14, 2)
   deductions              Decimal    @db.Decimal(14, 2)
   net                     Decimal    @db.Decimal(14, 2)
+  paidAmount              Decimal    @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  paymentStatus           String     @default("UNPAID") @map("payment_status")
+  paymentDate             DateTime?  @map("payment_date") @db.Date
+  paymentMethod           String?    @map("payment_method")
+  paymentReference        String?    @map("payment_reference")
   createdAt               DateTime   @default(now()) @map("created_at")
   updatedAt               DateTime   @updatedAt @map("updated_at")
 
   @@unique([payrollRunId, employeeId])
   @@index([employeeId])
   @@map("payroll_lines")
+}
+
+model PayrollPayment {
+  id               String     @id @default(uuid()) @db.Uuid
+  payrollRunId     String     @map("payroll_run_id") @db.Uuid
+  payrollRun       PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  amount           Decimal    @db.Decimal(14, 2)
+  paymentDate      DateTime   @map("payment_date") @db.Date
+  paymentMethod    String     @map("payment_method")
+  paymentAccountId String     @map("payment_account_id") @db.Uuid
+  referenceNumber  String?    @map("reference_number")
+  employeeIds      Json       @default("[]") @map("employee_ids")
+  journalEntryId   String     @unique @map("journal_entry_id") @db.Uuid
+  idempotencyKey   String     @unique @map("idempotency_key")
+  createdById      String?    @map("created_by_id") @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  @@index([payrollRunId, paymentDate])
+  @@map("payroll_payments")
 }
 
 model UploadedFile {

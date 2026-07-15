@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { StaffService } from '../../../core/finance/staff.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
+import { TranslatePipe } from '../../../core/i18n/translate.pipe';
+import { I18nService } from '../../../core/i18n/i18n.service';
+import { AccountingService } from '../../../core/finance/accounting.service';
 
 @Component({
   selector:'app-salary-processing',
@@ -11,7 +14,8 @@ import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedba
   imports:[
     CommonModule,
     FormsModule,
-    RouterLink
+    RouterLink,
+    TranslatePipe
   ],
   templateUrl:'./salary-processing.html',
   styleUrls: ['./salary-processing.css', '../../../shared/finance/finance-ui.scss']
@@ -25,10 +29,16 @@ export class SalaryProcessing implements OnInit {
   message = '';
   isProcessing = false;
   progressSteps: string[] = [];
+  paymentAccounts:any[] = [];
+  selectedRun:any = null;
+  selectedEmployeeIds = new Set<string>();
+  payForm = { paymentDate: new Date().toISOString().slice(0, 10), paymentAccountId: '', paymentMethod: 'Bank Transfer', referenceNumber: '' };
 
   constructor(
     private staffService: StaffService,
-    private feedback: FeedbackService
+    private feedback: FeedbackService,
+    public i18n: I18nService,
+    private accounting: AccountingService,
   ) {}
 
   ngOnInit(){
@@ -65,6 +75,7 @@ export class SalaryProcessing implements OnInit {
 );
     });
     this.staffService.getPayrollRuns().subscribe((runs) => this.payrollRuns = runs);
+    void this.accounting.getAccounts().then((accounts) => this.paymentAccounts = accounts.filter((account:any) => account.isCashAccount || account.isBankAccount));
 
   }
 
@@ -83,12 +94,12 @@ export class SalaryProcessing implements OnInit {
   async processSalaries(): Promise<void> {
     if (this.isProcessing) return;
     if (!this.employees.length) {
-      this.feedback.validation('Add staff first before processing salaries.');
+      this.feedback.validation(this.i18n.t('payroll.staff_required'));
       return;
     }
     const incomplete = this.employees.filter((employee) => !employee.name || Number(employee.basicSalary || 0) <= 0);
     if (incomplete.length) {
-      this.feedback.error('Payroll could not be processed.', `${incomplete.length} employees have incomplete salary data.`);
+      this.feedback.error(this.i18n.t('payroll.process_failed'), `${incomplete.length} ${this.i18n.t('payroll.incomplete_employees')}`);
       return;
     }
     const confirmed = await this.feedback.confirm({
@@ -105,7 +116,7 @@ export class SalaryProcessing implements OnInit {
     this.staffService.createPayrollRun({
       period: this.period,
       paymentDate: this.paymentDate,
-      status: 'Posted',
+      status: 'Processed',
       employees: this.employees.map((employee:any) => ({
         employeeId: employee.id,
         employeeName: employee.name,
@@ -128,15 +139,44 @@ export class SalaryProcessing implements OnInit {
         this.payrollRuns = [run, ...this.payrollRuns];
         this.message = `Payroll posted successfully. Journal: ${run.journalEntryNo}`;
         this.progressSteps = ['Completed'];
-        this.feedback.success(`Payroll for ${this.period} processed successfully.`, `Journal ${run.journalEntryNo} was created.`);
+        this.feedback.success(this.i18n.t('payroll.processed'), `${this.i18n.t('payroll.journal_created')} ${run.journalEntryNo}`);
         this.isProcessing = false;
       },
       error: (error) => {
         this.message = safeErrorMessage(error);
         this.progressSteps = [];
-        this.feedback.error('Payroll could not be processed.', this.message);
+        this.feedback.error(this.i18n.t('payroll.process_failed'), this.message);
         this.isProcessing = false;
       }
+    });
+  }
+
+  beginPayment(run:any): void {
+    this.selectedRun = run;
+    this.selectedEmployeeIds = new Set((run.employees || []).filter((line:any) => line.paymentStatus !== 'PAID').map((line:any) => line.employeeId));
+  }
+
+  toggleEmployee(id:string, checked:boolean): void {
+    checked ? this.selectedEmployeeIds.add(id) : this.selectedEmployeeIds.delete(id);
+    this.selectedEmployeeIds = new Set(this.selectedEmployeeIds);
+  }
+
+  payPayroll(): void {
+    if (!this.selectedRun || !this.payForm.paymentAccountId || !this.selectedEmployeeIds.size) {
+      this.feedback.validation(this.i18n.t('error.validation_error'));
+      return;
+    }
+    this.staffService.payPayrollRun(this.selectedRun.id, {
+      ...this.payForm,
+      employeeIds: [...this.selectedEmployeeIds],
+      idempotencyKey: `payroll:${this.selectedRun.id}:${[...this.selectedEmployeeIds].sort().join(',')}`,
+    }).subscribe({
+      next: () => {
+        this.feedback.success(this.i18n.t('payroll.payment_saved'));
+        this.selectedRun = null;
+        this.staffService.getPayrollRuns().subscribe((runs) => this.payrollRuns = runs);
+      },
+      error: (error) => this.feedback.error(this.i18n.t('payroll.payment_failed'), safeErrorMessage(error)),
     });
   }
 }

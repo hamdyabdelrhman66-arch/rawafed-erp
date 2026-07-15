@@ -79,7 +79,7 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   readonly bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
   readonly firstStepDocs = ['Student Photo', 'Birth Certificate', 'Passport', 'Iqama', 'Vaccination Record'];
   readonly documentLabels = ['Student Photo', 'Passport', 'Iqama', 'Birth Certificate', 'Vaccination Record', 'School Report', 'Transfer Certificate', 'Family Card', 'Any Other Files'];
-  readonly paymentPlans: PaymentPlan[] = ['Full Payment', '50/50'];
+  readonly paymentPlans: PaymentPlan[] = ['Full Payment', '50/50', 'Custom Installments'];
   readonly feeFields = [
     { key: 'registrationFee', label: 'Registration Fee' },
     { key: 'tuition', label: 'Tuition' },

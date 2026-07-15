@@ -1,86 +1,10 @@
-<div class="page-header">
-  <div>
-    <h1>Purchases & Expenses</h1>
-    <p>Supplier invoices, VAT input, payment status, and posted accounting journals.</p>
+<section class="finance-page" [attr.dir]="i18n.direction()">
+  <header class="page-header"><div><h1>{{ 'expense.title' | t }}</h1><p>{{ 'expense.subtitle' | t }}</p></div><div class="header-actions"><button routerLink="/finance/add-expense">{{ 'expense.add' | t }}</button><button type="button" (click)="printReport()">{{ 'common.print' | t }}</button></div></header>
+  <div class="stats-grid"><div class="stat-card"><h3>{{ 'expense.total' | t }}</h3><h2>{{ money(totalExpenses) }}</h2></div><div class="stat-card"><h3>{{ 'expense.paid' | t }}</h3><h2>{{ money(paidExpenses) }}</h2></div><div class="stat-card"><h3>{{ 'expense.unpaid' | t }}</h3><h2>{{ money(unpaidExpenses) }}</h2></div><div class="stat-card"><h3>{{ 'expense.input_vat' | t }}</h3><h2>{{ money(vatTotal) }}</h2></div></div>
+  <div class="table-card report-print-area"><div class="table-title"><div><h2>{{ 'expense.register' | t }}</h2><p>{{ filteredExpenses.length }} {{ 'expense.records' | t }}</p></div></div>
+    <div class="filters"><input class="search-box" [placeholder]="'expense.search' | t" [(ngModel)]="searchText" /><label><span>{{ 'common.from' | t }}</span><input type="date" [(ngModel)]="fromDate" /></label><label><span>{{ 'common.to' | t }}</span><input type="date" [(ngModel)]="toDate" /></label><label><span>{{ 'common.status' | t }}</span><select [(ngModel)]="statusFilter"><option value="">{{ 'common.all_statuses' | t }}</option><option value="Paid">{{ 'common.paid' | t }}</option><option value="Partial">{{ 'common.partial' | t }}</option><option value="Unpaid">{{ 'common.unpaid' | t }}</option></select></label></div>
+    <div class="table-scroll"><table><thead><tr><th>{{ 'expense.number' | t }}</th><th>{{ 'common.date' | t }}</th><th>{{ 'common.supplier' | t }}</th><th>{{ 'expense.supplier_invoice' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'expense.amount_before_vat' | t }}</th><th>{{ 'expense.input_vat' | t }}</th><th>{{ 'common.total' | t }}</th><th>{{ 'customer.amount_paid' | t }}</th><th>{{ 'customer.remaining' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'payroll.journal' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
+      <tbody><tr *ngFor="let expense of filteredExpenses"><td class="reference-text"><bdi>{{ expense.expenseNo }}</bdi></td><td>{{ expense.date }}</td><td>{{ expense.supplierName || '-' }}</td><td class="reference-text"><bdi>{{ expense.supplierInvoiceNumber || '-' }}</bdi></td><td>{{ expense.title }}</td><td>{{ money(expense.amountBeforeVat) }}</td><td>{{ money(expense.vatAmount) }}</td><td>{{ money(expense.totalAmount) }}</td><td>{{ money(expense.paidAmount) }}</td><td>{{ money(expense.remaining) }}</td><td><span class="status">{{ i18n.status(expense.paymentStatus || expense.status) }}</span></td><td class="reference-text"><bdi>{{ expense.journalEntryNo || '-' }}</bdi></td><td class="actions"><button [routerLink]="['/finance/expense-details', expense.id]">{{ 'coa.view' | t }}</button><button *ngIf="expense.remaining > 0" (click)="beginPayment(expense)">{{ 'expense.record_payment' | t }}</button><a *ngIf="expense.attachmentUrl" [href]="expense.attachmentUrl" target="_blank">{{ 'common.attachments' | t }}</a></td></tr><tr *ngIf="!filteredExpenses.length"><td colspan="13" class="empty-cell">{{ 'expense.empty' | t }}</td></tr></tbody></table></div>
   </div>
-
-  <button class="add-btn" routerLink="/finance/add-expense">+ Add Expense</button>
-</div>
-
-<div class="stats-grid">
-  <div class="stat-card">
-    <h3>Total Expenses</h3>
-    <h2>{{ money(totalExpenses) }}</h2>
-  </div>
-  <div class="stat-card">
-    <h3>Paid</h3>
-    <h2>{{ money(paidExpenses) }}</h2>
-  </div>
-  <div class="stat-card">
-    <h3>Unpaid</h3>
-    <h2>{{ money(unpaidExpenses) }}</h2>
-  </div>
-  <div class="stat-card">
-    <h3>Input VAT</h3>
-    <h2>{{ money(vatTotal) }}</h2>
-  </div>
-</div>
-
-<div class="table-card">
-  <div class="table-title">
-    <div>
-      <h2>Expense Register</h2>
-      <p>{{ filteredExpenses.length }} records</p>
-    </div>
-    <input class="search-box" placeholder="Search supplier, category, invoice, journal..." [(ngModel)]="searchText" />
-  </div>
-
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Expense No.</th>
-          <th>Supplier</th>
-          <th>Category</th>
-          <th>Invoice Type</th>
-          <th>Amount Before VAT</th>
-          <th>VAT</th>
-          <th>Total</th>
-          <th>Payment Status</th>
-          <th>Payment From</th>
-          <th>Journal Entry No.</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let expense of filteredExpenses">
-          <td>{{ expense.date || expense.expenseDate }}</td>
-          <td>{{ expense.expenseNo || expense.no }}</td>
-          <td>{{ expense.supplierName || '-' }}</td>
-          <td>{{ expense.category }}</td>
-          <td>{{ expense.invoiceType || '-' }}</td>
-          <td>{{ money(expense.amountBeforeVat || expense.amount) }}</td>
-          <td>{{ money(expense.vatAmount) }}</td>
-          <td>{{ money(expense.totalAmount || expense.amount) }}</td>
-          <td>
-            <span class="status" [class.paid]="expense.paymentStatus === 'Paid'" [class.pending]="expense.paymentStatus !== 'Paid'">
-              {{ expense.paymentStatus || expense.status }}
-            </span>
-          </td>
-          <td>{{ expense.paymentFrom || '-' }}</td>
-          <td>{{ expense.journalEntryNo || '-' }}</td>
-          <td class="actions-cell">
-            <button class="action-btn view-btn" [routerLink]="['/finance/expense-details', expense.id]">View</button>
-            <button class="action-btn edit-btn" [disabled]="expense.recordStatus === 'posted'">Edit</button>
-            <button class="action-btn print-btn">Print Voucher</button>
-            <a class="action-link" *ngIf="expense.attachmentUrl" [href]="expense.attachmentUrl" target="_blank">Attachment</a>
-          </td>
-        </tr>
-        <tr *ngIf="!filteredExpenses.length">
-          <td colspan="12" class="empty-cell">No expense records found.</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+  <section class="form-card" *ngIf="selectedExpense"><h2>{{ 'expense.record_payment' | t }} · {{ selectedExpense.expenseNo }}</h2><div class="form-grid"><label><span>{{ 'common.amount' | t }}</span><input type="number" [(ngModel)]="paymentForm.amount" /></label><label><span>{{ 'common.date' | t }}</span><input type="date" [(ngModel)]="paymentForm.paymentDate" /></label><label><span>{{ 'common.account' | t }}</span><select [(ngModel)]="paymentForm.paymentAccountId"><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ i18n.language() === 'ar' ? (account.nameAr || account.name) : account.name }}</option></select></label><label><span>{{ 'common.method' | t }}</span><select [(ngModel)]="paymentForm.paymentMethod"><option value="Bank Transfer">{{ 'common.bank_transfer' | t }}</option><option value="Cash">{{ 'common.cash' | t }}</option></select></label><label><span>{{ 'coa.reference' | t }}</span><input [(ngModel)]="paymentForm.referenceNumber" /></label></div><div class="actions"><button (click)="selectedExpense = null">{{ 'common.cancel' | t }}</button><button (click)="recordPayment()">{{ 'expense.record_payment' | t }}</button></div></section>
+</section>

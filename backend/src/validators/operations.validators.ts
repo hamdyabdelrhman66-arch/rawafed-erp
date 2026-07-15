@@ -79,3 +79,11 @@ export const payroll = z
       .default("Posted"),
   })
   .strict();
+export const payrollPayment = z.object({
+  paymentDate: z.string().min(8),
+  paymentAccountId: z.string().uuid(),
+  paymentMethod: z.string().min(1).max(80),
+  referenceNumber: z.string().max(160).optional(),
+  employeeIds: z.array(z.string().uuid()).optional(),
+  idempotencyKey: z.string().min(8).max(200),
+}).strict();

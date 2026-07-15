@@ -3,6 +3,8 @@ import type { PrismaClient } from "@prisma/client";
 import { requireAuth, requireRole } from "../auth.js";
 import { AccountingController } from "../controllers/accounting.controller.js";
 import { requireActiveSession } from "../middlewares/active-session.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
+import * as validators from "../validators/accounting.validators.js";
 
 export function postgresAccountingRoutes(prisma: PrismaClient): Router {
   const r = Router(),
@@ -136,6 +138,7 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
     "/api/accounting/customers/:id/installment-plans",
     ...secured,
     write,
+    validate(validators.installmentPlan),
     c.createPlan,
   );
   r.post(
@@ -176,6 +179,8 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
   r.post("/api/accounting/transfers", ...secured, write, c.transfer);
   r.get("/api/accounting/search", ...secured, read, c.search);
   r.get("/api/finance/expenses", ...secured, read, c.expenseList);
-  r.post("/api/finance/expenses", ...secured, write, c.expenseCreate);
+  r.get("/api/finance/expenses/:id", ...secured, read, c.expenseGet);
+  r.post("/api/finance/expenses", ...secured, write, validate(validators.expense), c.expenseCreate);
+  r.post("/api/finance/expenses/:id/payments", ...secured, write, validate(validators.expensePayment), c.expensePay);
   return r;
 }

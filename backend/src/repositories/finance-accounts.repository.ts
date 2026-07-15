@@ -7,7 +7,7 @@ export class FinanceAccountsRepository {
       where: { deletedAt: null },
       include: {
         registration: true,
-        student: true,
+        student: { include: { customer: { include: { installmentPlans: { where: { active: true, deletedAt: null }, include: { installments: true }, take: 1, orderBy: { createdAt: "desc" } } } } } },
         feeItems: {
           include: {
             paymentAllocations: {
@@ -40,7 +40,7 @@ export class FinanceAccountsRepository {
       where: { id, deletedAt: null },
       include: {
         registration: true,
-        student: true,
+        student: { include: { customer: { include: { installmentPlans: { where: { active: true, deletedAt: null }, include: { installments: true }, take: 1, orderBy: { createdAt: "desc" } } } } } },
         feeItems: {
           include: {
             paymentAllocations: {
@@ -70,7 +70,7 @@ export class FinanceAccountsRepository {
       where: { registrationId },
       include: {
         registration: true,
-        student: true,
+        student: { include: { customer: { include: { installmentPlans: { where: { active: true, deletedAt: null }, include: { installments: true }, take: 1, orderBy: { createdAt: "desc" } } } } } },
         feeItems: {
           include: {
             paymentAllocations: {

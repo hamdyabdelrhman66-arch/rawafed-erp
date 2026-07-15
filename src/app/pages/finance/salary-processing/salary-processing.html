@@ -1,119 +1,14 @@
-<section class="payroll-processing">
-  <header class="page-header">
-    <div>
-      <span>HR & Payroll</span>
-      <h1>Salary Processing</h1>
-      <p>Prepare payroll, post salary journals, and keep a backend payroll run history.</p>
-    </div>
-    <button
-      class="add-btn"
-      type="button"
-      (click)="processSalaries()"
-      [disabled]="isProcessing || !employees.length"
-      [title]="!employees.length ? 'Add staff first before processing salaries' : 'Post payroll journal'">
-      {{ isProcessing ? 'Posting...' : 'Post Payroll Run' }}
-    </button>
-  </header>
-
+<section class="payroll-processing" [attr.dir]="i18n.direction()">
+  <header class="page-header"><div><span>{{ 'nav.payroll' | t }}</span><h1>{{ 'payroll.title' | t }}</h1><p>{{ 'payroll.subtitle' | t }}</p></div><button class="add-btn" type="button" (click)="processSalaries()" [disabled]="isProcessing || !employees.length">{{ isProcessing ? ('common.loading' | t) : ('payroll.post' | t) }}</button></header>
   <p class="notice" *ngIf="message">{{ message }}</p>
-  <section class="notice" *ngIf="isProcessing && progressSteps.length">
-    <strong>Processing payroll...</strong>
-    <span *ngFor="let step of progressSteps">{{ step }}</span>
-  </section>
-  <div class="empty-state" *ngIf="!employees.length">
-    <strong>No staff available for payroll.</strong>
-    <span>Add staff members first, then return here to post the payroll run.</span>
-    <a routerLink="/finance/add-staff">Add Staff</a>
-  </div>
+  <div class="empty-state" *ngIf="!employees.length"><strong>{{ 'payroll.no_staff' | t }}</strong><a routerLink="/finance/add-staff">{{ 'payroll.add_staff' | t }}</a></div>
+  <section class="run-filters"><label><span>{{ 'payroll.period' | t }}</span><input type="month" [(ngModel)]="period" /></label><label><span>{{ 'payroll.processing_date' | t }}</span><input type="date" [(ngModel)]="paymentDate" /></label></section>
+  <section class="table-card"><h2>{{ 'payroll.lines' | t }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'payroll.employee' | t }}</th><th>{{ 'payroll.basic' | t }}</th><th>{{ 'payroll.housing' | t }}</th><th>{{ 'payroll.transport' | t }}</th><th>{{ 'payroll.allowances' | t }}</th><th>{{ 'payroll.overtime' | t }}</th><th>{{ 'payroll.bonus' | t }}</th><th>{{ 'payroll.deductions' | t }}</th><th>{{ 'payroll.net' | t }}</th></tr></thead>
+    <tbody><tr *ngFor="let emp of employees"><td><strong>{{ emp.name }}</strong><small>{{ emp.position }}</small></td><td><input type="number" [(ngModel)]="emp.basicSalary" /></td><td><input type="number" [(ngModel)]="emp.housingAllowance" /></td><td><input type="number" [(ngModel)]="emp.transportationAllowance" /></td><td><input type="number" [(ngModel)]="emp.otherAllowances" /></td><td><input type="number" [(ngModel)]="emp.overtime" /></td><td><input type="number" [(ngModel)]="emp.bonus" /></td><td>{{ deductions(emp) | number:'1.2-2' }}</td><td><strong>{{ i18n.money(net(emp)) }}</strong></td></tr><tr *ngIf="!employees.length"><td colspan="9" class="empty-cell">{{ 'payroll.no_staff' | t }}</td></tr></tbody></table></div></section>
+  <section class="table-card"><h2>{{ 'payroll.history' | t }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'payroll.period' | t }}</th><th>{{ 'payroll.processing_date' | t }}</th><th>{{ 'common.total' | t }}</th><th>{{ 'payroll.deductions' | t }}</th><th>{{ 'payroll.net' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'payroll.journal' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
+    <tbody><tr *ngFor="let run of payrollRuns"><td>{{ run.period }}</td><td>{{ run.paymentDate }}</td><td>{{ i18n.money(run.grossTotal) }}</td><td>{{ i18n.money(run.deductionsTotal) }}</td><td>{{ i18n.money(run.netTotal) }}</td><td><span class="status">{{ i18n.status(run.status) }}</span></td><td class="reference-text"><bdi>{{ run.journalEntryNo }}</bdi></td><td><button *ngIf="run.status !== 'PAID'" type="button" (click)="beginPayment(run)">{{ 'payroll.pay' | t }}</button></td></tr><tr *ngIf="!payrollRuns.length"><td colspan="8" class="empty-cell">{{ 'payroll.no_runs' | t }}</td></tr></tbody></table></div></section>
 
-  <section class="run-filters">
-    <label>
-      <span>Payroll Period</span>
-      <input type="month" [(ngModel)]="period" />
-    </label>
-    <label>
-      <span>Payment Date</span>
-      <input type="date" [(ngModel)]="paymentDate" />
-    </label>
-  </section>
-
-  <section class="table-card">
-    <h2>Payroll Lines</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Basic</th>
-            <th>Housing</th>
-            <th>Transport</th>
-            <th>Other Allow.</th>
-            <th>Overtime</th>
-            <th>Bonus</th>
-            <th>Absence</th>
-            <th>Late</th>
-            <th>Loans</th>
-            <th>GOSI Emp.</th>
-            <th>GOSI Employer</th>
-            <th>Net Salary</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let emp of employees">
-            <td><strong>{{ emp.name }}</strong><small>{{ emp.position }}</small></td>
-            <td><input type="number" [(ngModel)]="emp.basicSalary" /></td>
-            <td><input type="number" [(ngModel)]="emp.housingAllowance" /></td>
-            <td><input type="number" [(ngModel)]="emp.transportationAllowance" /></td>
-            <td><input type="number" [(ngModel)]="emp.otherAllowances" /></td>
-            <td><input type="number" [(ngModel)]="emp.overtime" /></td>
-            <td><input type="number" [(ngModel)]="emp.bonus" /></td>
-            <td><input type="number" [(ngModel)]="emp.absenceDeduction" /></td>
-            <td><input type="number" [(ngModel)]="emp.lateDeduction" /></td>
-            <td><input type="number" [(ngModel)]="emp.loanDeduction" /></td>
-            <td><input type="number" [(ngModel)]="emp.gosiEmployee" /></td>
-            <td><input type="number" [(ngModel)]="emp.gosiEmployer" /></td>
-            <td><strong>{{ net(emp) | number:'1.2-2' }} SAR</strong></td>
-          </tr>
-          <tr *ngIf="!employees.length">
-            <td colspan="13" class="empty-cell">No employees found.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="table-card">
-    <h2>Payroll Run History</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Period</th>
-            <th>Payment Date</th>
-            <th>Gross</th>
-            <th>Deductions</th>
-            <th>Employer GOSI</th>
-            <th>Net</th>
-            <th>Status</th>
-            <th>Journal</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let run of payrollRuns">
-            <td>{{ run.period }}</td>
-            <td>{{ run.paymentDate }}</td>
-            <td>{{ run.grossTotal | number:'1.2-2' }} SAR</td>
-            <td>{{ run.deductionsTotal | number:'1.2-2' }} SAR</td>
-            <td>{{ run.employerGosiTotal | number:'1.2-2' }} SAR</td>
-            <td>{{ run.netTotal | number:'1.2-2' }} SAR</td>
-            <td>{{ run.status }}</td>
-            <td>{{ run.journalEntryNo }}</td>
-          </tr>
-          <tr *ngIf="!payrollRuns.length">
-            <td colspan="8" class="empty-cell">No payroll runs posted yet.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <section class="form-card" *ngIf="selectedRun"><h2>{{ 'payroll.pay' | t }} · {{ selectedRun.period }}</h2><div class="form-grid"><label><span>{{ 'common.date' | t }}</span><input type="date" [(ngModel)]="payForm.paymentDate" /></label><label><span>{{ 'common.account' | t }}</span><select [(ngModel)]="payForm.paymentAccountId"><option value="">—</option><option *ngFor="let account of paymentAccounts" [value]="account.id">{{ account.code }} - {{ i18n.language() === 'ar' ? (account.nameAr || account.name) : account.name }}</option></select></label><label><span>{{ 'common.method' | t }}</span><select [(ngModel)]="payForm.paymentMethod"><option value="Bank Transfer">{{ 'common.bank_transfer' | t }}</option><option value="Cash">{{ 'common.cash' | t }}</option></select></label><label><span>{{ 'coa.reference' | t }}</span><input [(ngModel)]="payForm.referenceNumber" /></label></div>
+    <div class="table-scroll"><table><thead><tr><th></th><th>{{ 'payroll.employee' | t }}</th><th>{{ 'payroll.net' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead><tbody><tr *ngFor="let line of selectedRun.employees"><td><input type="checkbox" [checked]="selectedEmployeeIds.has(line.employeeId)" [disabled]="line.paymentStatus === 'PAID'" (change)="toggleEmployee(line.employeeId, $any($event.target).checked)" /></td><td>{{ line.employeeName }}</td><td>{{ i18n.money(line.net) }}</td><td>{{ i18n.status(line.paymentStatus) }}</td></tr></tbody></table></div>
+    <div class="actions"><button type="button" (click)="selectedRun = null">{{ 'common.cancel' | t }}</button><button type="button" (click)="payPayroll()">{{ 'payroll.pay' | t }}</button></div></section>
 </section>

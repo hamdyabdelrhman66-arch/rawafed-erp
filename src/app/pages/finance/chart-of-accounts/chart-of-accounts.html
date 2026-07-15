@@ -1,52 +1,44 @@
 <section class="coa-page">
   <header class="page-header">
     <div>
-      <span>Accounting Master Data</span>
-      <h1>Chart of Accounts</h1>
-      <p>Professional account tree with balances, posting controls, archive, movement, and backend validation.</p>
+      <span>{{ l('Accounting Master Data', 'البيانات المحاسبية الأساسية') }}</span>
+      <h1>{{ l('Chart of Accounts', 'دليل الحسابات') }}</h1>
+      <p>{{ l('Professional account tree with balances, posting controls, archive, movement, and backend validation.', 'شجرة حسابات احترافية تشمل الأرصدة وضوابط الترحيل والأرشفة والحركات والتحقق من الخادم.') }}</p>
     </div>
   </header>
   <div class="breadcrumb">{{ selectedAccount ? breadcrumb(selectedAccount) : l('Accounting / Chart of Accounts', 'الحسابات / دليل الحسابات') }}</div>
 
   <section class="toolbar-card">
     <div class="toolbar">
-      <button type="button" class="primary" [disabled]="!canWrite" (click)="newParent()">+ New Parent Account</button>
-      <button type="button" [disabled]="!canWrite" (click)="newChild()">+ New Child Account</button>
-      <button type="button" [disabled]="!selectedAccount || !canWrite" (click)="editSelected()">Edit</button>
-      <button type="button" [disabled]="!selectedAccount || !canFullAccess" (click)="deleteSelected()">Delete</button>
-      <button type="button" [disabled]="!selectedAccount || !canFullAccess" (click)="archiveSelected()">Archive</button>
-      <button type="button" [disabled]="!canWrite" (click)="importPlaceholder()">Import</button>
-      <button type="button" (click)="downloadTemplate()">Excel Template</button>
-      <button type="button" (click)="exportExcel()">Export Excel</button>
-      <button type="button" (click)="refresh()">Refresh</button>
+      <button type="button" class="primary" [disabled]="!canWrite" (click)="newParent()">+ {{ l('New Parent Account', 'حساب رئيسي جديد') }}</button>
+      <button type="button" [disabled]="!canWrite" (click)="newChild()">+ {{ l('New Child Account', 'حساب فرعي جديد') }}</button>
+      <button type="button" [disabled]="!selectedAccount || !canWrite" (click)="editSelected()">{{ l('Edit', 'تعديل') }}</button>
+      <button type="button" [disabled]="!selectedAccount || !canFullAccess" (click)="deleteSelected()">{{ l('Delete', 'حذف') }}</button>
+      <button type="button" [disabled]="!selectedAccount || !canFullAccess" (click)="archiveSelected()">{{ l('Archive', 'أرشفة') }}</button>
+      <button type="button" [disabled]="!canWrite" (click)="importPlaceholder()">{{ l('Import', 'استيراد') }}</button>
+      <button type="button" (click)="downloadTemplate()">{{ l('Excel Template', 'قالب إكسل') }}</button>
+      <button type="button" (click)="exportExcel()">{{ l('Export Excel', 'تصدير إكسل') }}</button>
+      <button type="button" (click)="refresh()">{{ l('Refresh', 'تحديث') }}</button>
     </div>
     <div class="filters">
-      <input type="search" placeholder="Search by code, Arabic, English, type..." [(ngModel)]="searchText" />
+      <input type="search" [placeholder]="l('Search by code, Arabic, English, type...', 'بحث بالكود أو الاسم العربي أو الإنجليزي أو النوع...')" [(ngModel)]="searchText" />
       <select [(ngModel)]="typeFilter">
-        <option value="">All types</option>
+        <option value="">{{ l('All types', 'كل الأنواع') }}</option>
         <option *ngFor="let type of accountTypes" [value]="type.value">{{ accountTypeLabel(type.value) }}</option>
       </select>
       <select [(ngModel)]="statusFilter">
-        <option value="">All statuses</option>
+        <option value="">{{ l('All statuses', 'كل الحالات') }}</option>
         <option *ngFor="let status of statuses" [value]="status">{{ statusLabel(status) }}</option>
       </select>
-      <button type="button" (click)="expandAll()">Expand All</button>
-      <button type="button" (click)="collapseAll()">Collapse All</button>
+      <button type="button" (click)="expandAll()">{{ l('Expand All', 'توسيع الكل') }}</button>
+      <button type="button" (click)="collapseAll()">{{ l('Collapse All', 'طي الكل') }}</button>
     </div>
     <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
   </section>
 
   <section class="tree-card">
     <div class="tree-header">
-      <div>Account</div>
-      <div>Type</div>
-      <div>Opening</div>
-      <div>Current</div>
-      <div>Debit</div>
-      <div>Credit</div>
-      <div>Entries</div>
-      <div>Last Txn</div>
-      <div>Status</div>
+      <div>{{ l('Account', 'الحساب') }}</div><div>{{ l('Type', 'النوع') }}</div><div>{{ l('Opening', 'الافتتاحي') }}</div><div>{{ l('Current', 'الحالي') }}</div><div>{{ l('Debit', 'مدين') }}</div><div>{{ l('Credit', 'دائن') }}</div><div>{{ l('Entries', 'القيود') }}</div><div>{{ l('Last Txn', 'آخر حركة') }}</div><div>{{ l('Status', 'الحالة') }}</div>
     </div>
 
     <div class="tree-row"
@@ -64,7 +56,7 @@
           <strong>{{ account.code }} · {{ accountName(account) }}</strong>
           <small>{{ i18n.language() === 'ar' ? account.nameEn : account.nameAr }} <span *ngIf="flagText(account)">· {{ flagText(account) }}</span></small>
         </div>
-        <div class="hover-actions"><button type="button" title="View account" (click)="select(account); $event.stopPropagation()">View</button><button type="button" title="Edit account" *ngIf="canWrite" (click)="selectedId = account.id; editSelected(); $event.stopPropagation()">Edit</button></div>
+        <div class="hover-actions"><button type="button" [title]="l('View account','عرض الحساب')" (click)="select(account); $event.stopPropagation()">{{ l('View','عرض') }}</button><button type="button" [title]="l('Edit account','تعديل الحساب')" *ngIf="canWrite" (click)="selectedId = account.id; editSelected(); $event.stopPropagation()">{{ l('Edit','تعديل') }}</button></div>
       </div>
       <div>{{ accountTypeLabel(account.type) }}</div>
       <div>{{ money(account.openingBalance) }} {{ account.currency }}</div>
@@ -76,33 +68,33 @@
       <div><span class="status" [class.inactive]="account.status !== 'active'">{{ statusLabel(account.status) }}</span></div>
     </div>
 
-    <p class="empty" *ngIf="!visibleRows.length">No accounts match your filters.</p>
+    <p class="empty" *ngIf="!visibleRows.length">{{ l('No accounts match your filters.', 'لا توجد حسابات تطابق عوامل التصفية.') }}</p>
   </section>
 
   <div class="drawer-backdrop" *ngIf="drawerOpen" (click)="closeDrawer()"></div>
   <aside class="account-drawer" *ngIf="drawerOpen" [class.loading]="detailsLoading">
     <header class="drawer-head">
-      <div><span>Account Ledger</span><h2>{{ selectedAccount?.code }} · {{ accountName(selectedAccount) }}</h2><p>{{ i18n.language() === 'ar' ? selectedAccount?.nameEn : selectedAccount?.nameAr }}</p></div>
+      <div><span>{{ l('Account Ledger', 'دفتر الأستاذ') }}</span><h2>{{ selectedAccount?.code }} · {{ accountName(selectedAccount) }}</h2><p>{{ i18n.language() === 'ar' ? selectedAccount?.nameEn : selectedAccount?.nameAr }}</p></div>
       <button class="close" type="button" (click)="closeDrawer()">×</button>
     </header>
     <div class="drawer-actions">
-      <button (click)="editSelected()" [disabled]="!canWrite">Edit Account</button><button (click)="newChild()" [disabled]="!canWrite">Add Child</button><button (click)="drawerTab = 'transactions'">View Full Ledger</button><button (click)="createJournalForAccount()" [disabled]="!canWrite">Create Journal Entry</button><button (click)="exportLedgerPdf()">Export PDF</button><button (click)="exportLedgerExcel()">Export Excel</button><button (click)="printLedger()">Print</button>
+      <button (click)="editSelected()" [disabled]="!canWrite">{{ l('Edit Account','تعديل الحساب') }}</button><button (click)="newChild()" [disabled]="!canWrite">{{ l('Add Child','إضافة فرعي') }}</button><button (click)="drawerTab = 'transactions'">{{ l('View Full Ledger','عرض دفتر الأستاذ كاملاً') }}</button><button (click)="createJournalForAccount()" [disabled]="!canWrite">{{ l('Create Journal Entry','إنشاء قيد يومية') }}</button><button (click)="exportLedgerPdf()">{{ l('Export PDF','تصدير PDF') }}</button><button (click)="exportLedgerExcel()">{{ l('Export Excel','تصدير إكسل') }}</button><button (click)="printLedger()">{{ l('Print','طباعة') }}</button>
     </div>
-    <nav class="drawer-tabs"><button [class.active]="drawerTab === 'overview'" (click)="drawerTab = 'overview'">Overview</button><button [class.active]="drawerTab === 'transactions'" (click)="drawerTab = 'transactions'">Transactions</button><button [class.active]="drawerTab === 'movement'" (click)="drawerTab = 'movement'">Movement</button><button [class.active]="drawerTab === 'links'" (click)="drawerTab = 'links'">Links</button><button [class.active]="drawerTab === 'audit'" (click)="drawerTab = 'audit'">Activity & Audit</button></nav>
-    <div class="drawer-loading" *ngIf="detailsLoading">Loading account ledger from PostgreSQL…</div>
+    <nav class="drawer-tabs"><button [class.active]="drawerTab === 'overview'" (click)="drawerTab = 'overview'">{{ l('Overview','نظرة عامة') }}</button><button [class.active]="drawerTab === 'transactions'" (click)="drawerTab = 'transactions'">{{ l('Transactions','المعاملات') }}</button><button [class.active]="drawerTab === 'movement'" (click)="drawerTab = 'movement'">{{ l('Movement','الحركة') }}</button><button [class.active]="drawerTab === 'links'" (click)="drawerTab = 'links'">{{ l('Links','الروابط') }}</button><button [class.active]="drawerTab === 'audit'" (click)="drawerTab = 'audit'">{{ l('Activity & Audit','النشاط والتدقيق') }}</button></nav>
+    <div class="drawer-loading" *ngIf="detailsLoading">{{ l('Loading account ledger from PostgreSQL…','جارٍ تحميل دفتر الأستاذ من PostgreSQL…') }}</div>
     <div class="drawer-body" *ngIf="!detailsLoading && accountDetails">
       <ng-container *ngIf="drawerTab === 'overview'">
-        <section class="metrics"><article><span>Opening Balance</span><strong>{{ money(accountDetails.openingBalance) }}</strong></article><article class="accent"><span>Current Balance</span><strong>{{ money(accountDetails.currentBalance) }}</strong></article><article><span>Debit Total</span><strong>{{ money(accountDetails.debitTotal) }}</strong></article><article><span>Credit Total</span><strong>{{ money(accountDetails.creditTotal) }}</strong></article><article><span>Transactions</span><strong>{{ accountDetails.transactionCount }}</strong></article><article><span>Journals</span><strong>{{ accountDetails.journalCount }}</strong></article></section>
-        <section class="info-card"><h3>Account Information</h3><div class="info-grid"><p><span>Account Code</span>{{ accountDetails.code }}</p><p><span>Arabic Name</span>{{ accountDetails.nameAr || '—' }}</p><p><span>English Name</span>{{ accountDetails.nameEn }}</p><p><span>Parent Account</span>{{ accountDetails.parentAccount?.code || l('Root', 'رئيسي') }} {{ accountDetails.parentAccount?.name || '' }}</p><p><span>Account Type</span><b class="type-pill" [attr.data-type]="accountDetails.accountType">{{ accountTypeLabel(accountDetails.accountType) }}</b></p><p><span>Normal Balance</span>{{ normalBalanceLabel(accountDetails.normalBalance) }}</p><p><span>Status</span>{{ statusLabel(accountDetails.status) }}</p><p><span>Branch</span>{{ accountDetails.branch || l('All / none', 'الكل / لا يوجد') }}</p><p><span>Cost Center</span>{{ accountDetails.costCenter || '—' }}</p><p><span>Created By</span>{{ accountDetails.createdBy || l('System', 'النظام') }}</p><p><span>Created Date</span>{{ accountDetails.createdAt | date:'medium' }}</p><p><span>Last Updated</span>{{ accountDetails.updatedAt | date:'medium' }}</p><p><span>Last Modified By</span>{{ accountDetails.lastModifiedBy || l('System', 'النظام') }}</p><p><span>First Transaction</span>{{ accountDetails.firstTransactionDate || '—' }}</p><p><span>Last Transaction</span>{{ accountDetails.lastTransactionDate || '—' }}</p><p class="wide"><span>Notes</span>{{ accountDetails.notes || l('No notes', 'لا توجد ملاحظات') }}</p></div></section>
-        <section class="chart-grid"><article><h3>Monthly Balance Trend</h3><div class="bars"><div *ngFor="let row of accountDetails.monthlyMovement"><i [style.height.%]="chartHeight(row.net, accountDetails.monthlyMovement, 'net')"></i><small>{{ row.period }}</small></div></div></article><article><h3>Debit vs Credit</h3><div class="donut-summary"><div class="donut" [style.--debit]="accountDetails.debitTotal"></div><p><span><i class="debit"></i>Debit {{ money(accountDetails.debitTotal) }}</span><span><i class="credit"></i>Credit {{ money(accountDetails.creditTotal) }}</span></p></div></article></section>
-        <section class="info-card"><h3>Recent Journal Entries</h3><div class="mini-table"><div class="mini-head"><span>Date</span><span>Entry</span><span>Description</span><span>Debit</span><span>Credit</span><span>Balance</span></div><div *ngFor="let row of accountDetails.recentJournalEntries"><span>{{ row.date }}</span><span>{{ row.entryNumber }}</span><span>{{ row.description }}</span><span>{{ money(row.debit) }}</span><span>{{ money(row.credit) }}</span><span>{{ money(row.runningBalance) }}</span></div></div></section>
+        <section class="metrics"><article><span>{{ l('Opening Balance','الرصيد الافتتاحي') }}</span><strong>{{ money(accountDetails.openingBalance) }}</strong></article><article class="accent"><span>{{ l('Current Balance','الرصيد الحالي') }}</span><strong>{{ money(accountDetails.currentBalance) }}</strong></article><article><span>{{ l('Debit Total','إجمالي المدين') }}</span><strong>{{ money(accountDetails.debitTotal) }}</strong></article><article><span>{{ l('Credit Total','إجمالي الدائن') }}</span><strong>{{ money(accountDetails.creditTotal) }}</strong></article><article><span>{{ l('Transactions','المعاملات') }}</span><strong>{{ accountDetails.transactionCount }}</strong></article><article><span>{{ l('Journals','القيود') }}</span><strong>{{ accountDetails.journalCount }}</strong></article></section>
+        <section class="info-card"><h3>{{ l('Account Information','بيانات الحساب') }}</h3><div class="info-grid"><p><span>{{ l('Account Code','كود الحساب') }}</span>{{ accountDetails.code }}</p><p><span>{{ l('Arabic Name','الاسم العربي') }}</span>{{ accountDetails.nameAr || '—' }}</p><p><span>{{ l('English Name','الاسم الإنجليزي') }}</span>{{ accountDetails.nameEn }}</p><p><span>{{ l('Parent Account','الحساب الأب') }}</span>{{ accountDetails.parentAccount?.code || l('Root', 'رئيسي') }} {{ accountDetails.parentAccount?.name || '' }}</p><p><span>{{ l('Account Type','نوع الحساب') }}</span><b class="type-pill" [attr.data-type]="accountDetails.accountType">{{ accountTypeLabel(accountDetails.accountType) }}</b></p><p><span>{{ l('Normal Balance','طبيعة الرصيد') }}</span>{{ normalBalanceLabel(accountDetails.normalBalance) }}</p><p><span>{{ l('Status','الحالة') }}</span>{{ statusLabel(accountDetails.status) }}</p><p><span>{{ l('Branch','الفرع') }}</span>{{ accountDetails.branch || l('All / none', 'الكل / لا يوجد') }}</p><p><span>{{ l('Cost Center','مركز التكلفة') }}</span>{{ accountDetails.costCenter || '—' }}</p><p><span>{{ l('Created By','أنشأه') }}</span>{{ accountDetails.createdBy || l('System', 'النظام') }}</p><p><span>{{ l('Created Date','تاريخ الإنشاء') }}</span>{{ accountDetails.createdAt | date:'medium' }}</p><p><span>{{ l('Last Updated','آخر تحديث') }}</span>{{ accountDetails.updatedAt | date:'medium' }}</p><p><span>{{ l('Last Modified By','آخر تعديل بواسطة') }}</span>{{ accountDetails.lastModifiedBy || l('System', 'النظام') }}</p><p><span>{{ l('First Transaction','أول معاملة') }}</span>{{ accountDetails.firstTransactionDate || '—' }}</p><p><span>{{ l('Last Transaction','آخر معاملة') }}</span>{{ accountDetails.lastTransactionDate || '—' }}</p><p class="wide"><span>{{ l('Notes','ملاحظات') }}</span>{{ accountDetails.notes || l('No notes', 'لا توجد ملاحظات') }}</p></div></section>
+        <section class="chart-grid"><article><h3>{{ l('Monthly Balance Trend','اتجاه الرصيد الشهري') }}</h3><div class="bars"><div *ngFor="let row of accountDetails.monthlyMovement"><i [style.height.%]="chartHeight(row.net, accountDetails.monthlyMovement, 'net')"></i><small>{{ row.period }}</small></div></div></article><article><h3>{{ l('Debit vs Credit','المدين مقابل الدائن') }}</h3><div class="donut-summary"><div class="donut" [style.--debit]="accountDetails.debitTotal"></div><p><span><i class="debit"></i>{{ l('Debit','مدين') }} {{ money(accountDetails.debitTotal) }}</span><span><i class="credit"></i>{{ l('Credit','دائن') }} {{ money(accountDetails.creditTotal) }}</span></p></div></article></section>
+        <section class="info-card"><h3>{{ l('Recent Journal Entries','أحدث قيود اليومية') }}</h3><div class="mini-table"><div class="mini-head"><span>{{ l('Date','التاريخ') }}</span><span>{{ l('Entry','القيد') }}</span><span>{{ l('Description','الوصف') }}</span><span>{{ l('Debit','مدين') }}</span><span>{{ l('Credit','دائن') }}</span><span>{{ l('Balance','الرصيد') }}</span></div><div *ngFor="let row of accountDetails.recentJournalEntries"><span>{{ row.date }}</span><span>{{ row.entryNumber }}</span><span>{{ row.description }}</span><span>{{ money(row.debit) }}</span><span>{{ money(row.credit) }}</span><span>{{ money(row.runningBalance) }}</span></div></div></section>
       </ng-container>
-      <section class="info-card" *ngIf="drawerTab === 'transactions'"><h3>Full Account Ledger & Running Balance</h3><div class="mini-table ledger"><div class="mini-head"><span>Date</span><span>Entry</span><span>Description</span><span>Reference</span><span>Debit</span><span>Credit</span><span>Running</span></div><div *ngFor="let row of accountDetails.transactions"><span>{{ row.date }}</span><span>{{ row.entryNumber }}</span><span>{{ row.description }}</span><span>{{ row.referenceNumber || '—' }}</span><span>{{ money(row.debit) }}</span><span>{{ money(row.credit) }}</span><span><strong>{{ money(row.runningBalance) }}</strong></span></div></div></section>
-      <ng-container *ngIf="drawerTab === 'movement'"><section class="movement-grid"><article *ngFor="let movement of [{title:l('Monthly Movement','الحركة الشهرية'),rows:accountDetails.monthlyMovement},{title:l('Quarterly Movement','الحركة ربع السنوية'),rows:accountDetails.quarterlyMovement},{title:l('Yearly Movement','الحركة السنوية'),rows:accountDetails.yearlyMovement}]"><h3>{{ movement.title }}</h3><div class="movement-row" *ngFor="let row of movement.rows"><strong>{{ row.period }}</strong><span>{{ l('Debit', 'مدين') }} {{ money(row.debit) }}</span><span>{{ l('Credit', 'دائن') }} {{ money(row.credit) }}</span><b>{{ money(row.net) }}</b></div></article></section><section class="info-card"><h3>Running Balance Chart</h3><div class="running-chart"><div *ngFor="let row of accountDetails.transactions"><i [style.height.%]="chartHeight(row.runningBalance, accountDetails.transactions, 'runningBalance')"></i></div></div></section></ng-container>
-      <section class="link-grid" *ngIf="drawerTab === 'links'"><article><span>Linked Journals</span><strong>{{ accountDetails.linkedJournals }}</strong></article><article><span>Linked Invoices</span><strong>{{ accountDetails.linkedInvoices }}</strong></article><article><span>Linked Payments</span><strong>{{ accountDetails.linkedPayments }}</strong></article><article><span>Linked Assets</span><strong>{{ accountDetails.linkedAssets }}</strong></article><article><span>Linked Cost Centers</span><strong>{{ accountDetails.linkedCostCenters }}</strong></article><article><span>Linked Branches</span><strong>{{ accountDetails.linkedBranches }}</strong></article><article class="wide"><span>Linked Reports</span><p>{{ accountDetails.linkedReports.join(' · ') }}</p></article></section>
-      <ng-container *ngIf="drawerTab === 'audit'"><section class="timeline"><article *ngFor="let item of accountDetails.recentActivity"><i></i><div><strong>{{ item.title }}</strong><span>{{ item.date | date:'medium' }} · {{ item.by || '' }}</span></div></article></section><section class="info-card"><h3>Audit Log</h3><div class="audit-row" *ngFor="let item of accountDetails.auditLog"><strong>{{ item.action }}</strong><span>{{ item.actor || l('System', 'النظام') }}</span><time>{{ item.date | date:'medium' }}</time></div></section></ng-container>
+      <section class="info-card" *ngIf="drawerTab === 'transactions'"><h3>{{ l('Full Account Ledger & Running Balance','دفتر الأستاذ الكامل والرصيد الجاري') }}</h3><div class="mini-table ledger"><div class="mini-head"><span>{{ l('Date','التاريخ') }}</span><span>{{ l('Entry','القيد') }}</span><span>{{ l('Description','الوصف') }}</span><span>{{ l('Reference','المرجع') }}</span><span>{{ l('Debit','مدين') }}</span><span>{{ l('Credit','دائن') }}</span><span>{{ l('Running','الجاري') }}</span></div><div *ngFor="let row of accountDetails.transactions"><span>{{ row.date }}</span><span>{{ row.entryNumber }}</span><span>{{ row.description }}</span><span>{{ row.referenceNumber || '—' }}</span><span>{{ money(row.debit) }}</span><span>{{ money(row.credit) }}</span><span><strong>{{ money(row.runningBalance) }}</strong></span></div></div></section>
+      <ng-container *ngIf="drawerTab === 'movement'"><section class="movement-grid"><article *ngFor="let movement of [{title:l('Monthly Movement','الحركة الشهرية'),rows:accountDetails.monthlyMovement},{title:l('Quarterly Movement','الحركة ربع السنوية'),rows:accountDetails.quarterlyMovement},{title:l('Yearly Movement','الحركة السنوية'),rows:accountDetails.yearlyMovement}]"><h3>{{ movement.title }}</h3><div class="movement-row" *ngFor="let row of movement.rows"><strong>{{ row.period }}</strong><span>{{ l('Debit', 'مدين') }} {{ money(row.debit) }}</span><span>{{ l('Credit', 'دائن') }} {{ money(row.credit) }}</span><b>{{ money(row.net) }}</b></div></article></section><section class="info-card"><h3>{{ l('Running Balance Chart','مخطط الرصيد الجاري') }}</h3><div class="running-chart"><div *ngFor="let row of accountDetails.transactions"><i [style.height.%]="chartHeight(row.runningBalance, accountDetails.transactions, 'runningBalance')"></i></div></div></section></ng-container>
+      <section class="link-grid" *ngIf="drawerTab === 'links'"><article><span>{{ l('Linked Journals','القيود المرتبطة') }}</span><strong>{{ accountDetails.linkedJournals }}</strong></article><article><span>{{ l('Linked Invoices','الفواتير المرتبطة') }}</span><strong>{{ accountDetails.linkedInvoices }}</strong></article><article><span>{{ l('Linked Payments','المدفوعات المرتبطة') }}</span><strong>{{ accountDetails.linkedPayments }}</strong></article><article><span>{{ l('Linked Assets','الأصول المرتبطة') }}</span><strong>{{ accountDetails.linkedAssets }}</strong></article><article><span>{{ l('Linked Cost Centers','مراكز التكلفة المرتبطة') }}</span><strong>{{ accountDetails.linkedCostCenters }}</strong></article><article><span>{{ l('Linked Branches','الفروع المرتبطة') }}</span><strong>{{ accountDetails.linkedBranches }}</strong></article><article class="wide"><span>{{ l('Linked Reports','التقارير المرتبطة') }}</span><p>{{ accountDetails.linkedReports.join(' · ') }}</p></article></section>
+      <ng-container *ngIf="drawerTab === 'audit'"><section class="timeline"><article *ngFor="let item of accountDetails.recentActivity"><i></i><div><strong>{{ item.title }}</strong><span>{{ item.date | date:'medium' }} · {{ item.by || '' }}</span></div></article></section><section class="info-card"><h3>{{ l('Audit Log','سجل التدقيق') }}</h3><div class="audit-row" *ngFor="let item of accountDetails.auditLog"><strong>{{ item.action }}</strong><span>{{ item.actor || l('System', 'النظام') }}</span><time>{{ item.date | date:'medium' }}</time></div></section></ng-container>
     </div>
-    <footer class="drawer-footer"><button (click)="closeDrawer()">Close</button></footer>
+    <footer class="drawer-footer"><button (click)="closeDrawer()">{{ l('Close','إغلاق') }}</button></footer>
   </aside>
 
   <div class="modal-backdrop" *ngIf="modalOpen">
@@ -117,69 +109,69 @@
 
       <div class="form-grid">
         <label>
-          <span>Account Code</span>
+          <span>{{ l('Account Code','كود الحساب') }}</span>
           <input type="text" [(ngModel)]="form.code" [disabled]="!canEditCode()" />
         </label>
         <label>
-          <span>English Name</span>
+          <span>{{ l('English Name','الاسم الإنجليزي') }}</span>
           <input type="text" [(ngModel)]="form.nameEn" />
         </label>
         <label>
-          <span>Arabic Name</span>
+          <span>{{ l('Arabic Name','الاسم العربي') }}</span>
           <input type="text" [(ngModel)]="form.nameAr" />
         </label>
         <label>
-          <span>Parent Account</span>
+          <span>{{ l('Parent Account','الحساب الأب') }}</span>
           <select [(ngModel)]="form.parentId" (ngModelChange)="onParentOrTypeChange()">
-            <option value="">No parent</option>
+            <option value="">{{ l('No parent','بدون حساب أب') }}</option>
             <option *ngFor="let account of parentAccounts" [value]="account.id">{{ account.code }} - {{ account.nameEn }}</option>
           </select>
         </label>
         <label>
-          <span>Account Type</span>
+          <span>{{ l('Account Type','نوع الحساب') }}</span>
           <select [(ngModel)]="form.type" (ngModelChange)="onParentOrTypeChange()">
             <option *ngFor="let type of accountTypes" [value]="type.value">{{ accountTypeLabel(type.value) }}</option>
           </select>
         </label>
         <label>
-          <span>Normal Balance</span>
+          <span>{{ l('Normal Balance','طبيعة الرصيد') }}</span>
           <select [(ngModel)]="form.normalBalance">
-            <option value="debit">Debit</option>
-            <option value="credit">Credit</option>
+            <option value="debit">{{ l('Debit','مدين') }}</option>
+            <option value="credit">{{ l('Credit','دائن') }}</option>
           </select>
         </label>
         <label>
-          <span>Posting Account</span>
+          <span>{{ l('Posting Account','حساب ترحيل') }}</span>
           <select [(ngModel)]="form.postingAccount">
-            <option [ngValue]="true">Yes</option>
-            <option [ngValue]="false">No</option>
+            <option [ngValue]="true">{{ l('Yes','نعم') }}</option>
+            <option [ngValue]="false">{{ l('No','لا') }}</option>
           </select>
         </label>
         <label>
-          <span>Currency</span>
+          <span>{{ l('Currency','العملة') }}</span>
           <input type="text" [(ngModel)]="form.currency" />
         </label>
         <label>
-          <span>Opening Balance</span>
+          <span>{{ l('Opening Balance','الرصيد الافتتاحي') }}</span>
           <input type="number" [(ngModel)]="form.openingBalance" [disabled]="!canEditOpening()" />
         </label>
         <label>
-          <span>Status</span>
+          <span>{{ l('Status','الحالة') }}</span>
           <select [(ngModel)]="form.status">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="archived">Archived</option>
+            <option value="active">{{ l('Active','نشط') }}</option>
+            <option value="inactive">{{ l('Inactive','غير نشط') }}</option>
+            <option value="archived">{{ l('Archived','مؤرشف') }}</option>
           </select>
         </label>
         <div class="flags-row">
-          <label><input type="checkbox" [(ngModel)]="form.isCashAccount" /> Cash</label>
-          <label><input type="checkbox" [(ngModel)]="form.isBankAccount" /> Bank</label>
-          <label><input type="checkbox" [(ngModel)]="form.isVatAccount" /> VAT</label>
-          <label><input type="checkbox" [(ngModel)]="form.isReceivableAccount" /> Receivable</label>
-          <label><input type="checkbox" [(ngModel)]="form.isPayableAccount" /> Payable</label>
+          <label><input type="checkbox" [(ngModel)]="form.isCashAccount" /> {{ l('Cash','نقدي') }}</label>
+          <label><input type="checkbox" [(ngModel)]="form.isBankAccount" /> {{ l('Bank','بنك') }}</label>
+          <label><input type="checkbox" [(ngModel)]="form.isVatAccount" /> {{ l('VAT','ضريبة القيمة المضافة') }}</label>
+          <label><input type="checkbox" [(ngModel)]="form.isReceivableAccount" /> {{ l('Receivable','ذمم مدينة') }}</label>
+          <label><input type="checkbox" [(ngModel)]="form.isPayableAccount" /> {{ l('Payable','ذمم دائنة') }}</label>
         </div>
         <label class="wide">
-          <span>Description</span>
+          <span>{{ l('Description','الوصف') }}</span>
           <textarea rows="3" [(ngModel)]="form.notes"></textarea>
         </label>
       </div>
@@ -187,8 +179,8 @@
       <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
       <footer>
-        <button type="button" (click)="closeModal()">Cancel</button>
-        <button type="button" class="primary" (click)="save()">Save</button>
+        <button type="button" (click)="closeModal()">{{ l('Cancel','إلغاء') }}</button>
+        <button type="button" class="primary" (click)="save()">{{ l('Save','حفظ') }}</button>
       </footer>
     </section>
   </div>

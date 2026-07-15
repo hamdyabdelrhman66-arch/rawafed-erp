@@ -31,6 +31,11 @@ export interface FinancePackage {
   services: FinanceFeeItem[];
   grade?: string;
   paymentPlan?: string;
+  paidInstallments?: number;
+  remainingInstallments?: number;
+  overdueInstallments?: number;
+  nextInstallment?: number;
+  nextDueDate?: string;
   notificationStatus?: "new" | "seen";
   discountPercent?: number;
   registrationId?: string;
@@ -90,6 +95,10 @@ export interface FinanceInvoice {
   receipt?: string;
   taxNumber?: string;
   patientId?: string;
+  studentArabicName?: string;
+  customerId?: string;
+  nationalId?: string;
+  dueAt?: string;
   fileNo?: string;
   notes?: string;
   user?: string;
@@ -110,12 +119,14 @@ export interface FinanceInvoice {
 
 export interface FinanceExpense {
   id: number;
+  backendId?: string;
   category: string;
   title: string;
   amount: number;
   date: string;
   status: string;
   notes?: string;
+  [key: string]: unknown;
 }
 
 export interface FinanceData {

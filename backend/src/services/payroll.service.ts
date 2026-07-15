@@ -17,6 +17,7 @@ const shape = (r: any) => ({
   netTotal: Number(r.netTotal),
   journalEntryId: r.journalEntryId,
   journalEntryNo: r.journalEntry.entryNumber,
+  payments: (r.payments || []).map((payment: any) => ({ ...payment, amount: Number(payment.amount), paymentDate: payment.paymentDate.toISOString().slice(0, 10) })),
   employees: r.lines.map((l: any) => ({
     ...l,
     basicSalary: Number(l.basicSalary),
@@ -35,6 +36,11 @@ const shape = (r: any) => ({
     gross: Number(l.gross),
     deductions: Number(l.deductions),
     net: Number(l.net),
+    paidAmount: Number(l.paidAmount || 0),
+    paymentStatus: l.paymentStatus || "UNPAID",
+    department: l.employee?.department,
+    jobTitle: l.employee?.jobTitle || l.employee?.position,
+    employeeCode: l.employee?.employeeCode,
   })),
   createdBy: r.createdById,
   createdAt: r.createdAt.toISOString(),
@@ -48,6 +54,8 @@ export class PayrollService {
     return this.prisma.$transaction(async (tx) => {
       const repo = new PayrollRepository(tx),
         staff = await repo.staff(input.employees.map((e: any) => e.employeeId));
+      if (await tx.payrollRun.findFirst({ where: { period: input.period, deletedAt: null } }))
+        throw new ServiceError("A payroll batch already exists for this period.", 409, "DUPLICATE_PAYROLL_PERIOD");
       if (staff.length !== input.employees.length)
         throw new ServiceError("One or more employees were not found.", 422);
       const names = new Map(staff.map((s) => [s.id, s.name])),
@@ -103,7 +111,7 @@ export class PayrollService {
           "Payroll accounting accounts are not configured.",
           422,
         );
-      const sourceId = `${input.period}:${input.status || "Posted"}`,
+      const sourceId = `${input.period}:PROCESSED`,
         journal = await JournalService.postUsing(
           tx,
           {
@@ -134,7 +142,7 @@ export class PayrollService {
         {
           period: input.period,
           paymentDate: new Date(input.paymentDate),
-          status: input.status || "Posted",
+          status: "PROCESSED",
           grossTotal,
           deductionsTotal,
           employerGosiTotal,
@@ -153,6 +161,53 @@ export class PayrollService {
         details: { period: run.period, netTotal },
       });
       return shape(run);
+    });
+  }
+  async pay(runId: string, input: any, actor: Actor) {
+    return this.prisma.$transaction(async (tx) => {
+      const existingPayment = await tx.payrollPayment.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existingPayment) return existingPayment;
+      const run = await tx.payrollRun.findFirst({
+        where: { id: runId, deletedAt: null },
+        include: { journalEntry: true, lines: { include: { employee: true } }, payments: true },
+      });
+      if (!run) throw new ServiceError("Payroll batch was not found.", 404, "PAYROLL_NOT_FOUND");
+      if (["CANCELLED", "DRAFT"].includes(run.status.toUpperCase()))
+        throw new ServiceError("This payroll batch cannot be paid.", 409, "PAYROLL_NOT_PAYABLE");
+      const selectedIds = Array.isArray(input.employeeIds) && input.employeeIds.length ? new Set(input.employeeIds.map(String)) : null;
+      const lines = run.lines.filter((line) => (!selectedIds || selectedIds.has(line.employeeId)) && Number(line.paidAmount) < Number(line.net));
+      if (!lines.length) throw new ServiceError("Selected salaries are already paid.", 409, "PAYROLL_ALREADY_PAID");
+      if (selectedIds && lines.length !== selectedIds.size)
+        throw new ServiceError("One or more selected salaries cannot be paid.", 422, "INVALID_PAYROLL_SELECTION");
+      const amount = money(lines.reduce((sum, line) => sum + Number(line.net) - Number(line.paidAmount), 0));
+      const salaryPayable = await tx.chartOfAccount.findUnique({ where: { systemKey: "salaries-payable" } });
+      const paymentAccount = await tx.chartOfAccount.findFirst({
+        where: { id: input.paymentAccountId, active: true, deletedAt: null, allowPosting: true, OR: [{ isCashAccount: true }, { isBankAccount: true }] },
+      });
+      if (!salaryPayable || !paymentAccount) throw new ServiceError("Payroll payable and payment accounts must be configured.", 422, "PAYROLL_ACCOUNT_MISSING");
+      const paymentDate = new Date(input.paymentDate || Date.now());
+      const journal = await JournalService.postUsing(tx, {
+        postingDate: paymentDate,
+        description: `Payroll payment ${run.period}`,
+        referenceNumber: input.referenceNumber || `PAYROLL-${run.period}`,
+        sourceType: "payroll_payment",
+        sourceId: input.idempotencyKey,
+        lines: [{ accountId: salaryPayable.id, debit: amount }, { accountId: paymentAccount.id, credit: amount }],
+      }, actor);
+      const payment = await tx.payrollPayment.create({ data: {
+        payrollRunId: run.id, amount, paymentDate, paymentMethod: input.paymentMethod || "Bank Transfer",
+        paymentAccountId: paymentAccount.id, referenceNumber: input.referenceNumber || null,
+        employeeIds: lines.map((line) => line.employeeId), journalEntryId: journal.id,
+        idempotencyKey: input.idempotencyKey, createdById: actor.id,
+      } });
+      for (const line of lines) await tx.payrollLine.update({ where: { id: line.id }, data: {
+        paidAmount: line.net, paymentStatus: "PAID", paymentDate,
+        paymentMethod: input.paymentMethod || "Bank Transfer", paymentReference: input.referenceNumber || null,
+      } });
+      const unpaid = await tx.payrollLine.count({ where: { payrollRunId: run.id, paymentStatus: { not: "PAID" } } });
+      await tx.payrollRun.update({ where: { id: run.id }, data: { status: unpaid ? "PARTIALLY_PAID" : "PAID" } });
+      await new AuditRepository(tx).create({ actorId: actor.id, actorRole: actor.role, action: "pay payroll", entityType: "payroll_payment", entityId: payment.id, details: { runId, employeeIds: lines.map((line) => line.employeeId), amount } });
+      return { ...payment, amount: Number(payment.amount), journalEntryNo: journal.entryNumber };
     });
   }
 }

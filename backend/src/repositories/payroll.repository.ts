@@ -5,7 +5,7 @@ export class PayrollRepository {
   list() {
     return this.db.payrollRun.findMany({
       where: { deletedAt: null },
-      include: { journalEntry: true, lines: true },
+      include: { journalEntry: true, lines: { include: { employee: true } }, payments: true },
       orderBy: { paymentDate: "desc" },
     });
   }
@@ -15,7 +15,7 @@ export class PayrollRepository {
   ) {
     return this.db.payrollRun.create({
       data: { ...data, lines: { create: lines } },
-      include: { journalEntry: true, lines: true },
+      include: { journalEntry: true, lines: { include: { employee: true } }, payments: true },
     });
   }
   staff(ids: string[]) {

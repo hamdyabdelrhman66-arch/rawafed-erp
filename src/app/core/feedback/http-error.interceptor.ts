@@ -2,6 +2,7 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { FeedbackService } from './feedback.service';
+import { I18nService } from '../i18n/i18n.service';
 
 export class ApiSafeError extends Error {
   constructor(
@@ -16,11 +17,12 @@ export class ApiSafeError extends Error {
 
 export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
   const feedback = inject(FeedbackService);
+  const i18n = inject(I18nService);
   return next(req).pipe(
     catchError((error: unknown) => {
       if (!(error instanceof HttpErrorResponse)) return throwError(() => error);
 
-      const mapped = mapHttpError(error);
+      const mapped = mapHttpError(error, i18n);
       if (shouldShowHttpError(req.url, error.status)) {
         feedback.error(mapped.message, mapped.requestId ? `Request ID: ${mapped.requestId}` : '');
       }
@@ -29,12 +31,22 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
   );
 };
 
-function mapHttpError(error: HttpErrorResponse): { message: string; errorCode: string; requestId: string } {
+function mapHttpError(error: HttpErrorResponse, i18n: I18nService): { message: string; errorCode: string; requestId: string } {
   const body = error.error || {};
   const safeMessage = body.safeMessage || body.message;
   const requestId = body.requestId || error.headers?.get?.('x-request-id') || '';
   const errorCode = body.errorCode || statusCodeToErrorCode(error.status);
 
+  const translatedKey = `error.${String(errorCode).toLowerCase()}`;
+  const translated = i18n.t(translatedKey);
+  if (translated !== translatedKey) return { message: translated, errorCode, requestId };
+  if (i18n.language() === 'ar') {
+    const genericKey = error.status === 403 ? 'error.permission_denied'
+      : error.status === 404 ? 'error.not_found'
+      : [400, 409, 422].includes(error.status) ? 'error.validation_error'
+      : 'error.database_unavailable';
+    return { message: i18n.t(genericKey), errorCode, requestId };
+  }
   if (safeMessage) return { message: safeMessage, errorCode, requestId };
 
   const messageByStatus: Record<number, string> = {

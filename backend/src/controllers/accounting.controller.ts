@@ -184,7 +184,7 @@ export class AccountingController {
   createPlan = asyncController(async (req, res) =>
     res
       .status(201)
-      .json(await this.receivables.createPlan(req.params.id, req.body)),
+      .json(await this.receivables.createPlan(req.params.id, req.body, actor(req))),
   );
   customerPayment = asyncController(async (req, res) =>
     res.status(201).json(await this.receivables.payment(req.body, actor(req))),
@@ -258,7 +258,13 @@ export class AccountingController {
   expenseList = asyncController(async (_req, res) =>
     res.json(await this.expenses.list()),
   );
+  expenseGet = asyncController(async (req, res) =>
+    res.json(await this.expenses.get(req.params.id)),
+  );
   expenseCreate = asyncController(async (req, res) =>
     res.status(201).json(await this.expenses.create(req.body, actor(req))),
+  );
+  expensePay = asyncController(async (req, res) =>
+    res.status(201).json(await this.expenses.pay(req.params.id, req.body, actor(req))),
   );
 }

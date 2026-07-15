@@ -361,7 +361,7 @@ export class StorageService {
       },
       gradeFees,
       transportationAreas,
-      paymentPlans: ["Full Payment", "50/50"],
+      paymentPlans: ["Full Payment", "50/50", "Custom Installments"],
     };
   }
 

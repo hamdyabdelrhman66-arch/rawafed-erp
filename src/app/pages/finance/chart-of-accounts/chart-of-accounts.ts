@@ -5,7 +5,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { AccountingAccount, AccountingService } from '../../../core/finance/accounting.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
-import { jsPDF } from 'jspdf';
+import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
 
 interface AccountRow extends AccountingAccount {
   level: number;
@@ -47,7 +47,8 @@ export class ChartOfAccounts implements OnInit {
     private readonly accounting: AccountingService,
     private readonly auth: AuthService,
     private readonly feedback: FeedbackService,
-    public readonly i18n: I18nService
+    public readonly i18n: I18nService,
+    private readonly reportExport: ReportExportService,
   ) {}
 
   get canWrite(): boolean {
@@ -144,26 +145,39 @@ export class ChartOfAccounts implements OnInit {
     return Math.max(4, Math.round(Math.abs(Number(value || 0)) / max * 100));
   }
 
-  exportLedgerExcel(): void {
-    const details = this.accountDetails;
-    if (!details) return;
-    const header = ['Date', 'Entry', 'Description', 'Reference', 'Debit', 'Credit', 'Running Balance', 'Branch', 'Cost Center'];
-    const rows = (details.transactions || []).map((row: any) => [row.date, row.entryNumber, row.description, row.referenceNumber || '', row.debit, row.credit, row.runningBalance, row.branch || '', row.costCenter || '']);
-    this.downloadCsv(`ledger-${details.code}.csv`, [header, ...rows]);
+  async exportLedgerExcel(): Promise<void> {
+    if (this.accountDetails) await this.reportExport.downloadExcel(this.ledgerReport());
   }
 
-  exportLedgerPdf(): void {
+  async exportLedgerPdf(): Promise<void> {
+    if (this.accountDetails) await this.reportExport.downloadPdf(this.ledgerReport());
+  }
+
+  private ledgerReport(): ReportTable {
     const details = this.accountDetails;
-    if (!details) return;
-    const doc = new jsPDF({ orientation: 'landscape' });
-    doc.setFontSize(17); doc.text(`Account Ledger ${details.code} - ${details.nameEn}`, 14, 16);
-    doc.setFontSize(10); doc.text(`Opening: ${this.money(details.openingBalance)}   Current: ${this.money(details.currentBalance)}   Debit: ${this.money(details.debitTotal)}   Credit: ${this.money(details.creditTotal)}`, 14, 24);
-    let y = 34;
-    doc.text('Date', 14, y); doc.text('Entry', 42, y); doc.text('Description', 78, y); doc.text('Debit', 205, y); doc.text('Credit', 235, y); doc.text('Balance', 265, y);
-    for (const row of (details.transactions || []).slice(0, 38)) {
-      y += 6; doc.text(String(row.date), 14, y); doc.text(String(row.entryNumber).slice(0, 18), 42, y); doc.text(String(row.description).slice(0, 58), 78, y); doc.text(this.money(row.debit), 205, y); doc.text(this.money(row.credit), 235, y); doc.text(this.money(row.runningBalance), 265, y);
-    }
-    doc.save(`ledger-${details.code}.pdf`);
+    const ar = this.i18n.language() === 'ar';
+    return {
+      title: `Account Ledger ${details.code}`,
+      titleAr: `دفتر الأستاذ للحساب ${details.code}`,
+      subtitle: `${details.nameAr || ''} · ${details.nameEn || ''}`,
+      columns: ar
+        ? ['التاريخ', 'القيد', 'الوصف', 'المرجع', 'مدين', 'دائن', 'الرصيد', 'الفرع', 'مركز التكلفة']
+        : ['Date', 'Entry', 'Description', 'Reference', 'Debit', 'Credit', 'Running Balance', 'Branch', 'Cost Center'],
+      rows: (details.transactions || []).map((row: any) => [row.date, row.entryNumber, row.description, row.referenceNumber || '', row.debit, row.credit, row.runningBalance, row.branch || '', row.costCenter || '']),
+      summary: [
+        { label: this.l('Opening Balance', 'الرصيد الافتتاحي'), value: this.money(details.openingBalance) },
+        { label: this.l('Current Balance', 'الرصيد الحالي'), value: this.money(details.currentBalance) },
+        { label: this.l('Debit Total', 'إجمالي المدين'), value: this.money(details.debitTotal) },
+        { label: this.l('Credit Total', 'إجمالي الدائن'), value: this.money(details.creditTotal) },
+        { label: this.l('Transactions', 'المعاملات'), value: details.transactionCount || 0 },
+        { label: this.l('Journals', 'القيود'), value: details.journalCount || 0 },
+      ],
+      chart: { labels: (details.monthlyMovement || []).map((row: any) => row.period), values: (details.monthlyMovement || []).map((row: any) => Number(row.net || 0)) },
+      fileName: `ledger-${details.code}`,
+      direction: ar ? 'rtl' : 'ltr',
+      locale: ar ? 'ar' : 'en',
+      generatedBy: 'Rawafed ERP',
+    };
   }
 
   printLedger(): void {

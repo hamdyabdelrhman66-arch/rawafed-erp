@@ -105,6 +105,13 @@ export function postgresOperationsRoutes(prisma: PrismaClient) {
     validate(v.payroll),
     c.payrollCreate,
   );
+  r.post(
+    "/api/payroll/runs/:id/payments",
+    ...secured,
+    payrollWrite,
+    validate(v.payrollPayment),
+    c.payrollPay,
+  );
   r.get(
     "/api/reports/admissions",
     ...secured,

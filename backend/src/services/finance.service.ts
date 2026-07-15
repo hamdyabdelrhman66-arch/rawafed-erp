@@ -14,6 +14,8 @@ import {
   vatRateForStudent,
 } from "./student-vat.js";
 import { categoryLabel, mappingFor, revenueCategory } from "./revenue-category.js";
+import { nextInvoiceNumber } from "./invoice-number.service.js";
+import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
 
 const paidForAccount = (account: any) =>
   money(
@@ -61,6 +63,12 @@ const accountShape = (a: any) => {
   });
   const subtotal = money(feeItems.reduce((sum: number, item: any) => sum + item.subtotal, 0));
   const vat = money(feeItems.reduce((sum: number, item: any) => sum + item.vat, 0));
+  const plan = a.student?.customer?.installmentPlans?.[0];
+  const installments = (plan?.installments || []).map((row: any) => ({ ...row, computedStatus: installmentStatus({ ...row, plan }) }));
+  const paidInstallments = installments.filter((row: any) => row.computedStatus === "paid").length;
+  const overdueInstallments = installments.filter((row: any) => row.computedStatus.includes("overdue")).length;
+  const nextInstallment = installments.filter((row: any) => row.computedStatus !== "paid").sort((x: any, y: any) => x.dueDate.getTime() - y.dueDate.getTime())[0];
+  const registrationProfile = a.registration?.data as any;
   return {
     id: a.id,
     registrationId: a.registrationId,
@@ -77,6 +85,12 @@ const accountShape = (a: any) => {
     paid,
     remaining,
     status: remaining <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid",
+    paymentPlan: plan?.planType || registrationProfile?.financial?.paymentPlan || "FULL",
+    paidInstallments,
+    remainingInstallments: Math.max(installments.length - paidInstallments, 0),
+    overdueInstallments,
+    nextInstallment: nextInstallment ? money(Number(nextInstallment.amount) - Number(nextInstallment.paidAmount)) : 0,
+    nextDueDate: nextInstallment?.dueDate?.toISOString().slice(0, 10) || null,
     feeItems,
     canonicalInvoiceId: a.invoices?.[0]?.id,
     createdAt: a.createdAt.toISOString(),
@@ -95,15 +109,18 @@ const invoiceShape = (i: any) => {
     registrationNumber: i.account.registration.registrationNumber,
     invoiceNumber: i.invoiceNumber,
     studentName: i.account.student.englishName,
+    studentArabicName: i.account.student.arabicName,
+    nationalId: i.account.student.nationalId,
+    customerId: i.account.student.customer?.id,
     feeItem: i.lines[0]?.description || "School Fees",
     category: i.serviceCategory || "LEGACY_COMBINED",
     categoryLabel: categoryLabel(i.serviceCategory || "LEGACY_COMBINED"),
     subtotal: money(i.subtotal),
+    discount: money(i.discount),
     amountBeforeVat: money(i.subtotal),
     vat: money(i.vatAmount),
     total,
     totalInvoice: total,
-    nationalId: i.account.student.nationalId,
     vatExempt: isSaudiNationalId(i.account.student.nationalId),
     paid,
     remaining: money(Math.max(total - paid, 0)),
@@ -116,6 +133,7 @@ const invoiceShape = (i: any) => {
     legacyCombined: Boolean(i.legacyCombined),
     status: i.status === "VOID" ? "Void" : paid >= total ? "Paid" : paid > 0 ? "Partially Paid" : "Pending",
     issuedAt: i.issuedAt.toISOString(),
+    dueAt: i.dueAt?.toISOString(),
     createdAt: i.createdAt.toISOString(),
   };
 };
@@ -264,15 +282,21 @@ export class FinanceService {
       if (!account)
         throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
       const subtotal = money(input.amountBeforeVat ?? input.amount);
+      const discount = money(input.discount);
+      if (discount < 0 || discount > subtotal)
+        throw new ServiceError("Invoice discount is invalid.", 422, "VALIDATION_ERROR");
+      const taxableAmount = money(subtotal - discount);
       const vat = String(account.student.nationalId || "").trim()
-        ? vatForSubtotal(subtotal, account.student.nationalId)
+        ? vatForSubtotal(taxableAmount, account.student.nationalId)
         : money(input.vat);
-      const total = money(subtotal + vat);
-      if (total <= 0 || total !== money(subtotal + vat))
+      const total = money(taxableAmount + vat);
+      if (total <= 0)
         throw new ServiceError("Invoice totals are invalid.", 422);
-      const invoiceNumber = String(
-        input.invoiceNumber || `INV-${Date.now()}-${randomUUID().slice(0, 8)}`,
-      );
+      const category = revenueCategory(input.serviceCategory || input.feeItem || input.service);
+      const issuedAt = new Date(input.date || Date.now());
+      const invoiceNumber = input.invoiceNumber
+        ? String(input.invoiceNumber)
+        : await nextInvoiceNumber(tx, category, issuedAt);
       const existing = await new FinanceInvoicesRepository(tx).findByNumber(
         invoiceNumber,
       );
@@ -298,16 +322,20 @@ export class FinanceService {
           registrationId: account.registrationId,
           subtotal,
           vatAmount: vat,
+          discount,
           total,
-          issuedAt: new Date(input.date || Date.now()),
+          serviceCategory: category,
+          legacyCombined: false,
+          dueAt: input.dueAt ? new Date(input.dueAt) : null,
+          issuedAt,
         },
         {
           id: randomUUID(),
           description: String(input.feeItem || input.service || "School Fees"),
           quantity: 1,
-          unitPrice: subtotal,
-          vatRate: subtotal ? money((vat / subtotal) * 100) : 0,
-          netAmount: subtotal,
+          unitPrice: taxableAmount,
+          vatRate: taxableAmount ? money((vat / taxableAmount) * 100) : 0,
+          netAmount: taxableAmount,
           vatAmount: vat,
           totalAmount: total,
         },
@@ -354,7 +382,7 @@ export class FinanceService {
           invoiceId: row.id,
           lines: [
             { accountId: customer.receivableAccountId, debit: total },
-            { accountId: revenue.id, credit: subtotal },
+            { accountId: revenue.id, credit: taxableAmount },
             ...(vat ? [{ accountId: vatAccount!.id, credit: vat }] : []),
           ],
         },
@@ -433,10 +461,11 @@ export class FinanceService {
           )) : 0;
           const invoiceTotal = money(invoiceSubtotal + invoiceVat);
           if (invoiceVat && !vatAccount) throw new ServiceError("VAT payable account is not configured.", 422);
+          const issuedAt = new Date(input.paidAt || Date.now());
           invoice = await invoiceRepo.create(
             {
               id: randomUUID(),
-              invoiceNumber: `INV-${category.slice(0, 4)}-${Date.now()}-${randomUUID().slice(0, 6)}`,
+              invoiceNumber: await nextInvoiceNumber(tx, category, issuedAt),
               accountId: account.id,
               registrationId: account.registrationId,
               subtotal: invoiceSubtotal,
@@ -446,7 +475,7 @@ export class FinanceService {
               costCenterId: mapping.costCenterId,
               branchId: mapping.branchId || account.registration.branchId,
               legacyCombined: false,
-              issuedAt: new Date(input.paidAt || Date.now()),
+              issuedAt,
             },
             {
               id: randomUUID(),
@@ -509,6 +538,7 @@ export class FinanceService {
         invoiceAllocations,
         feeAllocations,
       });
+      await allocateInstallmentPayment(tx, customer.id, amount);
       for (const value of affected.values()) {
         const paidAfter = money(value.previousPaid + value.allocated);
         await invoiceRepo.updateStatus(value.invoice.id, paidAfter >= money(value.invoice.total) ? "PAID" : "PARTIALLY_PAID");
@@ -767,6 +797,7 @@ export class FinanceService {
           invoiceId: invoice.id,
           feeAllocations,
         });
+        await allocateInstallmentPayment(tx, customer.id, amount);
         await invoices.updateStatus(
           invoice.id,
           amount === remaining ? "PAID" : "PARTIALLY_PAID",
@@ -882,6 +913,14 @@ export class FinanceService {
             allocations: true,
           },
         });
+        const customer = payment.account?.studentId
+          ? await tx.accountingCustomer.findUnique({
+              where: { studentId: payment.account.studentId },
+              select: { id: true },
+            })
+          : null;
+        if (customer)
+          await allocateInstallmentPayment(tx, customer.id, 0);
         for (const allocation of payment.allocations) {
           const aggregate = await payments.paidForInvoice(allocation.invoiceId);
           const paid = money(aggregate._sum.amount);

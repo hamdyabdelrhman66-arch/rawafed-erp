@@ -1,123 +1,95 @@
-<section class="profile-page" *ngIf="customer">
+<section class="profile-page" *ngIf="customer" [attr.dir]="i18n.direction()">
   <header class="page-header">
     <div>
-      <a routerLink="/finance/customers">← Customers AR</a>
-      <span>{{ customer.customerCode }}</span>
-      <h1>{{ customer.nameEn }}</h1>
+      <a routerLink="/finance/customers">{{ 'customer.back' | t }}</a>
+      <span class="reference-text">{{ customer.customerCode }}</span>
+      <h1>{{ i18n.language() === 'ar' ? (customer.nameAr || customer.nameEn) : customer.nameEn }}</h1>
       <p>{{ customer.registrationNumber }} · {{ customer.grade || '-' }} · {{ customer.parentLink || '-' }}</p>
     </div>
-    <button type="button" (click)="printStatement()">Print</button>
+    <div class="header-actions">
+      <a class="secondary-action" [routerLink]="['/finance/add-payment']" [queryParams]="{ accountId: customer.financeAccountId }">{{ 'finance_accounts.record_payment' | t }}</a>
+      <button type="button" (click)="printStatement()">{{ 'common.print' | t }}</button>
+    </div>
   </header>
 
   <section class="summary-grid">
-    <article><span>Current Balance</span><strong>{{ money(customer.summary?.currentBalance) }}</strong></article>
-    <article><span>Outstanding</span><strong>{{ money(customer.summary?.outstanding) }}</strong></article>
-    <article><span>Credit</span><strong>{{ money(customer.summary?.credit) }}</strong></article>
-    <article><span>Overdue</span><strong>{{ money(customer.summary?.overdue) }}</strong></article>
-    <article><span>Invoices</span><strong>{{ customer.summary?.invoicesCount || 0 }}</strong></article>
-    <article><span>Payments</span><strong>{{ customer.summary?.paymentsCount || 0 }}</strong></article>
+    <article><span>{{ 'coa.current_balance' | t }}</span><strong>{{ money(customer.summary?.currentBalance) }}</strong></article>
+    <article><span>{{ 'customer.expected_total' | t }}</span><strong>{{ money(customer.summary?.invoiceTotal) }}</strong></article>
+    <article><span>{{ 'customer.amount_paid' | t }}</span><strong>{{ money(customer.summary?.paymentTotal) }}</strong></article>
+    <article><span>{{ 'customer.remaining' | t }}</span><strong>{{ money(customer.summary?.outstanding) }}</strong></article>
+    <article><span>{{ 'customer.overdue' | t }}</span><strong>{{ money(customer.summary?.overdue) }}</strong></article>
+    <article><span>{{ 'customer.invoice_count' | t }}</span><strong>{{ customer.summary?.invoicesCount || 0 }}</strong></article>
+    <article><span>{{ 'customer.payment_count' | t }}</span><strong>{{ customer.summary?.paymentsCount || 0 }}</strong></article>
+    <article><span>{{ 'customer.next_due' | t }}</span><strong>{{ customer.summary?.nextDueDate || '-' }}</strong></article>
   </section>
 
-  <nav class="tabs">
-    <button type="button" [class.active]="tab === 'overview'" (click)="tab = 'overview'">Overview</button>
-    <button type="button" [class.active]="tab === 'invoices'" (click)="tab = 'invoices'">Invoices</button>
-    <button type="button" [class.active]="tab === 'payments'" (click)="tab = 'payments'">Payments</button>
-    <button type="button" [class.active]="tab === 'ledger'" (click)="tab = 'ledger'">Ledger</button>
-    <button type="button" [class.active]="tab === 'installments'" (click)="tab = 'installments'">Installments</button>
-    <button type="button" [class.active]="tab === 'activity'" (click)="tab = 'activity'">Activity Log</button>
+  <nav class="tabs" [attr.aria-label]="'customer.tabs' | t">
+    <button type="button" [class.active]="tab === 'overview'" (click)="tab = 'overview'">{{ 'coa.overview' | t }}</button>
+    <button type="button" [class.active]="tab === 'invoices'" (click)="tab = 'invoices'">{{ 'nav.invoices' | t }}</button>
+    <button type="button" [class.active]="tab === 'payments'" (click)="tab = 'payments'">{{ 'customer.payments' | t }}</button>
+    <button type="button" [class.active]="tab === 'ledger'" (click)="tab = 'ledger'">{{ 'customer.ledger' | t }}</button>
+    <button type="button" [class.active]="tab === 'installments'" (click)="tab = 'installments'">{{ 'customer.installments' | t }}</button>
+    <button type="button" [class.active]="tab === 'activity'" (click)="tab = 'activity'">{{ 'customer.activity' | t }}</button>
   </nav>
 
   <section class="panel" *ngIf="tab === 'overview'">
-    <h2>Accounting Profile</h2>
+    <h2>{{ 'customer.accounting_profile' | t }}</h2>
     <div class="info-grid">
-      <p><span>Arabic Name</span>{{ customer.nameAr || '-' }}</p>
-      <p><span>Phone</span>{{ customer.phone || '-' }}</p>
-      <p><span>Email</span>{{ customer.email || '-' }}</p>
-      <p><span>National / Iqama</span>{{ customer.nationalId || '-' }}</p>
-      <p><span>Receivable Account</span>{{ customer.receivableCode }} - {{ customer.receivableNameEn }}</p>
-      <p><span>Credit Limit</span>{{ money(customer.creditLimit) }}</p>
+      <p><span>{{ 'coa.arabic_name' | t }}</span>{{ customer.nameAr || '-' }}</p>
+      <p><span>{{ 'coa.english_name' | t }}</span>{{ customer.nameEn || '-' }}</p>
+      <p><span>{{ 'customer.registration' | t }}</span><bdi>{{ customer.registrationNumber || '-' }}</bdi></p>
+      <p><span>{{ 'customer.grade' | t }}</span>{{ customer.grade || '-' }}</p>
+      <p><span>{{ 'customer.guardian' | t }}</span>{{ customer.parentLink || '-' }}</p>
+      <p><span>{{ 'common.phone' | t }}</span><bdi>{{ customer.phone || '-' }}</bdi></p>
+      <p><span>{{ 'common.email' | t }}</span><bdi>{{ customer.email || '-' }}</bdi></p>
+      <p><span>{{ 'customer.national_id' | t }}</span><bdi>{{ customer.nationalId || '-' }}</bdi></p>
+      <p><span>{{ 'customer.payment_plan' | t }}</span>{{ i18n.status(customer.summary?.paymentPlan) }}</p>
+      <p><span>{{ 'customer.account_status' | t }}</span>{{ i18n.status(customer.status) }}</p>
+      <p><span>{{ 'customer.receivable_account' | t }}</span><bdi>{{ customer.receivableCode }} - {{ customer.receivableNameEn }}</bdi></p>
+      <p><span>{{ 'customer.installments_remaining' | t }}</span>{{ customer.summary?.remainingInstallments || 0 }}</p>
     </div>
   </section>
 
   <section class="panel" *ngIf="tab === 'invoices'">
-    <h2>Invoices</h2>
-    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.invoices, type: 'invoice' }"></ng-container>
+    <h2>{{ 'nav.invoices' | t }}</h2>
+    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.invoices }"></ng-container>
   </section>
 
   <section class="panel" *ngIf="tab === 'payments'">
-    <h2>Payments</h2>
-    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.payments, type: 'payment' }"></ng-container>
+    <h2>{{ 'customer.payments' | t }}</h2>
+    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.payments }"></ng-container>
   </section>
 
-  <section class="panel" *ngIf="tab === 'ledger'">
-    <h2>Customer Statement</h2>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Date</th><th>Journal</th><th>Reference</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let row of statement.transactions">
-            <td>{{ row.date }}</td>
-            <td>{{ row.entryNumber }}</td>
-            <td>{{ row.referenceNumber || '-' }}</td>
-            <td>{{ row.description }}</td>
-            <td>{{ money(row.debit) }}</td>
-            <td>{{ money(row.credit) }}</td>
-            <td>{{ money(row.balance) }}</td>
-          </tr>
-          <tr *ngIf="!statement.transactions.length"><td colspan="7" class="empty-cell">No ledger movement.</td></tr>
-        </tbody>
-      </table>
-    </div>
+  <section class="panel report-print-area" *ngIf="tab === 'ledger'">
+    <h2>{{ 'customer.statement' | t }}</h2>
+    <div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'coa.entry' | t }}</th><th>{{ 'coa.reference' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.debit' | t }}</th><th>{{ 'common.credit' | t }}</th><th>{{ 'coa.balance' | t }}</th></tr></thead>
+      <tbody><tr *ngFor="let row of statement.transactions"><td>{{ row.date }}</td><td class="reference-text"><bdi>{{ row.entryNumber }}</bdi></td><td class="reference-text"><bdi>{{ row.referenceNumber || '-' }}</bdi></td><td>{{ row.description }}</td><td>{{ money(row.debit) }}</td><td>{{ money(row.credit) }}</td><td>{{ money(row.balance) }}</td></tr>
+      <tr *ngIf="!statement.transactions.length"><td colspan="7" class="empty-cell">{{ 'customer.no_ledger' | t }}</td></tr></tbody></table></div>
   </section>
 
   <section class="panel" *ngIf="tab === 'installments'">
-    <h2>Payment Plan</h2>
+    <h2>{{ 'customer.payment_plan' | t }}</h2>
     <div class="form-grid">
-      <label><span>Plan Type</span><select [(ngModel)]="planForm.planType"><option>Annual Tuition</option><option>Semester</option><option>Monthly</option><option>Custom</option></select></label>
-      <label><span>Total Amount</span><input type="number" [(ngModel)]="planForm.totalAmount" /></label>
-      <label><span>Start Date</span><input type="date" [(ngModel)]="planForm.startDate" /></label>
-      <label><span>Installments</span><input type="number" [(ngModel)]="planForm.installmentsCount" /></label>
-      <label><span>Late Fee</span><input type="number" [(ngModel)]="planForm.lateFeeValue" /></label>
-      <label><span>Grace Days</span><input type="number" [(ngModel)]="planForm.gracePeriodDays" /></label>
+      <label><span>{{ 'installment.plan_type' | t }}</span><select [(ngModel)]="planForm.planType" (change)="buildInstallments()"><option value="FULL">{{ 'installment.full' | t }}</option><option value="FIFTY_FIFTY">{{ 'installment.fifty' | t }}</option><option value="CUSTOM">{{ 'installment.custom' | t }}</option></select></label>
+      <label><span>{{ 'installment.calculation_mode' | t }}</span><select [(ngModel)]="planForm.calculationMode"><option value="FIXED">{{ 'installment.fixed_amount' | t }}</option><option value="PERCENTAGE">{{ 'installment.percentage' | t }}</option></select></label>
+      <label><span>{{ 'customer.remaining' | t }}</span><input type="number" [ngModel]="planForm.totalAmount" readonly /></label>
+      <label><span>{{ 'installment.start_date' | t }}</span><input type="date" [(ngModel)]="planForm.startDate" (change)="buildInstallments()" /></label>
+      <label><span>{{ 'customer.installments' | t }}</span><input type="number" min="1" [(ngModel)]="planForm.installmentsCount" [readonly]="planForm.planType !== 'CUSTOM'" (change)="buildInstallments()" /></label>
+      <label><span>{{ 'installment.grace_days' | t }}</span><input type="number" min="0" [(ngModel)]="planForm.gracePeriodDays" /></label>
+      <label><span>{{ 'installment.reminder_days' | t }}</span><input [(ngModel)]="planForm.reminderDays" placeholder="7,3,1,0" /></label>
+      <label class="checkbox"><input type="checkbox" [(ngModel)]="planForm.allowDuplicateDueDates" /> {{ 'installment.allow_duplicate' | t }}</label>
     </div>
-    <footer><button type="button" class="primary" (click)="savePlan()">Create Plan</button></footer>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Due Date</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let item of installments.installments">
-            <td>{{ item.dueDate }}</td>
-            <td>{{ money(item.amount) }}</td>
-            <td>{{ money(item.paidAmount) }}</td>
-            <td><span class="status">{{ item.status }}</span></td>
-          </tr>
-          <tr *ngIf="!installments.installments.length"><td colspan="4" class="empty-cell">No installment plan yet.</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <div class="table-scroll"><table><thead><tr><th>#</th><th>{{ 'installment.due_date' | t }}</th><th>{{ 'common.amount' | t }}</th><th>{{ 'installment.percentage' | t }}</th><th>{{ 'coa.notes' | t }}</th></tr></thead>
+      <tbody><tr *ngFor="let item of planForm.installments; index as index"><td>{{ index + 1 }}</td><td><input type="date" [(ngModel)]="item.dueDate" /></td><td><input type="number" min="0" [(ngModel)]="item.amount" [disabled]="planForm.calculationMode === 'PERCENTAGE'" /></td><td><input type="number" min="0" max="100" [(ngModel)]="item.percentage" [disabled]="planForm.calculationMode === 'FIXED'" /></td><td><input [(ngModel)]="item.notes" /></td></tr></tbody></table></div>
+    <footer class="actions"><button type="button" class="primary" (click)="savePlan()">{{ 'installment.create' | t }}</button></footer>
+    <div class="table-scroll"><table><thead><tr><th>{{ 'installment.due_date' | t }}</th><th>{{ 'common.amount' | t }}</th><th>{{ 'customer.amount_paid' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead>
+      <tbody><tr *ngFor="let item of installments.installments"><td>{{ item.dueDate }}</td><td>{{ money(item.amount) }}</td><td>{{ money(item.paidAmount) }}</td><td><span class="status">{{ i18n.status(item.status) }}</span></td></tr>
+      <tr *ngIf="!installments.installments.length"><td colspan="4" class="empty-cell">{{ 'installment.none' | t }}</td></tr></tbody></table></div>
   </section>
 
-  <section class="panel" *ngIf="tab === 'activity'">
-    <h2>Activity Log</h2>
-    <p class="muted">Invoices, receipts, installments, and ledger movements are connected here. Documents tab is reserved for registration attachments.</p>
-  </section>
+  <section class="panel" *ngIf="tab === 'activity'"><h2>{{ 'customer.activity' | t }}</h2><p class="muted">{{ 'customer.activity_help' | t }}</p></section>
 </section>
 
-<ng-template #tableTpl let-rows="rows" let-type="type">
-  <div class="table-scroll">
-    <table>
-      <thead><tr><th>Date</th><th>No</th><th>Item</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr *ngFor="let row of rows">
-          <td>{{ row.issuedAt || row.paidAt }}</td>
-          <td>{{ row.invoiceNumber || row.receiptNumber }}</td>
-          <td>{{ row.feeItem || row.paymentItem }}</td>
-          <td>{{ row.paymentMethod || row.method }}</td>
-          <td>{{ money(row.total || row.amount) }}</td>
-          <td>{{ row.status || 'Paid' }}</td>
-        </tr>
-        <tr *ngIf="!rows.length"><td colspan="6" class="empty-cell">No {{ type }} rows.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</ng-template>
+<ng-template #tableTpl let-rows="rows"><div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'common.no' | t }}</th><th>{{ 'common.item' | t }}</th><th>{{ 'common.method' | t }}</th><th>{{ 'common.amount' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead>
+  <tbody><tr *ngFor="let row of rows"><td>{{ row.issuedAt || row.paidAt }}</td><td class="reference-text"><bdi>{{ row.invoiceNumber || row.receiptNumber }}</bdi></td><td>{{ row.feeItem || row.paymentItem }}</td><td>{{ row.paymentMethod || row.method || '-' }}</td><td>{{ money(row.total || row.amount) }}</td><td>{{ i18n.status(row.status || 'paid') }}</td></tr>
+  <tr *ngIf="!rows.length"><td colspan="6" class="empty-cell">{{ 'customer.no_rows' | t }}</td></tr></tbody></table></div></ng-template>

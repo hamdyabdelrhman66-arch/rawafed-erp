@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { InvoicesService } from '../../../core/finance/invoices.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 
 @Component({
   selector: 'app-invoices',
@@ -11,7 +12,8 @@ import { I18nService } from '../../../core/i18n/i18n.service';
   imports: [
     CommonModule,
     RouterLink,
-    FormsModule
+    FormsModule,
+    TranslatePipe
   ],
   templateUrl: './invoices.html',
   styleUrls: ['./invoices.css', '../../../shared/finance/finance-ui.scss']
@@ -27,6 +29,7 @@ export class Invoices implements OnInit {
   search = '';
   categoryFilter = '';
   statusFilter = '';
+  dateFilter = '';
 
   constructor(
     private invoicesService: InvoicesService,
@@ -81,25 +84,18 @@ export class Invoices implements OnInit {
   get filteredInvoices(): any[] {
     const query = this.search.trim().toLowerCase();
     return this.invoices.filter((invoice) =>
-      (!query || [invoice.invoiceNumber, invoice.patient, invoice.service, invoice.categoryLabel].join(' ').toLowerCase().includes(query)) &&
+      (!query || [invoice.invoiceNumber, invoice.patient, invoice.studentArabicName, invoice.registrationNumber, invoice.nationalId, invoice.service, invoice.categoryLabel].join(' ').toLowerCase().includes(query)) &&
       (!this.categoryFilter || invoice.category === this.categoryFilter) &&
-      (!this.statusFilter || invoice.status === this.statusFilter)
+      (!this.statusFilter || invoice.status === this.statusFilter) &&
+      (!this.dateFilter || invoice.date === this.dateFilter)
     );
   }
-  l(en: string, ar: string): string { return this.i18n.label(en, ar); }
   categoryLabel(invoice: any): string {
-    if (invoice.legacyCombined || invoice.category === 'LEGACY_COMBINED') return this.l('Legacy Combined Invoice', 'فاتورة مجمعة قديمة');
-    const labels: Record<string, [string, string]> = {
-      REGISTRATION: ['Registration', 'التسجيل'], TUITION: ['Tuition', 'الرسوم الدراسية'], BOOKS: ['Books', 'الكتب'],
-      UNIFORM: ['Uniform', 'الزي المدرسي'], TRANSPORTATION: ['Transportation', 'النقل'], ACTIVITIES: ['Activities', 'الأنشطة'], OTHER_SERVICES: ['Other Services', 'خدمات أخرى']
-    };
-    const label = labels[invoice.category];
-    return label ? this.l(label[0], label[1]) : invoice.categoryLabel || invoice.service;
+    const key = `invoice.category_${String(invoice.category || 'legacy_combined').toLowerCase()}`;
+    const translated = this.i18n.t(key);
+    return translated === key ? invoice.categoryLabel || invoice.service : translated;
   }
-  statusLabel(value: string): string {
-    const labels: Record<string, [string, string]> = { Paid: ['Paid', 'مدفوعة'], Pending: ['Pending', 'معلقة'], 'Partially Paid': ['Partially Paid', 'مدفوعة جزئيًا'], Void: ['Void', 'ملغاة'] };
-    const label = labels[value]; return label ? this.l(label[0], label[1]) : value;
-  }
-  vatLabel(invoice: any): string { return Number(invoice.vat || 0) > 0 ? this.l('Standard 15%', 'قياسية 15%') : this.l('Exempt', 'معفى'); }
+  statusLabel(value: string): string { return this.i18n.status(value); }
+  vatLabel(invoice: any): string { return this.i18n.t(Number(invoice.vat || 0) > 0 ? 'invoice.vat_standard' : 'invoice.vat_exempt'); }
 
 }

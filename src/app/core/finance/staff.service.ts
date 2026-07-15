@@ -38,4 +38,8 @@ export class StaffService {
   createPayrollRun(payload: any): Observable<any> {
     return from(this.api.post<any>('/payroll/runs', payload));
   }
+
+  payPayrollRun(id: string, payload: any): Observable<any> {
+    return from(this.api.post<any>(`/payroll/runs/${id}/payments`, payload));
+  }
 }

@@ -161,6 +161,50 @@ td {
   vertical-align: middle;
 }
 
+.reference-text,
+td.reference-text,
+.reference-value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px;
+  border: 1px solid var(--raw-border);
+  border-radius: var(--raw-radius);
+  background: var(--raw-card);
+}
+
+.tabs button {
+  flex: 0 0 auto;
+  box-shadow: none;
+}
+
+.tabs button:not(.active) {
+  color: var(--raw-brand-primary);
+  background: #fff;
+  border: 1px solid var(--raw-border);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox input {
+  width: auto;
+  min-height: auto;
+}
+
 td {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -403,4 +447,16 @@ label span {
   .preview-panel {
     padding: 16px;
   }
+
+  .reference-text,
+  td.reference-text { max-width: 180px; }
+}
+
+@media print {
+  .sidebar, .topbar, .tabs, .header-actions, button, .no-print { display: none !important; }
+  .report-print-area, .panel, .table-card { box-shadow: none !important; border: 0 !important; }
+  table { width: 100% !important; font-size: 9pt; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  @page { size: A4 landscape; margin: 12mm; }
 }

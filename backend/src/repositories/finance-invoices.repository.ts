@@ -7,7 +7,7 @@ export class FinanceInvoicesRepository {
     return this.db.financeInvoice.findMany({
       where: { deletedAt: null },
       include: {
-        account: { include: { student: true, registration: true } },
+        account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
@@ -22,7 +22,7 @@ export class FinanceInvoicesRepository {
     return this.db.financeInvoice.findFirst({
       where: { id, deletedAt: null },
       include: {
-        account: { include: { student: true, registration: true } },
+        account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
@@ -34,7 +34,7 @@ export class FinanceInvoicesRepository {
     return this.db.financeInvoice.findUnique({
       where: { invoiceNumber },
       include: {
-        account: { include: { student: true, registration: true } },
+        account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
@@ -50,7 +50,7 @@ export class FinanceInvoicesRepository {
         status: { in: ["ISSUED", "PARTIALLY_PAID"] },
       },
       include: {
-        account: { include: { student: true, registration: true } },
+        account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
@@ -63,7 +63,7 @@ export class FinanceInvoicesRepository {
     return this.db.financeInvoice.findMany({
       where: { accountId, deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID"] } },
       include: {
-        account: { include: { student: true, registration: true } },
+        account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: { where: { payment: { status: "COMPLETED", deletedAt: null } } },
       },
@@ -77,7 +77,7 @@ export class FinanceInvoicesRepository {
     return this.db.financeInvoice.create({
       data: { ...data, lines: { create: line } },
       include: {
-        account: { include: { student: true, registration: true } },
+        account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },

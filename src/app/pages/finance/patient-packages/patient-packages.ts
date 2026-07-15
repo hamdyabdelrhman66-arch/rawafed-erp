@@ -4,11 +4,13 @@ import { FormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { InvoicesService } from "../../../core/finance/invoices.service";
 import { PatientPackagesService } from "../../../core/finance/patient-packages.service";
+import { TranslatePipe } from "../../../core/i18n/translate.pipe";
+import { I18nService } from "../../../core/i18n/i18n.service";
 
 @Component({
   selector: "app-patient-packages",
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe],
   templateUrl: "./patient-packages.html",
   styleUrls: [
     "./patient-packages.css",
@@ -39,6 +41,7 @@ export class PatientPackages implements OnInit, OnDestroy {
   constructor(
     private patientPackagesService: PatientPackagesService,
     private invoicesService: InvoicesService,
+    public readonly i18n: I18nService,
   ) {}
 
   ngOnInit() {
@@ -47,6 +50,23 @@ export class PatientPackages implements OnInit, OnDestroy {
     window.addEventListener("storage", this.refreshFromStorage);
     window.addEventListener("focus", this.refreshAccounts);
     document.addEventListener("visibilitychange", this.refreshWhenVisible);
+  }
+
+  paymentProgressStatus(item: any): string {
+    if (Number(item.remaining || 0) <= 0) return this.i18n.t('finance_accounts.all_paid');
+    const plan = String(item.paymentPlan || 'FULL').toUpperCase();
+    if (plan.includes('FULL')) return this.i18n.t(Number(item.overdueInstallments || 0) ? 'finance_accounts.full_overdue' : 'finance_accounts.full_pending');
+    if (plan.includes('50')) {
+      if (Number(item.paidInstallments || 0) >= 2) return this.i18n.t('finance_accounts.both_paid');
+      if (Number(item.overdueInstallments || 0)) return this.i18n.t('finance_accounts.second_overdue');
+      return this.i18n.t(Number(item.paidInstallments || 0) ? 'finance_accounts.first_paid' : 'finance_accounts.first_pending');
+    }
+    return this.i18n.t('finance_accounts.custom_progress', {
+      paid: item.paidInstallments || 0,
+      remaining: item.remainingInstallments || 0,
+      overdue: item.overdueInstallments || 0,
+      date: item.nextDueDate || '-',
+    });
   }
 
   ngOnDestroy(): void {

@@ -64,6 +64,9 @@ export class OperationsController {
   payrollCreate = asyncController(async (r, s) =>
     s.status(201).json(await this.payroll.create(r.body, actor(r))),
   );
+  payrollPay = asyncController(async (r, s) =>
+    s.status(201).json(await this.payroll.pay(r.params.id, r.body, actor(r))),
+  );
   admissions = asyncController(async (r, s) =>
     s.json(
       await this.reports.admissions(

@@ -150,9 +150,9 @@ export class AddExpense implements OnInit {
     if (!file) return;
     try {
       this.invoiceDocument = await this.admission.fileToDocument(file, 'Purchase Invoice');
-      this.feedback.success(`${file.name} uploaded successfully.`);
+      this.feedback.success(this.i18n.t('expense.upload_success'));
     } catch (error) {
-      this.feedback.error('Upload failed.', safeErrorMessage(error));
+      this.feedback.error(this.i18n.t('expense.upload_failed'), safeErrorMessage(error));
     }
   }
 
@@ -164,7 +164,7 @@ export class AddExpense implements OnInit {
 
   async saveSupplier(): Promise<void> {
     if (!this.newSupplier.name.trim()) {
-      this.feedback.validation('Supplier name is required.');
+      this.feedback.validation(this.i18n.t('expense.supplier_name_required'));
       return;
     }
     try {
@@ -183,16 +183,16 @@ export class AddExpense implements OnInit {
       this.supplierSearch = supplier.nameEn;
       this.showSupplierModal = false;
       this.newSupplier = { name: '', vatNumber: '', commercialRegistration: '', phone: '', email: '', address: '', contactPerson: '', openingBalance: 0 };
-      this.feedback.success(`Supplier ${supplier.nameEn || supplier.nameAr || this.supplierSearch} created successfully.`);
+      this.feedback.success(this.i18n.t('expense.supplier_saved'));
     } catch (error) {
-      this.feedback.error('Supplier could not be created.', safeErrorMessage(error));
+      this.feedback.error(this.i18n.t('expense.supplier_save_failed'), safeErrorMessage(error));
     }
   }
 
   async saveExpense(): Promise<void> {
     if (this.saving) return;
     if (!this.expense.expenseAccountId || !this.expense.description.trim() || this.totalAmount <= 0) {
-      this.feedback.validation('Expense account, description, and amount are required.');
+      this.feedback.validation(this.i18n.t('expense.required_fields'));
       return;
     }
     this.saving = true;
@@ -218,7 +218,7 @@ export class AddExpense implements OnInit {
         attachmentUrl: this.invoiceDocument?.uploadUrl,
         notes: this.expense.notes
       }).toPromise();
-      this.feedback.success('Expense saved and accounting journal created successfully.');
+      this.feedback.success(this.i18n.t('expense.saved'));
       this.router.navigate(['/finance/expenses']);
     } catch (error) {
       this.feedback.error(this.i18n.t('expense.save_error'), safeErrorMessage(error));

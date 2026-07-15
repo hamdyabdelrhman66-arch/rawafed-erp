@@ -246,6 +246,10 @@ textarea,
 
 @media print {
   .sidebar,
+  .topbar,
+  .header-actions,
+  .no-print,
+  button,
   .actions,
   .sticky-actions {
     display: none !important;

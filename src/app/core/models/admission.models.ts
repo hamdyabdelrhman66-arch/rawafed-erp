@@ -2,7 +2,7 @@ export type Direction = 'ltr' | 'rtl';
 export type AdmissionStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'archived';
 export type PaymentStatus = 'Unpaid' | 'Partial' | 'Paid';
 export type PriorityLevel = 'normal' | 'high' | 'urgent';
-export type PaymentPlan = 'Full Payment' | '50/50';
+export type PaymentPlan = 'Full Payment' | '50/50' | 'Custom Installments';
 
 export const GRADE_LEVELS = ['Pre-KG', 'KG1', 'KG2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'] as const;
 export type GradeLevel = (typeof GRADE_LEVELS)[number];
@@ -232,7 +232,7 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
   },
   gradeFees: DEFAULT_GRADE_FEES,
   transportationAreas: DEFAULT_TRANSPORTATION_AREAS,
-  paymentPlans: ['Full Payment', '50/50'],
+  paymentPlans: ['Full Payment', '50/50', 'Custom Installments'],
   agreementSections: [
     {
       title: 'School Rules',
