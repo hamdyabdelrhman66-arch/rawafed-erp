@@ -249,7 +249,17 @@
   </section>
 
   <section class="erp-panel journal-layout" *ngIf="activeTab === 'journal'">
+    <div class="workflow-strip journal-kpis">
+      <article><span>{{ i18n.label('Draft', 'مسودة') }}</span><strong>{{ journalSummary.draft || 0 }}</strong></article>
+      <article><span>{{ i18n.label('Submitted', 'مُرسل') }}</span><strong>{{ journalSummary.submitted || 0 }}</strong></article>
+      <article><span>{{ i18n.label('Approved', 'معتمد') }}</span><strong>{{ journalSummary.approved || 0 }}</strong></article>
+      <article><span>{{ i18n.label('Posted', 'مُرحّل') }}</span><strong>{{ journalSummary.posted || 0 }}</strong></article>
+      <article><span>{{ i18n.label('Reversed', 'معكوس') }}</span><strong>{{ journalSummary.reversed || 0 }}</strong></article>
+      <article><span>{{ i18n.label('Automatic', 'تلقائي') }}</span><strong>{{ journalSummary.automatic || 0 }}</strong></article>
+      <article><span>{{ i18n.label('Manual', 'يدوي') }}</span><strong>{{ journalSummary.manual || 0 }}</strong></article>
+    </div>
     <form class="journal-form" (ngSubmit)="saveJournal()">
+      <h2>{{ i18n.label(editingJournalId ? 'Edit Draft Journal' : 'Create Manual Journal Draft', editingJournalId ? 'تعديل مسودة القيد' : 'إنشاء مسودة قيد يدوي') }}</h2>
       <div class="form-grid">
         <label>
           <span>{{ 'accounting.posting_date' | t }}</span>
@@ -258,13 +268,6 @@
         <label>
           <span>{{ 'accounting.reference_no' | t }}</span>
           <input type="text" [(ngModel)]="draftEntry.referenceNumber" name="referenceNumber" />
-        </label>
-        <label>
-          <span>{{ 'common.status' | t }}</span>
-          <select [(ngModel)]="draftEntry.status" name="status">
-            <option value="posted">{{ 'status.posted' | t }}</option>
-            <option value="draft">{{ 'status.draft' | t }}</option>
-          </select>
         </label>
         <label class="wide">
           <span>{{ 'common.description' | t }}</span>
@@ -302,9 +305,14 @@
         <strong>{{ 'common.debit' | t }}: {{ money(debitTotal) }}</strong>
         <strong>{{ 'common.credit' | t }}: {{ money(creditTotal) }}</strong>
         <button type="button" *ngIf="editingJournalId" (click)="resetJournalForm()">{{ 'common.cancel' | t }}</button>
-        <button type="submit" class="primary">{{ 'accounting.save_journal' | t }}</button>
+        <button type="submit" class="primary">{{ i18n.label('Save Draft', 'حفظ المسودة') }}</button>
       </footer>
     </form>
+
+    <div class="filter-row journal-filters">
+      <label><span>{{ i18n.label('Search', 'بحث') }}</span><input [(ngModel)]="journalSearch" [placeholder]="i18n.label('Number, reference or source', 'الرقم أو المرجع أو المصدر')"></label>
+      <label><span>{{ 'common.status' | t }}</span><select [(ngModel)]="journalStatus"><option value="">{{ i18n.label('All statuses','كل الحالات') }}</option><option>DRAFT</option><option>SUBMITTED</option><option>APPROVED</option><option>POSTED</option><option>REVERSED</option><option>CANCELLED</option></select></label>
+    </div>
 
     <div class="table-scroll">
       <table>
@@ -313,21 +321,26 @@
             <th>{{ 'common.entry' | t }}</th>
             <th>{{ 'common.date' | t }}</th>
             <th>{{ 'common.description' | t }}</th>
-            <th>{{ 'common.lines' | t }}</th>
+            <th>{{ i18n.label('Source / Type','المصدر / النوع') }}</th><th>{{ 'common.debit' | t }}</th><th>{{ 'common.credit' | t }}</th>
             <th>{{ 'common.status' | t }}</th>
             <th>{{ 'common.action' | t }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let entry of entries">
-            <td>{{ entry.entryNumber }}</td>
+          <tr *ngFor="let entry of filteredJournals">
+            <td><button type="button" class="link-button" (click)="openJournalVoucher(entry.id)">{{ entry.entryNumber }}</button></td>
             <td>{{ entry.postingDate }}</td>
             <td>{{ entry.description }}</td>
-            <td>{{ entry.lines.length }}</td>
+            <td>{{ entry.sourceModule || entry.sourceType || i18n.label('Manual','يدوي') }} · {{ entry.automatic ? i18n.label('Automatic','تلقائي') : i18n.label('Manual','يدوي') }}</td><td>{{ money(journalTotal(entry, 'debit')) }}</td><td>{{ money(journalTotal(entry, 'credit')) }}</td>
             <td>{{ entry.status | statusLabel }}</td>
             <td class="entry-actions">
-              <button type="button" [disabled]="entry.sourceType || entry.sourceId" (click)="editJournal(entry)">{{ 'common.edit' | t }}</button>
-              <button type="button" [disabled]="entry.sourceType || entry.sourceId" (click)="deleteJournal(entry)">{{ 'common.delete' | t }}</button>
+              <button type="button" *ngIf="entry.status.toUpperCase() === 'DRAFT'" (click)="editJournal(entry)">{{ i18n.label('Edit Draft','تعديل المسودة') }}</button>
+              <button type="button" *ngIf="entry.status.toUpperCase() === 'DRAFT'" (click)="journalAction(entry, 'submit')">{{ i18n.label('Submit','إرسال') }}</button>
+              <button type="button" *ngIf="entry.status.toUpperCase() === 'SUBMITTED'" (click)="journalAction(entry, 'approve')">{{ i18n.label('Approve','اعتماد') }}</button>
+              <button type="button" *ngIf="['DRAFT','SUBMITTED','APPROVED'].includes(entry.status.toUpperCase())" (click)="journalAction(entry, 'post')">{{ i18n.label('Post','ترحيل') }}</button>
+              <button type="button" *ngIf="entry.status.toUpperCase() === 'POSTED'" (click)="correctJournal(entry)">{{ i18n.label('Correct Entry','تصحيح القيد') }}</button>
+              <button type="button" *ngIf="entry.status.toUpperCase() === 'POSTED' && !entry.automatic" (click)="journalAction(entry, 'reverse')">{{ i18n.label('Reverse','عكس') }}</button>
+              <button type="button" *ngIf="['DRAFT','SUBMITTED','APPROVED'].includes(entry.status.toUpperCase())" (click)="journalAction(entry, 'cancel')">{{ i18n.label('Cancel','إلغاء') }}</button>
             </td>
           </tr>
         </tbody>

@@ -42,7 +42,7 @@ export class AccountService {
     );
     const balances = await this.prisma.journalLine.groupBy({
       by: ["accountId"],
-      where: { journalEntry: { status: "POSTED", deletedAt: null } },
+      where: { journalEntry: { status: { in: ["POSTED", "REVERSED"] }, deletedAt: null } },
       _sum: { debit: true, credit: true },
       _count: { journalEntryId: true },
     });
@@ -74,7 +74,7 @@ export class AccountService {
         this.prisma.journalLine.findMany({
           where: {
             accountId: id,
-            journalEntry: { status: "POSTED", deletedAt: null },
+            journalEntry: { status: { in: ["POSTED", "REVERSED"] }, deletedAt: null },
           },
           include: {
             journalEntry: {

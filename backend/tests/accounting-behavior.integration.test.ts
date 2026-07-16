@@ -174,7 +174,7 @@ describe('school fee accounting behavior', () => {
             by: ['accountId'],
             where: {
               accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
-              journalEntry: { status: 'POSTED', deletedAt: null },
+              journalEntry: { status: { in: ['POSTED', 'REVERSED'] }, deletedAt: null },
             },
             _sum: { debit: true, credit: true },
           });
@@ -219,7 +219,7 @@ describe('school fee accounting behavior', () => {
             by: ['accountId'],
             where: {
               accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
-              journalEntry: { status: 'POSTED', deletedAt: null },
+              journalEntry: { status: { in: ['POSTED', 'REVERSED'] }, deletedAt: null },
             },
             _sum: { debit: true, credit: true },
           });
@@ -249,7 +249,7 @@ describe('school fee accounting behavior', () => {
             by: ['accountId'],
             where: {
               accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
-              journalEntry: { status: 'POSTED', deletedAt: null },
+              journalEntry: { status: { in: ['POSTED', 'REVERSED'] }, deletedAt: null },
             },
             _sum: { debit: true, credit: true },
           });
@@ -278,7 +278,7 @@ describe('school fee accounting behavior', () => {
             by: ['accountId'],
             where: {
               accountId: { in: [receivable.id, cash.id, revenue.id, vatPayable.id] },
-              journalEntry: { status: 'POSTED', deletedAt: null },
+              journalEntry: { status: { in: ['POSTED', 'REVERSED'] }, deletedAt: null },
             },
             _sum: { debit: true, credit: true },
           });

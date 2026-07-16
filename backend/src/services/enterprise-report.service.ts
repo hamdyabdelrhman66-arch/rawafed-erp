@@ -330,7 +330,7 @@ export class EnterpriseReportService {
               : {}),
           },
           journalEntry: {
-            status: "POSTED",
+            status: { in: ["POSTED", "REVERSED"] },
             deletedAt: null,
             postingDate: dates,
           },

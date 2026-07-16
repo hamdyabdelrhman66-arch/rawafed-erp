@@ -14,6 +14,12 @@ export class JournalsRepository {
       where: { id, deletedAt: null },
       include: {
         reversal: true,
+        reversedFrom: true,
+        correctedFrom: true,
+        corrections: true,
+        createdBy: { select: { id: true, displayName: true, username: true } },
+        approvedBy: { select: { id: true, displayName: true, username: true } },
+        postedBy: { select: { id: true, displayName: true, username: true } },
         lines: { include: { account: true, costCenter: true } },
       },
     });
@@ -21,7 +27,14 @@ export class JournalsRepository {
   list(where: Prisma.JournalEntryWhereInput = {}, skip = 0, take = 100) {
     return this.db.journalEntry.findMany({
       where: { deletedAt: null, ...where },
-      include: { lines: { include: { account: true, costCenter: true } } },
+      include: {
+        createdBy: { select: { id: true, displayName: true, username: true } },
+        postedBy: { select: { id: true, displayName: true, username: true } },
+        reversal: { select: { id: true, entryNumber: true } },
+        correctedFrom: { select: { id: true, entryNumber: true } },
+        corrections: { select: { id: true, entryNumber: true, status: true } },
+        lines: { include: { account: true, costCenter: true } },
+      },
       orderBy: [{ postingDate: "desc" }, { entryNumber: "desc" }],
       skip,
       take,
@@ -51,7 +64,7 @@ export class JournalsRepository {
         debit: Prisma.Decimal;
         credit: Prisma.Decimal;
       }>
-    >`SELECT je.id, je.entry_number, COALESCE(SUM(jl.debit),0) debit, COALESCE(SUM(jl.credit),0) credit FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id WHERE je.status='POSTED' AND je.deleted_at IS NULL GROUP BY je.id, je.entry_number HAVING COALESCE(SUM(jl.debit),0) <> COALESCE(SUM(jl.credit),0)`;
+    >`SELECT je.id, je.entry_number, COALESCE(SUM(jl.debit),0) debit, COALESCE(SUM(jl.credit),0) credit FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id WHERE je.status IN ('POSTED','REVERSED') AND je.deleted_at IS NULL GROUP BY je.id, je.entry_number HAVING COALESCE(SUM(jl.debit),0) <> COALESCE(SUM(jl.credit),0)`;
   }
   duplicateSources() {
     return this.db.$queryRaw<

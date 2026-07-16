@@ -31,7 +31,7 @@ export class AccountsRepository {
     return this.db.journalLine.count({
       where: {
         accountId: id,
-        journalEntry: { status: "POSTED", deletedAt: null },
+        journalEntry: { status: { in: ["POSTED", "REVERSED"] }, deletedAt: null },
       },
     });
   }

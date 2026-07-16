@@ -10,7 +10,7 @@ export class CashBankRepository {
         account: {
           include: {
             journalLines: {
-              where: { journalEntry: { status: "POSTED", deletedAt: null } },
+              where: { journalEntry: { status: { in: ["POSTED", "REVERSED"] }, deletedAt: null } },
             },
           },
         },
@@ -24,7 +24,7 @@ export class CashBankRepository {
         account: {
           include: {
             journalLines: {
-              where: { journalEntry: { status: "POSTED", deletedAt: null } },
+              where: { journalEntry: { status: { in: ["POSTED", "REVERSED"] }, deletedAt: null } },
             },
           },
         },

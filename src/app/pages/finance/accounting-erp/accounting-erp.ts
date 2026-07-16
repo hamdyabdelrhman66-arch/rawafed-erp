@@ -75,6 +75,9 @@ export class AccountingErp implements OnInit {
     nameAr: string;
   }> = [];
   selectedJournal: JournalEntry | null = null;
+  journalSummary: any = {};
+  journalSearch = "";
+  journalStatus = "";
   editingJournalId = "";
   selectedAccount: AccountingAccount | null = null;
   accountModalMode: AccountFormMode = "details";
@@ -107,7 +110,7 @@ export class AccountingErp implements OnInit {
     postingDate: new Date().toISOString().slice(0, 10),
     referenceNumber: "",
     description: "",
-    status: "posted" as "draft" | "posted",
+    status: "DRAFT" as "DRAFT",
     lines: [
       { accountId: "", description: "", debit: 0, credit: 0 },
       { accountId: "", description: "", debit: 0, credit: 0 },
@@ -388,7 +391,7 @@ export class AccountingErp implements OnInit {
     this.loading = true;
     this.error = "";
     try {
-      const [accounts, entries, trialBalance, _costCenters, dashboard, revenueMappings] =
+      const [accounts, entries, trialBalance, _costCenters, dashboard, revenueMappings, journalSummary] =
         await Promise.all([
           this.accounting.getAccounts(),
           this.accounting.getJournalEntries(),
@@ -396,12 +399,14 @@ export class AccountingErp implements OnInit {
           this.loadCostCenters(),
           this.accounting.getDashboard(this.fromDate, this.toDate),
           this.accounting.getRevenueMappings(),
+          this.accounting.getJournalSummary(),
         ]);
       this.accounts = accounts;
       this.entries = entries;
       this.trialBalance = trialBalance;
       this.dashboard = dashboard;
       this.revenueMappings = revenueMappings;
+      this.journalSummary = journalSummary;
       this.selectedAccountId ||=
         accounts.find((account) => account.systemKey === "main-cashbox")?.id ||
         accounts[0]?.id ||
@@ -706,7 +711,7 @@ export class AccountingErp implements OnInit {
       this.feedback.success(
         isEdit
           ? "Journal entry updated successfully."
-          : "Journal entry posted successfully.",
+          : this.i18n.label("Journal draft saved successfully.", "تم حفظ مسودة القيد بنجاح."),
       );
     } catch (error) {
       this.error = safeErrorMessage(error);
@@ -715,6 +720,10 @@ export class AccountingErp implements OnInit {
   }
 
   editJournal(entry: JournalEntry): void {
+    if (entry.status.toUpperCase() !== "DRAFT") {
+      this.error = this.i18n.label("Posted entries cannot be edited. Use Correct Entry.", "لا يمكن تعديل القيد المرحل. استخدم تصحيح القيد.");
+      return;
+    }
     if (entry.sourceType && entry.sourceType !== "manual_journal") {
       this.error = "Only manual journal entries can be edited from here.";
       return;
@@ -724,7 +733,7 @@ export class AccountingErp implements OnInit {
       postingDate: entry.postingDate,
       referenceNumber: entry.referenceNumber || "",
       description: entry.description,
-      status: entry.status === "draft" ? "draft" : "posted",
+      status: "DRAFT",
       lines: entry.lines.map((line) => ({
         accountId: line.accountId,
         description: line.description || "",
@@ -733,6 +742,34 @@ export class AccountingErp implements OnInit {
       })),
     };
     this.setActiveTab("journal");
+  }
+
+  get filteredJournals(): JournalEntry[] {
+    const q = this.journalSearch.trim().toLowerCase();
+    return this.entries.filter((entry) => (!this.journalStatus || entry.status.toUpperCase() === this.journalStatus) && (!q || [entry.entryNumber, entry.description, entry.referenceNumber, entry.sourceTransactionNumber].some((value) => String(value || '').toLowerCase().includes(q))));
+  }
+
+  journalTotal(entry: JournalEntry, side: 'debit' | 'credit'): number {
+    return entry.lines.reduce((sum, line) => sum + Number(line[side] || 0), 0);
+  }
+
+  async journalAction(entry: JournalEntry, action: 'submit' | 'approve' | 'post' | 'cancel' | 'reverse'): Promise<void> {
+    try {
+      if (action === 'reverse') await this.accounting.reverseJournal(entry.id);
+      else await this.accounting.transitionJournal(entry.id, action);
+      await this.load(); this.setActiveTab('journal');
+      this.feedback.success(this.i18n.label('Journal action completed.', 'تم تنفيذ إجراء القيد.'));
+    } catch (error) { this.feedback.error(this.i18n.label('Journal action failed.', 'تعذر تنفيذ إجراء القيد.'), safeErrorMessage(error)); }
+  }
+
+  async correctJournal(entry: JournalEntry): Promise<void> {
+    const warning = entry.automatic
+      ? this.i18n.label('This automatic journal should normally be corrected from its source. Accounting-only correction creates a reversal and a corrected draft; the original remains unchanged. Enter the mandatory reason:', 'هذا القيد تم إنشاؤه تلقائيًا من عملية تشغيلية. يفضل تصحيح العملية الأصلية. التصحيح المحاسبي سينشئ قيد عكس ومسودة مصححة ولن يحذف القيد الأصلي. أدخل سبب التصحيح الإلزامي:')
+      : this.i18n.label('Correction creates a reversal and a corrected draft; the original remains unchanged. Enter the mandatory reason:', 'التصحيح سينشئ قيد عكس ومسودة مصححة ولن يحذف القيد الأصلي. أدخل سبب التصحيح الإلزامي:');
+    const reason = window.prompt(warning, '');
+    if (!reason || reason.trim().length < 10) return;
+    try { const result = await this.accounting.correctJournal(entry.id, reason, Boolean(entry.automatic)); await this.load(); this.setActiveTab('journal'); this.openJournalVoucher(result.corrected.id); this.feedback.success(this.i18n.label('Reversal and corrected draft created.', 'تم إنشاء قيد العكس والمسودة المصححة.')); }
+    catch (error) { this.feedback.error(this.i18n.label('Correction failed.', 'تعذر تصحيح القيد.'), safeErrorMessage(error)); }
   }
 
   async deleteJournal(entry: JournalEntry): Promise<void> {
@@ -767,7 +804,7 @@ export class AccountingErp implements OnInit {
     this.editingJournalId = "";
     this.draftEntry.description = "";
     this.draftEntry.referenceNumber = "";
-    this.draftEntry.status = "posted";
+    this.draftEntry.status = "DRAFT";
     this.draftEntry.postingDate = new Date().toISOString().slice(0, 10);
     this.draftEntry.lines = [
       { accountId: "", description: "", debit: 0, credit: 0 },

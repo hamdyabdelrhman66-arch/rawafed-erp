@@ -11,6 +11,7 @@ import { ReceivablesService } from "../services/receivables.service.js";
 import { ReconciliationService } from "../services/reconciliation.service.js";
 import { VatService } from "../services/vat.service.js";
 import { AccountingExpenseService } from "../services/accounting-expense.service.js";
+import { AuditRepository } from "../repositories/audit.repository.js";
 
 const actor = (r: AuthRequest) => ({
   id: r.user?.id,
@@ -18,6 +19,7 @@ const actor = (r: AuthRequest) => ({
   role: r.user?.role,
 });
 export class AccountingController {
+  private prisma;
   private accounts;
   private journalService;
   private statements;
@@ -28,6 +30,7 @@ export class AccountingController {
   private reconciliation;
   private expenses;
   constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
     this.accounts = new AccountService(prisma);
     this.journalService = new JournalService(prisma);
     this.statements = new FinancialStatementsService(prisma);
@@ -98,6 +101,12 @@ export class AccountingController {
       ),
     ),
   );
+  journalSummary = asyncController(async (_req, res) =>
+    res.json(await this.journalService.summary()),
+  );
+  journalDetails = asyncController(async (req, res) =>
+    res.json(await this.journalService.details(req.params.id)),
+  );
   createJournal = asyncController(async (req, res) =>
     res.status(201).json(await this.journalService.post(req.body, actor(req))),
   );
@@ -111,7 +120,7 @@ export class AccountingController {
     ),
   );
   deleteJournal = asyncController(async (req, res) => {
-    await this.journalService.deleteManual(req.params.id);
+    await this.journalService.deleteManual(req.params.id, actor(req));
     res.status(204).send();
   });
   reverseJournal = asyncController(async (req, res) =>
@@ -119,6 +128,25 @@ export class AccountingController {
       .status(201)
       .json(await this.journalService.reverse(req.params.id, actor(req))),
   );
+  transitionJournal = asyncController(async (req, res) =>
+    res.json(await this.journalService.transition(req.params.id, req.path.split("/").pop() as any, actor(req))),
+  );
+  correctJournal = asyncController(async (req, res) =>
+    res.status(201).json(await this.journalService.correctPosted(req.params.id, req.body.entry, req.body.reason, Boolean(req.body.accountingOnly), actor(req))),
+  );
+  accountingPeriods = asyncController(async (req, res) =>
+    res.json(await this.prisma.accountingPeriod.findMany({ where: { branchId: req.query.branchId ? String(req.query.branchId) : undefined }, include: { branch: true }, orderBy: { startsAt: "desc" } })),
+  );
+  updateAccountingPeriod = asyncController(async (req, res) => {
+    const previous = await this.prisma.accountingPeriod.findUnique({ where: { id: req.params.id } });
+    if (!previous) return res.status(404).json({ message: "Accounting period not found." });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.accountingPeriod.update({ where: { id: req.params.id }, data: { status: req.body.status, notes: req.body.notes, closedAt: req.body.status === "OPEN" ? null : new Date(), closedById: req.body.status === "OPEN" ? null : req.user?.id } });
+      await new AuditRepository(tx).create({ actorId: req.user?.id, actorRole: req.user?.role, action: "change accounting period", entityType: "accounting_period", entityId: row.id, riskLevel: "HIGH", oldValues: { status: previous.status, notes: previous.notes }, newValues: { status: row.status, notes: row.notes }, changedFields: ["status", "notes"] });
+      return row;
+    });
+    res.json(updated);
+  });
   ledger = asyncController(async (req, res) =>
     res.json(
       await this.statements.ledger(

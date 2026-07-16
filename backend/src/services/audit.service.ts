@@ -1,5 +1,4 @@
-import type { Prisma } from "@prisma/client";
-import { AuditRepository } from "../repositories/audit.repository.js";
+import { AuditRepository, type AuditCreateInput } from "../repositories/audit.repository.js";
 import type { DatabaseClient } from "../repositories/repository.types.js";
 
 export class AuditService {
@@ -7,7 +6,7 @@ export class AuditService {
   static using(db: DatabaseClient) {
     return new AuditService(new AuditRepository(db));
   }
-  record(data: Prisma.AuditLogUncheckedCreateInput) {
+  record(data: AuditCreateInput) {
     return this.repository.create(data);
   }
 }

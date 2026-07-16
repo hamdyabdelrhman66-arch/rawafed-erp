@@ -76,17 +76,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await stopServer();
-  if (employeeUserIds.length) {
-    await prisma.auditLog.deleteMany({
-      where: { entityType: "user", entityId: { in: employeeUserIds } },
-    });
-    await prisma.user.deleteMany({ where: { id: { in: employeeUserIds } } });
-  }
-  if (userId) {
-    await prisma.auditLog.deleteMany({
-      where: { entityType: "user", entityId: userId },
-    });
-    await prisma.user.delete({ where: { id: userId } });
+  const ids = [...employeeUserIds, userId].filter(Boolean);
+  if (ids.length) {
+    await prisma.securitySession.updateMany({ where: { userId: { in: ids }, revokedAt: null }, data: { revokedAt: new Date(), revocationReason: "TEST_COMPLETED" } });
+    await prisma.refreshToken.updateMany({ where: { userId: { in: ids }, revokedAt: null }, data: { revokedAt: new Date() } });
+    await prisma.user.updateMany({ where: { id: { in: ids } }, data: { active: false, deletedAt: new Date() } });
   }
   await prisma.$disconnect();
 });

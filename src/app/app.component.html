@@ -60,6 +60,13 @@
           >dashboard</mat-icon
         ><span>{{ "nav.dashboard" | t }}</span>
       </a>
+      <details class="nav-group" [open]="isActive('/security')" *ngIf="canAccess(['Super Admin'])">
+        <summary><mat-icon>admin_panel_settings</mat-icon><span>{{ i18n.label('Security & Audit', 'الأمان وسجل النشاط') }}</span></summary>
+        <div class="nav-submenu">
+          <a routerLink="/security" routerLinkActive="active"><mat-icon>security</mat-icon><span>{{ i18n.label('Security Overview', 'حالة النظام الأمنية') }}</span></a>
+          <a routerLink="/security" routerLinkActive="active"><mat-icon>history</mat-icon><span>{{ i18n.label('Audit Log & Sessions', 'سجل النشاط والجلسات') }}</span></a>
+        </div>
+      </details>
 
       <details
         class="nav-group"

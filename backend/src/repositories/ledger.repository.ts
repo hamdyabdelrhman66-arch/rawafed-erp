@@ -17,7 +17,7 @@ export class LedgerRepository {
           ? { type: { in: filter.accountTypes } }
           : undefined,
         journalEntry: {
-          status: "POSTED" as JournalStatus,
+          status: { in: ["POSTED", "REVERSED"] as JournalStatus[] },
           deletedAt: null,
           postingDate: { gte: filter.from, lte: filter.to },
         },
@@ -34,7 +34,7 @@ export class LedgerRepository {
           ? { type: { in: filter.accountTypes } }
           : undefined,
         journalEntry: {
-          status: "POSTED",
+          status: { in: ["POSTED", "REVERSED"] },
           deletedAt: null,
           postingDate: { gte: filter.from, lte: filter.to },
         },
@@ -46,7 +46,8 @@ export class LedgerRepository {
     return this.db.financeInvoice.findMany({
       where: {
         deletedAt: null,
-        journalEntries: { none: { status: "POSTED" } },
+        status: { not: "VOID" },
+        journalEntries: { none: { status: { in: ["POSTED", "REVERSED"] } } },
       },
       select: { id: true, invoiceNumber: true },
     });
@@ -56,7 +57,7 @@ export class LedgerRepository {
       where: {
         deletedAt: null,
         status: "COMPLETED",
-        journalEntries: { none: { status: "POSTED" } },
+        journalEntries: { none: { status: { in: ["POSTED", "REVERSED"] } } },
       },
       select: { id: true, receiptNumber: true },
     });

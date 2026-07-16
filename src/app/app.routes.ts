@@ -60,5 +60,11 @@ export const routes: Routes = [
     data: { roles: ['Super Admin'] },
     loadComponent: () => import('./pages/users/users.component').then((m) => m.UsersComponent)
   },
+  {
+    path: 'security',
+    canActivate: [authGuard],
+    data: { roles: ['Super Admin'] },
+    loadComponent: () => import('./pages/security/security-audit.component').then((m) => m.SecurityAuditComponent)
+  },
   { path: '**', redirectTo: 'login' }
 ];

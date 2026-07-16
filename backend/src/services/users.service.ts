@@ -5,6 +5,7 @@ import { AuditRepository } from "../repositories/audit.repository.js";
 import { UsersRepository } from "../repositories/users.repository.js";
 import type { Actor } from "../dto/core.dto.js";
 import { ServiceError } from "./service.error.js";
+import { validateNewPassword } from "../security/password-policy.js";
 
 const shape = (u: any) => ({
   id: u.id,
@@ -47,6 +48,7 @@ export class UsersService {
     actor: Actor,
   ) {
     const repo = new UsersRepository(this.prisma);
+    await validateNewPassword(this.prisma, input.password);
     const role = await repo.findRole(input.role);
     if (!role) throw new ServiceError("Role not found.", 400);
     try {
@@ -60,6 +62,7 @@ export class UsersService {
         department: input.department || undefined,
         jobTitle: input.jobTitle || undefined,
         roleId: role.id,
+        mustChangePassword: true,
       });
       await new AuditRepository(this.prisma).create({
         actorId: actor.id,
@@ -95,6 +98,7 @@ export class UsersService {
     const repo = new UsersRepository(this.prisma);
     const role = input.role ? await repo.findRole(input.role) : null;
     if (input.role && !role) throw new ServiceError("Role not found.");
+    const existing = await repo.findById(id);
     const user = await repo.update(id, {
       displayName: input.displayName,
       email:
@@ -123,13 +127,30 @@ export class UsersService {
       action: "update user",
       entityType: "user",
       entityId: id,
+      oldValues: existing ? { displayName: existing.displayName, email: existing.email, role: existing.role.name, active: existing.active } : undefined,
+      newValues: { displayName: user.displayName, email: user.email, role: user.role.name, active: user.active },
+      changedFields: Object.keys(input),
+      riskLevel: input.role ? "HIGH" : "MEDIUM",
     });
+    if (input.role && existing?.role.name !== user.role.name) {
+      const now = new Date();
+      await this.prisma.$transaction([
+        this.prisma.securitySession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: now, revokedById: actor.id, revocationReason: "ROLE_CHANGED" } }),
+        this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: now } }),
+      ]);
+    }
     return shape(user);
   }
   async password(id: string, password: string, actor: Actor) {
+    await validateNewPassword(this.prisma, password, id);
     return this.prisma.$transaction(async (tx) => {
+      const previous = await new UsersRepository(tx).findById(id);
+      if (!previous) throw new ServiceError("User not found.", 404, "NOT_FOUND");
+      await tx.passwordHistory.create({ data: { userId: id, passwordHash: previous.passwordHash } });
       const user = await new UsersRepository(tx).update(id, {
         passwordHash: await bcrypt.hash(password, 12),
+        passwordChangedAt: new Date(),
+        mustChangePassword: true,
       });
       await new AuthRepository(tx).revokeAllForUser(id, new Date());
       await new AuditRepository(tx).create({
@@ -138,6 +159,7 @@ export class UsersService {
         action: "change user password",
         entityType: "user",
         entityId: id,
+        riskLevel: "HIGH",
       });
       return shape(user);
     });

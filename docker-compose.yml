@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: rawafed
       POSTGRES_USER: rawafed
-      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rawafed -d rawafed"]
       interval: 5s
@@ -20,9 +20,9 @@ services:
     environment:
       NODE_ENV: development
       PERSISTENCE_DRIVER: postgres
-      DATABASE_URL: postgresql://rawafed:local-development-only@postgres:5432/rawafed
-      JWT_SECRET: local-jwt-secret-replace-with-32-characters
-      REFRESH_SECRET: local-refresh-secret-replace-32-characters
+      DATABASE_URL: postgresql://rawafed:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/rawafed
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      REFRESH_SECRET: ${REFRESH_SECRET:?Set REFRESH_SECRET}
       CORS_ORIGIN: http://localhost:4200
     ports:
       - "4300:4300"

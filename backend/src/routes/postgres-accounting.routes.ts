@@ -5,6 +5,7 @@ import { AccountingController } from "../controllers/accounting.controller.js";
 import { requireActiveSession } from "../middlewares/active-session.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import * as validators from "../validators/accounting.validators.js";
+import { requirePermission } from "../middlewares/permission.middleware.js";
 
 export function postgresAccountingRoutes(prisma: PrismaClient): Router {
   const r = Router(),
@@ -77,26 +78,35 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
     read,
     c.payableAccounts,
   );
-  r.get("/api/accounting/journal-entries", ...secured, read, c.journals);
-  r.post("/api/accounting/journal-entries", ...secured, write, c.createJournal);
+  r.get("/api/accounting/journal-entries", ...secured, requirePermission(prisma, "journals.view"), c.journals);
+  r.get("/api/accounting/journal-entries/summary", ...secured, requirePermission(prisma, "journals.view"), c.journalSummary);
+  r.get("/api/accounting/journal-entries/:id", ...secured, requirePermission(prisma, "journals.view"), c.journalDetails);
+  r.post("/api/accounting/journal-entries", ...secured, requirePermission(prisma, "journals.create.manual"), validate(validators.journalEntry), c.createJournal);
   r.patch(
     "/api/accounting/journal-entries/:id",
     ...secured,
-    write,
+    requirePermission(prisma, "journals.edit.draft"),
+    validate(validators.journalEntry),
     c.updateJournal,
   );
   r.delete(
     "/api/accounting/journal-entries/:id",
     ...secured,
-    write,
+    requirePermission(prisma, "journals.cancel.draft"),
     c.deleteJournal,
   );
   r.post(
     "/api/accounting/journal-entries/:id/reverse",
     ...secured,
-    write,
+    requirePermission(prisma, "journals.reverse"),
     c.reverseJournal,
   );
+  for (const [action, permission] of [["submit", "journals.submit"], ["approve", "journals.approve"], ["post", "journals.post"], ["cancel", "journals.cancel.draft"]] as const) {
+    r.post(`/api/accounting/journal-entries/:id/${action}`, ...secured, requirePermission(prisma, permission), c.transitionJournal);
+  }
+  r.post("/api/accounting/journal-entries/:id/correct", ...secured, requirePermission(prisma, "journals.correct.posted"), validate(validators.journalCorrection), c.correctJournal);
+  r.get("/api/accounting/periods", ...secured, requirePermission(prisma, "journals.view"), c.accountingPeriods);
+  r.patch("/api/accounting/periods/:id", ...secured, requirePermission(prisma, "accounting.periods.manage"), validate(validators.accountingPeriod), c.updateAccountingPeriod);
   r.get("/api/accounting/ledger/:accountId", ...secured, read, c.ledger);
   r.get("/api/accounting/trial-balance", ...secured, read, c.trialBalance);
   r.get("/api/accounting/dashboard", ...secured, read, c.dashboard);

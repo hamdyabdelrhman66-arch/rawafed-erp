@@ -17,8 +17,11 @@ enum AccountType {
 
 enum JournalStatus {
   DRAFT
+  SUBMITTED
+  APPROVED
   POSTED
   REVERSED
+  CANCELLED
 }
 
 enum InvoiceStatus {
@@ -37,38 +40,57 @@ enum PaymentStatus {
 }
 
 model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique
   description String?
   users       User[]
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
 
   @@map("roles")
 }
 
 model User {
-  id                String             @id @default(uuid()) @db.Uuid
-  username          String             @unique
-  email             String?            @unique
-  passwordHash      String             @map("password_hash")
-  displayName       String             @map("display_name")
-  employeeCode      String?            @unique @map("employee_code")
-  phone             String?
-  department        String?
-  jobTitle          String?            @map("job_title")
-  roleId            String             @map("role_id") @db.Uuid
-  role              Role               @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  active            Boolean            @default(true)
-  refreshTokens     RefreshToken[]
-  auditLogs         AuditLog[]
-  createdJournals   JournalEntry[]     @relation("JournalCreator")
-  payrollRuns       PayrollRun[]       @relation("PayrollCreator")
-  reportTemplates   ReportTemplate[]
-  notificationReads NotificationRead[]
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  deletedAt         DateTime?          @map("deleted_at")
+  id                  String               @id @default(uuid()) @db.Uuid
+  username            String               @unique
+  email               String?              @unique
+  passwordHash        String               @map("password_hash")
+  displayName         String               @map("display_name")
+  employeeCode        String?              @unique @map("employee_code")
+  phone               String?
+  department          String?
+  jobTitle            String?              @map("job_title")
+  roleId              String               @map("role_id") @db.Uuid
+  role                Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  active              Boolean              @default(true)
+  failedLoginCount    Int                  @default(0) @map("failed_login_count")
+  lockedUntil         DateTime?            @map("locked_until")
+  passwordChangedAt   DateTime?            @map("password_changed_at")
+  mustChangePassword  Boolean              @default(false) @map("must_change_password")
+  mfaEnabled          Boolean              @default(false) @map("mfa_enabled")
+  mfaSecretEncrypted  String?              @map("mfa_secret_encrypted")
+  refreshTokens       RefreshToken[]
+  securitySessions    SecuritySession[]    @relation("SessionUser")
+  revokedSessions     SecuritySession[]    @relation("SessionRevoker")
+  loginAttempts       LoginAttempt[]
+  securityAlerts      SecurityAlert[]      @relation("AlertUser")
+  assignedAlerts      SecurityAlert[]      @relation("AlertAssignee")
+  trustedDevices      TrustedDevice[]
+  passwordHistory     PasswordHistory[]
+  passwordResetTokens PasswordResetToken[]
+  mfaRecoveryCodes    MfaRecoveryCode[]
+  dataExports         DataExportLog[]
+  auditLogs           AuditLog[]
+  createdJournals     JournalEntry[]       @relation("JournalCreator")
+  approvedJournals    JournalEntry[]       @relation("JournalApprover")
+  postedJournals      JournalEntry[]       @relation("JournalPoster")
+  payrollRuns         PayrollRun[]         @relation("PayrollCreator")
+  reportTemplates     ReportTemplate[]
+  notificationReads   NotificationRead[]
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  deletedAt           DateTime?            @map("deleted_at")
 
   @@index([roleId, active])
   @@index([department, active])
@@ -96,16 +118,22 @@ model ReportTemplate {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String    @unique @map("token_hash")
-  expiresAt DateTime  @map("expires_at")
-  revokedAt DateTime? @map("revoked_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id           String           @id @default(uuid()) @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String?          @map("session_id") @db.Uuid
+  session      SecuritySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  familyId     String           @default(uuid()) @map("family_id") @db.Uuid
+  replacedById String?          @map("replaced_by_id") @db.Uuid
+  tokenHash    String           @unique @map("token_hash")
+  expiresAt    DateTime         @map("expires_at")
+  revokedAt    DateTime?        @map("revoked_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
 
   @@index([userId, expiresAt])
+  @@index([sessionId, revokedAt])
+  @@index([familyId])
   @@index([expiresAt, revokedAt])
   @@map("refresh_tokens")
 }
@@ -121,6 +149,7 @@ model Branch {
   staff              Staff[]
   fiscalYears        AcademicYear[]
   journalEntries     JournalEntry[]
+  accountingPeriods  AccountingPeriod[]
   fixedAssets        FixedAsset[]
   assetTransfersFrom FixedAssetTransfer[] @relation("AssetTransferFromBranch")
   assetTransfersTo   FixedAssetTransfer[] @relation("AssetTransferToBranch")
@@ -470,45 +499,68 @@ model ChartOfAccount {
 }
 
 model JournalEntry {
-  id                String                  @id @default(uuid()) @db.Uuid
-  entryNumber       String                  @unique @map("entry_number")
-  branchId          String                  @map("branch_id") @db.Uuid
-  branch            Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  academicYearId    String?                 @map("academic_year_id") @db.Uuid
-  academicYear      AcademicYear?           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  postingDate       DateTime                @map("posting_date") @db.Date
-  description       String
-  status            JournalStatus           @default(POSTED)
-  sourceType        String?                 @map("source_type")
-  sourceId          String?                 @map("source_id")
-  referenceNumber   String?                 @map("reference_number")
-  createdById       String?                 @map("created_by_id") @db.Uuid
-  createdBy         User?                   @relation("JournalCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  postedAt          DateTime?               @map("posted_at")
-  reversedFromId    String?                 @unique @map("reversed_from_id") @db.Uuid
-  reversedFrom      JournalEntry?           @relation("JournalReversal", fields: [reversedFromId], references: [id], onDelete: Restrict)
-  reversal          JournalEntry?           @relation("JournalReversal")
-  invoiceId         String?                 @map("invoice_id") @db.Uuid
-  invoice           FinanceInvoice?         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  paymentId         String?                 @map("payment_id") @db.Uuid
-  payment           FinancePayment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  expenseId         String?                 @map("expense_id") @db.Uuid
-  expense           FinanceExpense?         @relation(fields: [expenseId], references: [id], onDelete: Restrict)
-  accountingExpense AccountingExpense?
-  supplierPayment   SupplierPayment?
-  customerPayment   CustomerPayment?
-  transfer          CashBankTransfer?
-  payrollRun        PayrollRun?
-  acquiredAsset     FixedAsset?
-  assetDepreciation FixedAssetDepreciation?
-  assetDisposal     FixedAssetDisposal?
-  lines             JournalLine[]
-  createdAt         DateTime                @default(now()) @map("created_at")
-  updatedAt         DateTime                @updatedAt @map("updated_at")
-  deletedAt         DateTime?               @map("deleted_at")
+  id                      String                  @id @default(uuid()) @db.Uuid
+  entryNumber             String                  @unique @map("entry_number")
+  branchId                String                  @map("branch_id") @db.Uuid
+  branch                  Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  academicYearId          String?                 @map("academic_year_id") @db.Uuid
+  academicYear            AcademicYear?           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  postingDate             DateTime                @map("posting_date") @db.Date
+  journalDate             DateTime?               @map("journal_date") @db.Date
+  description             String
+  status                  JournalStatus           @default(POSTED)
+  sourceType              String?                 @map("source_type")
+  sourceId                String?                 @map("source_id")
+  sourceModule            String?                 @map("source_module")
+  sourceTransactionNumber String?                 @map("source_transaction_number")
+  postingEventType        String?                 @map("posting_event_type")
+  idempotencyKey          String?                 @unique @map("idempotency_key")
+  automatic               Boolean                 @default(true)
+  referenceNumber         String?                 @map("reference_number")
+  notes                   String?
+  attachmentUrl           String?                 @map("attachment_url")
+  currency                String                  @default("SAR") @db.Char(3)
+  exchangeRate            Decimal                 @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  recurring               Boolean                 @default(false)
+  createdById             String?                 @map("created_by_id") @db.Uuid
+  createdBy               User?                   @relation("JournalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  postedAt                DateTime?               @map("posted_at")
+  submittedAt             DateTime?               @map("submitted_at")
+  approvedAt              DateTime?               @map("approved_at")
+  approvedById            String?                 @map("approved_by_id") @db.Uuid
+  approvedBy              User?                   @relation("JournalApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  postedById              String?                 @map("posted_by_id") @db.Uuid
+  postedBy                User?                   @relation("JournalPoster", fields: [postedById], references: [id], onDelete: SetNull)
+  reversedFromId          String?                 @unique @map("reversed_from_id") @db.Uuid
+  reversedFrom            JournalEntry?           @relation("JournalReversal", fields: [reversedFromId], references: [id], onDelete: Restrict)
+  reversal                JournalEntry?           @relation("JournalReversal")
+  correctedFromId         String?                 @map("corrected_from_id") @db.Uuid
+  correctedFrom           JournalEntry?           @relation("JournalCorrection", fields: [correctedFromId], references: [id], onDelete: Restrict)
+  corrections             JournalEntry[]          @relation("JournalCorrection")
+  correctionReason        String?                 @map("correction_reason")
+  invoiceId               String?                 @map("invoice_id") @db.Uuid
+  invoice                 FinanceInvoice?         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  paymentId               String?                 @map("payment_id") @db.Uuid
+  payment                 FinancePayment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  expenseId               String?                 @map("expense_id") @db.Uuid
+  expense                 FinanceExpense?         @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+  accountingExpense       AccountingExpense?
+  supplierPayment         SupplierPayment?
+  customerPayment         CustomerPayment?
+  transfer                CashBankTransfer?
+  payrollRun              PayrollRun?
+  acquiredAsset           FixedAsset?
+  assetDepreciation       FixedAssetDepreciation?
+  assetDisposal           FixedAssetDisposal?
+  lines                   JournalLine[]
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+  deletedAt               DateTime?               @map("deleted_at")
 
   @@unique([sourceType, sourceId])
   @@index([branchId, postingDate, status])
+  @@index([sourceModule, sourceId])
+  @@index([correctedFromId])
   @@map("journal_entries")
 }
 
@@ -549,6 +601,25 @@ model CostCenter {
 
   @@index([active, deletedAt])
   @@map("cost_centers")
+}
+
+model AccountingPeriod {
+  id         String    @id @default(uuid()) @db.Uuid
+  branchId   String    @map("branch_id") @db.Uuid
+  branch     Branch    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  name       String
+  startsAt   DateTime  @map("starts_at") @db.Date
+  endsAt     DateTime  @map("ends_at") @db.Date
+  status     String    @default("OPEN")
+  closedById String?   @map("closed_by_id") @db.Uuid
+  closedAt   DateTime? @map("closed_at")
+  notes      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([branchId, startsAt, endsAt])
+  @@index([branchId, status, startsAt, endsAt])
+  @@map("accounting_periods")
 }
 
 model AccountingCustomer {
@@ -1446,22 +1517,236 @@ model NotificationRead {
 }
 
 model AuditLog {
-  id             String   @id @default(uuid()) @db.Uuid
-  actorId        String?  @map("actor_id") @db.Uuid
-  actor          User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  actorRole      String?  @map("actor_role")
-  action         String
-  entityType     String   @map("entity_type")
-  entityId       String?  @map("entity_id")
-  details        Json?
-  idempotencyKey String?  @unique @map("idempotency_key")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid()) @db.Uuid
+  actorId             String?  @map("actor_id") @db.Uuid
+  actor               User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorRole           String?  @map("actor_role")
+  usernameSnapshot    String?  @map("username_snapshot")
+  displayNameSnapshot String?  @map("display_name_snapshot")
+  roleSnapshot        String?  @map("role_snapshot")
+  branchSnapshot      String?  @map("branch_snapshot")
+  sessionId           String?  @map("session_id") @db.Uuid
+  ipAddress           String?  @map("ip_address")
+  userAgent           String?  @map("user_agent")
+  browser             String?
+  operatingSystem     String?  @map("operating_system")
+  deviceType          String?  @map("device_type")
+  requestId           String?  @map("request_id")
+  httpMethod          String?  @map("http_method")
+  apiEndpoint         String?  @map("api_endpoint")
+  frontendRoute       String?  @map("frontend_route")
+  module              String?
+  action              String
+  entityType          String   @map("entity_type")
+  entityId            String?  @map("entity_id")
+  entityReference     String?  @map("entity_reference")
+  status              String   @default("SUCCESS")
+  failureReason       String?  @map("failure_reason")
+  oldValues           Json?    @map("old_values")
+  newValues           Json?    @map("new_values")
+  changedFields       Json?    @map("changed_fields")
+  details             Json?
+  riskLevel           String   @default("LOW") @map("risk_level")
+  source              String   @default("WEB")
+  impersonatorId      String?  @map("impersonator_id") @db.Uuid
+  recordHash          String   @map("record_hash")
+  previousRecordHash  String?  @map("previous_record_hash")
+  idempotencyKey      String?  @unique @map("idempotency_key")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   @@index([actorId, createdAt])
   @@index([entityType, entityId])
   @@index([action, createdAt])
+  @@index([module, createdAt])
+  @@index([riskLevel, createdAt])
+  @@index([status, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([requestId])
   @@map("audit_logs")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  module      String
+  description String?
+  roleLinks   RolePermission[]
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([module, code])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String     @map("permission_id") @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model SecuritySession {
+  id                String         @id @default(uuid()) @db.Uuid
+  userId            String         @map("user_id") @db.Uuid
+  user              User           @relation("SessionUser", fields: [userId], references: [id], onDelete: Restrict)
+  createdAt         DateTime       @default(now()) @map("created_at")
+  lastActivityAt    DateTime       @default(now()) @map("last_activity_at")
+  idleExpiresAt     DateTime       @map("idle_expires_at")
+  absoluteExpiresAt DateTime       @map("absolute_expires_at")
+  ipAddress         String?        @map("ip_address")
+  userAgent         String?        @map("user_agent")
+  browser           String?
+  operatingSystem   String?        @map("operating_system")
+  deviceType        String?        @map("device_type")
+  revokedAt         DateTime?      @map("revoked_at")
+  revokedById       String?        @map("revoked_by_id") @db.Uuid
+  revokedBy         User?          @relation("SessionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  revocationReason  String?        @map("revocation_reason")
+  refreshTokens     RefreshToken[]
+
+  @@index([userId, revokedAt, absoluteExpiresAt])
+  @@index([lastActivityAt])
+  @@map("security_sessions")
+}
+
+model LoginAttempt {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String?  @map("user_id") @db.Uuid
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  usernameMasked  String   @map("username_masked")
+  success         Boolean
+  failureReason   String?  @map("failure_reason")
+  sessionId       String?  @map("session_id") @db.Uuid
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  browser         String?
+  operatingSystem String?  @map("operating_system")
+  deviceType      String?  @map("device_type")
+  requestId       String?  @map("request_id")
+  riskScore       Int      @default(0) @map("risk_score")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt, success])
+  @@index([userId, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("login_attempts")
+}
+
+model SecurityAlert {
+  id              String    @id @default(uuid()) @db.Uuid
+  severity        String
+  alertType       String    @map("alert_type")
+  title           String
+  description     String
+  userId          String?   @map("user_id") @db.Uuid
+  user            User?     @relation("AlertUser", fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress       String?   @map("ip_address")
+  device          String?
+  relatedAuditIds Json      @default("[]") @map("related_audit_ids")
+  status          String    @default("NEW")
+  resolutionNotes String?   @map("resolution_notes")
+  assignedToId    String?   @map("assigned_to_id") @db.Uuid
+  assignedTo      User?     @relation("AlertAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  @@index([status, severity, createdAt])
+  @@index([userId, createdAt])
+  @@map("security_alerts")
+}
+
+model SecuritySetting {
+  id                    String   @id @default("default")
+  maxFailedAttempts     Int      @default(5) @map("max_failed_attempts")
+  failureWindowMinutes  Int      @default(15) @map("failure_window_minutes")
+  lockDurationMinutes   Int      @default(30) @map("lock_duration_minutes")
+  idleTimeoutMinutes    Int      @default(30) @map("idle_timeout_minutes")
+  absoluteTimeoutHours  Int      @default(12) @map("absolute_timeout_hours")
+  maxConcurrentSessions Int      @default(5) @map("max_concurrent_sessions")
+  minimumPasswordLength Int      @default(12) @map("minimum_password_length")
+  passwordHistoryCount  Int      @default(5) @map("password_history_count")
+  requireMfaPrivileged  Boolean  @default(false) @map("require_mfa_privileged")
+  segregationOfDuties   Boolean  @default(false) @map("segregation_of_duties")
+  auditRetentionDays    Int      @default(2555) @map("audit_retention_days")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("security_settings")
+}
+
+model TrustedDevice {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprintHash String    @map("fingerprint_hash")
+  deviceName      String?   @map("device_name")
+  lastIp          String?   @map("last_ip")
+  lastUsedAt      DateTime  @default(now()) @map("last_used_at")
+  expiresAt       DateTime  @map("expires_at")
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, fingerprintHash])
+  @@index([expiresAt, revokedAt])
+  @@map("trusted_devices")
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("password_history")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt, usedAt])
+  @@map("password_reset_tokens")
+}
+
+model MfaRecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, codeHash])
+  @@map("mfa_recovery_codes")
+}
+
+model DataExportLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reportType   String   @map("report_type")
+  exportFormat String   @map("export_format")
+  filters      Json     @default("{}")
+  recordCount  Int      @default(0) @map("record_count")
+  branch       String?
+  ipAddress    String?  @map("ip_address")
+  device       String?
+  status       String   @default("SUCCESS")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([reportType, createdAt])
+  @@map("data_export_logs")
 }
 
 model AccountingOutbox {

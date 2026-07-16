@@ -15,6 +15,7 @@ import {
   requestLogger,
 } from "./middlewares/request-logger.middleware.js";
 import { validateUploadedFile } from "./middlewares/upload-security.middleware.js";
+import { securityAuditMiddleware } from "./middlewares/security-audit.middleware.js";
 import { disconnectDatabase, prisma } from "./prisma/client.js";
 import { monitoringRoutes } from "./routes/monitoring.routes.js";
 import { postgresAccountingRoutes } from "./routes/postgres-accounting.routes.js";
@@ -22,7 +23,9 @@ import { postgresCoreRoutes } from "./routes/postgres-core.routes.js";
 import { postgresFixedAssetsRoutes } from "./routes/postgres-fixed-assets.routes.js";
 import { postgresInventoryRoutes } from "./routes/postgres-inventory.routes.js";
 import { postgresOperationsRoutes } from "./routes/postgres-operations.routes.js";
+import { postgresSecurityRoutes } from "./routes/postgres-security.routes.js";
 import { ServiceError } from "./services/service.error.js";
+import { startSecurityCleanupJob } from "./services/security.service.js";
 
 const port = Number(process.env.PORT || 4300);
 const persistenceDriver = process.env.PERSISTENCE_DRIVER || "postgres";
@@ -91,7 +94,7 @@ export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors({ origin: origins.length ? origins : false, credentials: true }));
+app.use(cors({ origin: (origin, done) => !origin || origins.includes(origin) ? done(null, true) : done(new ServiceError("Origin is not allowed.", 403, "ORIGIN_DENIED")), credentials: true, methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id", "X-Rawafed-Route"] }));
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(
@@ -105,6 +108,12 @@ app.use(
 );
 app.use(standardizeApiResponses);
 app.use(requestLogger);
+app.use(securityAuditMiddleware(prisma));
+app.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH"].includes(req.method) && req.path.startsWith("/api") && !req.is("application/json") && !req.is("multipart/form-data"))
+    return void res.status(415).json({ message: "Unsupported content type.", errorCode: "UNSUPPORTED_CONTENT_TYPE" });
+  next();
+});
 app.use((_req, res, next) => {
   res.setTimeout(30_000, () => {
     if (!res.headersSent)
@@ -119,6 +128,7 @@ app.use(postgresAccountingRoutes(prisma));
 app.use(postgresFixedAssetsRoutes(prisma));
 app.use(postgresInventoryRoutes(prisma));
 app.use(postgresOperationsRoutes(prisma));
+app.use(postgresSecurityRoutes(prisma));
 app.get("/", (_req, res) =>
   res.json({
     ok: true,
@@ -163,6 +173,7 @@ const server = app.listen(port, () => {
     `Persistence driver: postgres\nRawafed backend listening on http://127.0.0.1:${port}\n`,
   );
 });
+startSecurityCleanupJob(prisma);
 server.requestTimeout = 35_000;
 server.headersTimeout = 40_000;
 server.keepAliveTimeout = 5_000;

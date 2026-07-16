@@ -10,7 +10,7 @@ export const requireActiveSession = (prisma: PrismaClient) => {
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
-    if (!req.user || !(await sessions.isActive(req.user.id))) {
+    if (!req.user || !(await sessions.isActive(req.user.id, req.user.sessionId))) {
       res.status(401).json({ message: "Invalid or expired token." });
       return;
     }

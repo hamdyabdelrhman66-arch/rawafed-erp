@@ -10,6 +10,9 @@ export class UsersRepository {
       include: userInclude,
     });
   }
+  findByUsername(username: string) {
+    return this.db.user.findFirst({ where: { username, deletedAt: null }, include: userInclude });
+  }
   findActiveById(id: string) {
     return this.db.user.findFirst({
       where: { id, active: true, deletedAt: null },
@@ -41,6 +44,7 @@ export class UsersRepository {
     department?: string;
     jobTitle?: string;
     roleId: string;
+    mustChangePassword?: boolean;
   }) {
     return this.db.user.create({ data, include: userInclude });
   }
@@ -56,6 +60,8 @@ export class UsersRepository {
       roleId?: string;
       passwordHash?: string;
       active?: boolean;
+      passwordChangedAt?: Date;
+      mustChangePassword?: boolean;
     },
   ) {
     return this.db.user.update({ where: { id }, data, include: userInclude });

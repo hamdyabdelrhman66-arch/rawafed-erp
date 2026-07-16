@@ -47,3 +47,35 @@ export const expensePayment = z.object({
   referenceNumber: z.string().max(160).optional(),
   idempotencyKey: z.string().min(8).max(200),
 }).strict();
+
+const journalLine = z.object({
+  accountId: z.string().uuid(),
+  debit: z.coerce.number().min(0).max(100000000).optional(),
+  credit: z.coerce.number().min(0).max(100000000).optional(),
+  description: z.string().max(1000).optional(),
+  costCenterId: optionalUuid,
+}).refine((line) => Number(line.debit || 0) > 0 !== Number(line.credit || 0) > 0, "Each line must contain either debit or credit.");
+
+export const journalEntry = z.object({
+  postingDate: z.string().min(8),
+  description: z.string().min(1).max(2000),
+  referenceNumber: z.string().max(160).optional(),
+  notes: z.string().max(4000).optional(),
+  attachmentUrl: z.string().max(2000).optional(),
+  currency: z.string().length(3).optional(),
+  exchangeRate: z.coerce.number().positive().optional(),
+  recurring: z.boolean().optional(),
+  status: z.enum(["DRAFT"]).optional(),
+  lines: z.array(journalLine).min(2).max(250),
+}).passthrough();
+
+export const journalCorrection = z.object({
+  reason: z.string().trim().min(10).max(2000),
+  accountingOnly: z.boolean().default(false),
+  entry: journalEntry.optional(),
+}).strict();
+
+export const accountingPeriod = z.object({
+  status: z.enum(["OPEN", "SOFT_CLOSED", "CLOSED"]),
+  notes: z.string().max(2000).optional().nullable(),
+}).strict();

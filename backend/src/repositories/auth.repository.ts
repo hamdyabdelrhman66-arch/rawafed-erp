@@ -7,8 +7,13 @@ export class AuthRepository {
     userId: string;
     tokenHash: string;
     expiresAt: Date;
+    sessionId?: string;
+    familyId?: string;
   }) {
     return this.db.refreshToken.create({ data });
+  }
+  findRefreshToken(id: string) {
+    return this.db.refreshToken.findUnique({ where: { id }, include: { session: true } });
   }
   findValidRefreshToken(
     id: string,
@@ -31,5 +36,8 @@ export class AuthRepository {
       where: { userId, revokedAt: null },
       data: { revokedAt: now },
     });
+  }
+  revokeFamily(familyId: string, now: Date) {
+    return this.db.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: now } });
   }
 }

@@ -22,20 +22,21 @@ const tokenOptions = {
 };
 
 export interface AuthRequest extends Request {
-  user?: Pick<UserRecord, "id" | "username" | "displayName" | "role">;
+  user?: Pick<UserRecord, "id" | "username" | "displayName" | "role"> & { sessionId?: string };
 }
 
-export function signUser(user: UserRecord): string {
+export function signUser(user: UserRecord, sessionId?: string): string {
   return jwt.sign(
     {
       sub: user.id,
       username: user.username,
       displayName: user.displayName,
       role: user.role,
+      sid: sessionId,
     },
     jwtSecret,
     {
-      expiresIn: "12h",
+      expiresIn: "15m",
       algorithm: "HS256",
       issuer: tokenOptions.issuer,
       audience: tokenOptions.audience,
@@ -94,12 +95,14 @@ export function requireAuth(
       username: string;
       displayName: string;
       role: UserRole;
+      sid?: string;
     };
     req.user = {
       id: decoded.sub,
       username: decoded.username,
       displayName: decoded.displayName,
       role: decoded.role,
+      sessionId: decoded.sid,
     };
     next();
   } catch {

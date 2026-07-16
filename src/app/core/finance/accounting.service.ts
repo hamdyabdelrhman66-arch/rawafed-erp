@@ -52,6 +52,13 @@ export interface JournalEntry {
   sourceType?: string;
   sourceId?: string;
   createdBy?: string;
+  automatic?: boolean;
+  sourceModule?: string;
+  sourceTransactionNumber?: string;
+  postedBy?: any;
+  reversal?: { id: string; entryNumber: string };
+  correctedFrom?: { id: string; entryNumber: string };
+  corrections?: Array<{ id: string; entryNumber: string; status: string }>;
   lines: JournalEntryLine[];
 }
 
@@ -230,6 +237,12 @@ export class AccountingService {
     return this.api.get<JournalEntry[]>('/accounting/journal-entries');
   }
 
+  getJournalSummary(): Promise<any> { return this.api.get<any>('/accounting/journal-entries/summary'); }
+  getJournalDetails(id: string): Promise<any> { return this.api.get<any>(`/accounting/journal-entries/${id}`); }
+  transitionJournal(id: string, action: 'submit' | 'approve' | 'post' | 'cancel'): Promise<JournalEntry> { return this.api.post<JournalEntry>(`/accounting/journal-entries/${id}/${action}`, {}); }
+  reverseJournal(id: string): Promise<JournalEntry> { return this.api.post<JournalEntry>(`/accounting/journal-entries/${id}/reverse`, {}); }
+  correctJournal(id: string, reason: string, accountingOnly: boolean): Promise<any> { return this.api.post<any>(`/accounting/journal-entries/${id}/correct`, { reason, accountingOnly }); }
+
   getLedger(accountId: string, fromDate = '', toDate = ''): Promise<any> {
     const params = new URLSearchParams();
     if (fromDate) params.set('fromDate', fromDate);
@@ -271,7 +284,7 @@ export class AccountingService {
     referenceNumber?: string;
     postingDate: string;
     description: string;
-    status: 'draft' | 'posted';
+    status: 'DRAFT';
     lines: Array<{ accountId: string; description?: string; debit?: number; credit?: number }>;
   }): Promise<JournalEntry> {
     return this.api.post<JournalEntry>('/accounting/journal-entries', payload);
@@ -281,7 +294,7 @@ export class AccountingService {
     referenceNumber?: string;
     postingDate: string;
     description: string;
-    status: 'draft' | 'posted';
+    status: 'DRAFT';
     lines: Array<{ accountId: string; description?: string; debit?: number; credit?: number }>;
   }): Promise<JournalEntry> {
     return this.api.patch<JournalEntry>(`/accounting/journal-entries/${id}`, payload);

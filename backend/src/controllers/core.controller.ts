@@ -10,6 +10,7 @@ import { StudentsService } from "../services/students.service.js";
 import { UploadsService } from "../services/uploads.service.js";
 import { UsersService } from "../services/users.service.js";
 import { ServiceError } from "../services/service.error.js";
+import { requestSecurityContext } from "../security/security-utils.js";
 
 type CoreRequest = AuthRequest & { params: Record<string, string> };
 export const asyncController =
@@ -46,13 +47,13 @@ export class CoreController {
     this.finance = new FinanceService(prisma);
   }
   login = asyncController(async (req, res) =>
-    res.json(await this.auth.login(req.body.username, req.body.password)),
+    res.json(await this.auth.login(req.body.username, req.body.password, requestSecurityContext(req))),
   );
   refresh = asyncController(async (req, res) =>
-    res.json(await this.auth.refresh(req.body.refreshToken)),
+    res.json(await this.auth.refresh(req.body.refreshToken, requestSecurityContext(req))),
   );
   logout = asyncController(async (req, res) => {
-    await this.auth.logout(req.user!.id, req.user?.role, req.body.refreshToken);
+    await this.auth.logout(req.user!.id, req.user?.role, req.body.refreshToken, req.user?.sessionId, requestSecurityContext(req));
     res.status(204).send();
   });
   me = asyncController(async (req, res) => res.json({ user: req.user }));
