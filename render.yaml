@@ -23,11 +23,5 @@ services:
         sync: false
       - key: BUILD_VERSION
         value: render
-      - key: RAWAFED_UPLOAD_DIR
-        value: /var/data/rawafed-uploads
       - key: CORS_ORIGIN
         value: https://rawafed-erp.vercel.app,http://localhost:4200,http://127.0.0.1:4200
-    disk:
-      name: rawafed-data
-      mountPath: /var/data
-      sizeGB: 1
