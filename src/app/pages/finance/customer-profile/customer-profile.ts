@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { I18nService } from '../../../core/i18n/i18n.service';
@@ -38,6 +38,7 @@ export class CustomerProfile implements OnInit {
 
   constructor(
     private readonly route: ActivatedRoute,
+    private readonly router: Router,
     private readonly accounting: AccountingService,
     public readonly i18n: I18nService,
     private readonly feedback: FeedbackService,
@@ -100,5 +101,10 @@ export class CustomerProfile implements OnInit {
 
   money(value: unknown): string {
     return this.i18n.money(Number(value || 0));
+  }
+
+  openInvoice(invoice: any, event?: Event): void {
+    if ((event?.target as HTMLElement | null)?.closest('a,button')) return;
+    void this.router.navigate(['/finance/invoices', invoice.id]);
   }
 }

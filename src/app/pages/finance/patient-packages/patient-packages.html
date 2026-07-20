@@ -1,18 +1,125 @@
 <section class="finance-page" [attr.dir]="i18n.direction()">
-  <header class="page-header"><div><span>{{ 'nav.finance_overview' | t }}</span><h1>{{ 'finance_accounts.title' | t }}</h1><p>{{ 'finance_accounts.subtitle' | t }}</p></div>
-    <div class="header-actions"><button type="button" (click)="refresh()">{{ 'finance_accounts.refresh' | t }}</button><button routerLink="/finance/add-payment">{{ 'finance_accounts.record_payment' | t }}</button></div></header>
+  <header class="page-header">
+    <div>
+      <span>{{ 'nav.finance_overview' | t }}</span>
+      <h1>{{ 'finance_accounts.title' | t }}</h1>
+      <p>{{ 'finance_accounts.subtitle' | t }}</p>
+    </div>
+    <div class="header-actions">
+      <button type="button" (click)="refresh()">
+        {{ 'finance_accounts.refresh' | t }}</button
+      ><button routerLink="/finance/add-payment">
+        {{ 'finance_accounts.record_payment' | t }}
+      </button>
+    </div>
+  </header>
 
-  <div class="load-state" *ngIf="state === 'loading'">{{ 'common.loading' | t }}</div>
-  <div class="load-state warning" *ngIf="state === 'stale'">{{ errorMessage }}</div>
-  <div class="load-state error" *ngIf="state === 'error' || state === 'unauthorized'">{{ errorMessage }}</div>
-  <div class="load-state" *ngIf="state === 'empty'">{{ 'finance_accounts.empty' | t }}</div>
+  <div class="load-state" *ngIf="state === 'loading'">
+    {{ 'common.loading' | t }}
+  </div>
+  <div class="load-state warning" *ngIf="state === 'stale'">
+    {{ errorMessage }}
+  </div>
+  <div
+    class="load-state error"
+    *ngIf="state === 'error' || state === 'unauthorized'"
+  >
+    {{ errorMessage }}
+  </div>
+  <div class="load-state" *ngIf="state === 'empty'">
+    {{ 'finance_accounts.empty' | t }}
+  </div>
 
-  <div class="stats"><div class="stat-card"><h3>{{ 'finance_accounts.title' | t }}</h3><h2>{{ totalAccounts }}</h2></div><div class="stat-card"><h3>{{ 'customer.expected_total' | t }}</h3><h2>{{ i18n.money(totalExpected) }}</h2></div><div class="stat-card"><h3>{{ 'customer.amount_paid' | t }}</h3><h2>{{ i18n.money(totalPaid) }}</h2></div><div class="stat-card"><h3>{{ 'customer.remaining' | t }}</h3><h2>{{ i18n.money(totalOutstanding) }}</h2></div></div>
+  <div class="stats">
+    <div class="stat-card">
+      <h3>{{ 'finance_accounts.title' | t }}</h3>
+      <h2>{{ totalAccounts }}</h2>
+    </div>
+    <div class="stat-card">
+      <h3>{{ 'customer.expected_total' | t }}</h3>
+      <h2>{{ i18n.money(totalExpected) }}</h2>
+    </div>
+    <div class="stat-card">
+      <h3>{{ 'customer.amount_paid' | t }}</h3>
+      <h2>{{ i18n.money(totalPaid) }}</h2>
+    </div>
+    <div class="stat-card">
+      <h3>{{ 'customer.remaining' | t }}</h3>
+      <h2>{{ i18n.money(totalOutstanding) }}</h2>
+    </div>
+  </div>
 
-  <div class="table-card"><input class="search-box" [placeholder]="'finance_accounts.search' | t" [(ngModel)]="searchText" />
-    <div class="table-scroll"><table><thead><tr><th>{{ 'common.student' | t }}</th><th>{{ 'customer.registration' | t }}</th><th>{{ 'customer.grade' | t }}</th><th>{{ 'finance_accounts.plan' | t }}</th><th>{{ 'finance_accounts.paid_installments' | t }}</th><th>{{ 'finance_accounts.remaining_installments' | t }}</th><th>{{ 'finance_accounts.overdue_installments' | t }}</th><th>{{ 'finance_accounts.next_installment' | t }}</th><th>{{ 'finance_accounts.next_due' | t }}</th><th>{{ 'customer.amount_paid' | t }}</th><th>{{ 'customer.remaining' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
-      <tbody><tr *ngFor="let item of filteredAccounts"><td><strong>{{ item.patient }}</strong></td><td class="reference-text"><bdi>{{ item.registrationNumber || '-' }}</bdi></td><td>{{ item.grade || '-' }}</td><td>{{ i18n.status(item.paymentPlan) }}</td><td>{{ item.paidInstallments || 0 }}</td><td>{{ item.remainingInstallments || 0 }}</td><td>{{ item.overdueInstallments || 0 }}</td><td>{{ i18n.money(item.nextInstallment || 0) }}</td><td>{{ item.nextDueDate || '-' }}</td><td>{{ i18n.money(item.paid) }}</td><td>{{ i18n.money(item.remaining) }}</td><td><span class="status">{{ paymentProgressStatus(item) }}</span></td>
-        <td class="actions"><button class="action-btn" [routerLink]="['/finance/add-payment']" [queryParams]="{ accountId: item.id }">{{ 'finance_accounts.record_payment' | t }}</button><button class="view-btn" [routerLink]="['/finance/package-details', item.id]">{{ 'coa.view' | t }}</button><button class="invoice-btn" *ngIf="latestInvoiceId(item) as invoiceId" [routerLink]="['/finance/invoice-details', invoiceId]">{{ 'nav.invoices' | t }}</button></td></tr>
-      <tr *ngIf="!filteredAccounts.length"><td colspan="13" class="empty-cell">{{ 'finance_accounts.empty' | t }}</td></tr></tbody></table></div>
+  <div class="table-card">
+    <input
+      class="search-box"
+      [placeholder]="'finance_accounts.search' | t"
+      [(ngModel)]="searchText"
+    />
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'common.student' | t }}</th>
+            <th>{{ 'customer.registration' | t }}</th>
+            <th>{{ 'customer.grade' | t }}</th>
+            <th>{{ 'finance_accounts.plan' | t }}</th>
+            <th>{{ 'finance_accounts.paid_installments' | t }}</th>
+            <th>{{ 'finance_accounts.remaining_installments' | t }}</th>
+            <th>{{ 'finance_accounts.overdue_installments' | t }}</th>
+            <th>{{ 'finance_accounts.next_installment' | t }}</th>
+            <th>{{ 'finance_accounts.next_due' | t }}</th>
+            <th>{{ 'customer.amount_paid' | t }}</th>
+            <th>{{ 'customer.remaining' | t }}</th>
+            <th>{{ 'common.status' | t }}</th>
+            <th>{{ 'common.action' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of filteredAccounts">
+            <td><strong>{{ item.patient }}</strong></td>
+            <td class="reference-text">
+              <bdi>{{ item.registrationNumber || '-' }}</bdi>
+            </td>
+            <td>{{ item.grade || '-' }}</td>
+            <td>{{ i18n.status(item.paymentPlan) }}</td>
+            <td>{{ item.paidInstallments || 0 }}</td>
+            <td>{{ item.remainingInstallments || 0 }}</td>
+            <td>{{ item.overdueInstallments || 0 }}</td>
+            <td>{{ i18n.money(item.nextInstallment || 0) }}</td>
+            <td>{{ item.nextDueDate || '-' }}</td>
+            <td>{{ i18n.money(item.paid) }}</td>
+            <td>{{ i18n.money(item.remaining) }}</td>
+            <td>
+              <span class="status">{{ paymentProgressStatus(item) }}</span>
+            </td>
+            <td class="actions">
+              <button
+                class="action-btn"
+                [routerLink]="['/finance/add-payment']"
+                [queryParams]="{ accountId: item.id }"
+              >
+                {{ 'finance_accounts.record_payment' | t }}</button
+              ><button
+                class="view-btn"
+                [routerLink]="['/finance/package-details', item.id]"
+              >
+                {{ 'coa.view' | t }}</button
+              ><button
+                class="invoice-btn"
+                *ngIf="latestInvoiceId(item) as invoiceId"
+            [routerLink]="['/finance/invoices', invoiceId]"
+              >
+                {{ 'nav.invoices' | t }}
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="!filteredAccounts.length">
+            <td colspan="13" class="empty-cell">
+              {{ 'finance_accounts.empty' | t }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>

@@ -21,6 +21,10 @@ footer { margin: 14px 0; }
 table { width: 100%; min-width: 900px; border-collapse: collapse; }
 th { background: #eaf2ff; color: #07336b; padding: 12px; text-align: left; font-size: 12px; }
 td { border-bottom: 1px solid #e5e7eb; padding: 12px; color: #0f172a; }
+.clickable-row { cursor: pointer; transition: background-color .16s ease; }
+.clickable-row:hover, .clickable-row:focus-visible { background: #f2f7ff; outline: none; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.row-actions a { padding: 5px 8px; border: 1px solid #bfd1e7; border-radius: 7px; background: #fff; white-space: nowrap; }
 .status { display: inline-flex; border-radius: 999px; padding: 5px 10px; background: #eaf2ff; color: #07336b; font-weight: 850; }
 .empty-cell, .muted { color: #64748b; text-align: center; }
 @media print { .tabs, .page-header button, .form-grid, footer { display: none; } }

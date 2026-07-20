@@ -1,8 +1,121 @@
-<section class="finance-list-page" [attr.dir]="i18n.direction()"><header class="page-header finance-hero"><div><span class="page-eyebrow">{{ 'invoice.eyebrow' | t }}</span><h1>{{ 'invoice.school_invoices' | t }}</h1><p>{{ 'invoice.subtitle' | t }}</p></div><a class="primary-action" routerLink="/finance/generate-invoice">{{ 'invoice.new' | t }}</a></header>
+<section class="finance-list-page" [attr.dir]="i18n.direction()">
+  <header class="page-header finance-hero">
+    <div>
+      <span class="page-eyebrow">{{ 'invoice.eyebrow' | t }}</span>
+      <h1>{{ 'invoice.school_invoices' | t }}</h1>
+      <p>{{ 'invoice.subtitle' | t }}</p>
+    </div>
+    <a class="primary-action" routerLink="/finance/generate-invoice"
+      >{{ 'invoice.new' | t }}</a
+    >
+  </header>
   <nav class="breadcrumb">{{ 'invoice.breadcrumb' | t }}</nav>
-  <section class="stats-grid"><article class="stat-card"><span>{{ 'invoice.total_count' | t }}</span><strong>{{ totalInvoices }}</strong></article><article class="stat-card"><span>{{ 'invoice.total_revenue' | t }}</span><strong>{{ i18n.money(totalRevenue) }}</strong></article><article class="stat-card"><span>{{ 'customer.amount_paid' | t }}</span><strong>{{ i18n.money(paidInvoices) }}</strong></article><article class="stat-card"><span>{{ 'customer.remaining' | t }}</span><strong>{{ i18n.money(pendingInvoices) }}</strong></article></section>
-  <section class="info-card"><div class="filters-row"><input type="search" [(ngModel)]="search" [placeholder]="'invoice.search' | t" /><select [(ngModel)]="categoryFilter"><option value="">{{ 'invoice.all_categories' | t }}</option><option *ngFor="let category of categories" [value]="category">{{ categoryLabel({category}) }}</option></select><select [(ngModel)]="statusFilter"><option value="">{{ 'common.all_statuses' | t }}</option><option value="Pending">{{ statusLabel('Pending') }}</option><option value="Partially Paid">{{ statusLabel('Partially Paid') }}</option><option value="Paid">{{ statusLabel('Paid') }}</option><option value="Void">{{ statusLabel('Void') }}</option></select><input type="date" [(ngModel)]="dateFilter" /></div>
-    <div class="table-scroll"><table><thead><tr><th>{{ 'invoice.number' | t }}</th><th>{{ 'invoice.category' | t }}</th><th>{{ 'common.student' | t }}</th><th>{{ 'common.date' | t }}</th><th>{{ 'invoice.due_date' | t }}</th><th>{{ 'invoice.subtotal' | t }}</th><th>{{ 'invoice.discount' | t }}</th><th>{{ 'invoice.vat_status' | t }}</th><th>{{ 'invoice.vat' | t }}</th><th>{{ 'common.total' | t }}</th><th>{{ 'customer.amount_paid' | t }}</th><th>{{ 'customer.remaining' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
-      <tbody><tr *ngFor="let invoice of filteredInvoices"><td class="reference-text"><strong><bdi>{{ invoice.invoiceNumber }}</bdi></strong></td><td>{{ categoryLabel(invoice) }}</td><td><a *ngIf="invoice.customerId; else studentText" [routerLink]="['/finance/customers', invoice.customerId]" [queryParams]="{ tab: 'invoices' }"><strong>{{ i18n.language() === 'ar' ? (invoice.studentArabicName || invoice.patient) : invoice.patient }}</strong><small><bdi>{{ invoice.registrationNumber }}</bdi></small></a><ng-template #studentText>{{ invoice.patient }}</ng-template></td><td>{{ invoice.date }}</td><td>{{ invoice.dueAt || '-' }}</td><td>{{ i18n.money(invoice.amount) }}</td><td>{{ i18n.money(invoice.discount) }}</td><td>{{ vatLabel(invoice) }}</td><td>{{ i18n.money(invoice.vat) }}</td><td>{{ i18n.money(invoice.total) }}</td><td>{{ i18n.money(invoice.paid) }}</td><td>{{ i18n.money(invoice.remaining) }}</td><td><span class="status">{{ statusLabel(invoice.status) }}</span></td><td class="actions"><a class="table-action" [routerLink]="['/finance/invoice-details', invoice.id]">{{ 'coa.view' | t }}</a><a class="table-action" [routerLink]="['/finance/invoice-details', invoice.id]" [queryParams]="{ print: 1 }">{{ 'common.print' | t }}</a></td></tr><tr *ngIf="!filteredInvoices.length"><td colspan="14" class="empty-cell">{{ 'invoice.empty' | t }}</td></tr></tbody></table></div>
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span>{{ 'invoice.total_count' | t }}</span
+      ><strong>{{ totalInvoices }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'invoice.total_revenue' | t }}</span
+      ><strong>{{ i18n.money(totalRevenue) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'customer.amount_paid' | t }}</span
+      ><strong>{{ i18n.money(paidInvoices) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'customer.remaining' | t }}</span
+      ><strong>{{ i18n.money(pendingInvoices) }}</strong>
+    </article>
+  </section>
+  <section class="info-card">
+    <div class="filters-row">
+      <input
+        type="search"
+        [(ngModel)]="search"
+        [placeholder]="'invoice.search' | t"
+      /><select [(ngModel)]="categoryFilter">
+        <option value="">{{ 'invoice.all_categories' | t }}</option>
+        <option *ngFor="let category of categories" [value]="category">
+          {{ categoryLabel({category}) }}
+        </option></select
+      ><select [(ngModel)]="statusFilter">
+        <option value="">{{ 'common.all_statuses' | t }}</option>
+        <option value="Pending">{{ statusLabel('Pending') }}</option>
+        <option value="Partially Paid">
+          {{ statusLabel('Partially Paid') }}
+        </option>
+        <option value="Paid">{{ statusLabel('Paid') }}</option>
+        <option value="Void">{{ statusLabel('Void') }}</option></select
+      ><input type="date" [(ngModel)]="dateFilter" />
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'invoice.number' | t }}</th>
+            <th>{{ 'invoice.category' | t }}</th>
+            <th>{{ 'common.student' | t }}</th>
+            <th>{{ 'common.date' | t }}</th>
+            <th>{{ 'invoice.due_date' | t }}</th>
+            <th>{{ 'invoice.subtotal' | t }}</th>
+            <th>{{ 'invoice.discount' | t }}</th>
+            <th>{{ 'invoice.vat_status' | t }}</th>
+            <th>{{ 'invoice.vat' | t }}</th>
+            <th>{{ 'common.total' | t }}</th>
+            <th>{{ 'customer.amount_paid' | t }}</th>
+            <th>{{ 'customer.remaining' | t }}</th>
+            <th>{{ 'common.status' | t }}</th>
+            <th>{{ 'common.action' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let invoice of filteredInvoices">
+            <td class="reference-text">
+              <strong><bdi>{{ invoice.invoiceNumber }}</bdi></strong>
+            </td>
+            <td>{{ categoryLabel(invoice) }}</td>
+            <td>
+              <a
+                *ngIf="invoice.customerId; else studentText"
+                [routerLink]="['/finance/customers', invoice.customerId]"
+                [queryParams]="{ tab: 'invoices' }"
+                ><strong
+                  >{{ i18n.language() === 'ar' ? (invoice.studentArabicName ||
+                  invoice.patient) : invoice.patient }}</strong
+                ><small><bdi>{{ invoice.registrationNumber }}</bdi></small></a
+              ><ng-template #studentText>{{ invoice.patient }}</ng-template>
+            </td>
+            <td>{{ invoice.date }}</td>
+            <td>{{ invoice.dueAt || '-' }}</td>
+            <td>{{ i18n.money(invoice.amount) }}</td>
+            <td>{{ i18n.money(invoice.discount) }}</td>
+            <td>{{ vatLabel(invoice) }}</td>
+            <td>{{ i18n.money(invoice.vat) }}</td>
+            <td>{{ i18n.money(invoice.total) }}</td>
+            <td>{{ i18n.money(invoice.paid) }}</td>
+            <td>{{ i18n.money(invoice.remaining) }}</td>
+            <td>
+              <span class="status">{{ statusLabel(invoice.status) }}</span>
+            </td>
+            <td class="actions">
+              <a
+                class="table-action"
+              [routerLink]="['/finance/invoices', invoice.backendId || invoice.id]"
+                >{{ 'coa.view' | t }}</a
+              ><a
+                class="table-action"
+              [routerLink]="['/finance/invoices', invoice.backendId || invoice.id]"
+                [queryParams]="{ print: 1 }"
+                >{{ 'common.print' | t }}</a
+              >
+            </td>
+          </tr>
+          <tr *ngIf="!filteredInvoices.length">
+            <td colspan="14" class="empty-cell">{{ 'invoice.empty' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 </section>

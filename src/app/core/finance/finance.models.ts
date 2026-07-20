@@ -44,6 +44,8 @@ export interface FinancePackage {
   canonicalInvoiceId?: string;
   subtotal?: number;
   vat?: number;
+  totalVat?: number;
+  governmentBorneVat?: number;
   vatExempt?: boolean;
   nationalId?: string;
 }
@@ -55,6 +57,10 @@ export interface FinanceFeeItem {
   customPrice: boolean;
   paid?: number;
   remaining?: number;
+  vatRate?: number;
+  governmentBorneVat?: number;
+  taxTreatment?: string;
+  taxReason?: string;
 }
 
 export interface FinancePayment {
@@ -80,6 +86,7 @@ export interface FinancePayment {
 
 export interface FinanceInvoice {
   id: number;
+  backendId?: string;
   invoiceNumber: string;
   patient: string;
   service: string;
@@ -110,6 +117,10 @@ export interface FinanceInvoice {
   category?: string;
   categoryLabel?: string;
   vatStatus?: string;
+  governmentBorneVat?: number;
+  parentPayable?: number;
+  taxTreatment?: string;
+  taxReason?: string;
   accountingAccount?: string;
   accountingAccountId?: string;
   costCenterId?: string;

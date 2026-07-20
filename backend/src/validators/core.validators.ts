@@ -47,6 +47,8 @@ export const studentPatch = z
     arabicName: z.string().max(160).optional(),
     grade: z.string().min(1).max(40).optional(),
     nationalId: z.string().max(40).optional(),
+    nationality: z.string().trim().min(1).max(80).optional(),
+    identityType: z.enum(["NATIONAL_ID", "IQAMA"]).optional(),
     passportNumber: z.string().max(40).optional(),
     parentName: z.string().max(160).optional(),
     parentPhone: z.string().max(40).optional(),
@@ -70,6 +72,8 @@ export const registration = z
         englishName: z.string().optional().default(""),
         arabicName: z.string().optional().default(""),
         applyingGrade: z.string().optional().default(""),
+        nationality: z.string().trim().min(1).max(80),
+        identityType: z.enum(["NATIONAL_ID", "IQAMA"]),
         nationalId: z.string().optional().default(""),
         passportNumber: z.string().optional().default(""),
       })
@@ -79,6 +83,7 @@ export const registration = z
     financial: z.record(z.any()).optional(),
   })
   .passthrough();
+export const registrationFeePreview = registration.pick({ student: true, financial: true });
 export const status = z.object({
   status: z.enum(["draft", "pending", "approved", "rejected", "archived"]),
 });

@@ -41,7 +41,8 @@ function mapHttpError(error: HttpErrorResponse, i18n: I18nService): { message: s
   const translated = i18n.t(translatedKey);
   if (translated !== translatedKey) return { message: translated, errorCode, requestId };
   if (i18n.language() === 'ar') {
-    const genericKey = error.status === 403 ? 'error.permission_denied'
+    const genericKey = error.status === 401 ? 'error.session_expired'
+      : error.status === 403 ? 'error.permission_denied'
       : error.status === 404 ? 'error.not_found'
       : [400, 409, 422].includes(error.status) ? 'error.validation_error'
       : 'error.database_unavailable';

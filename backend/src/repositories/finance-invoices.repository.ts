@@ -22,10 +22,22 @@ export class FinanceInvoicesRepository {
     return this.db.financeInvoice.findFirst({
       where: { id, deletedAt: null },
       include: {
-        account: { include: { student: { include: { customer: true } }, registration: true } },
+        account: {
+          include: {
+            student: { include: { customer: true } },
+            registration: { include: { branch: true, academicYear: true } },
+          },
+        },
+        registration: { include: { branch: true, academicYear: true } },
         lines: { include: { revenueAccount: true } },
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
+          include: { payment: true },
+        },
+        journalEntries: {
+          where: { deletedAt: null },
+          include: { createdBy: true, branch: true },
+          orderBy: { createdAt: "asc" },
         },
       },
     });

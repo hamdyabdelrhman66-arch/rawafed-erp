@@ -82,11 +82,17 @@ export class CoreController {
   publicRegistration = asyncController(async (req, res) =>
     res.status(201).json(await this.registrations.create(req.body)),
   );
+  publicRegistrationFeePreview = asyncController(async (req, res) =>
+    res.json(await this.registrations.feePreview(req.body)),
+  );
   createRegistration = asyncController(async (req, res) =>
     res.status(201).json(await this.registrations.create(req.body, actor(req))),
   );
   registrationsList = asyncController(async (req, res) =>
     res.json(await this.registrations.list(page(req).skip, page(req).take)),
+  );
+  vatReconciliation = asyncController(async (req, res) =>
+    res.json(await this.registrations.vatReconciliation(Number(req.query.limit || 1000))),
   );
   registrationStatus = asyncController(async (req, res) =>
     res.json(
@@ -180,6 +186,15 @@ export class CoreController {
   );
   invoices = asyncController(async (req, res) =>
     res.json(await this.finance.invoices(page(req).skip, page(req).take)),
+  );
+  invoiceDetails = asyncController(async (req, res) =>
+    res.json(await this.finance.invoiceDetails(req.params.id)),
+  );
+  printInvoice = asyncController(async (req, res) =>
+    res.json(await this.finance.recordInvoiceDocumentAccess(req.params.id, "PRINT", actor(req))),
+  );
+  exportInvoicePdf = asyncController(async (req, res) =>
+    res.json(await this.finance.recordInvoiceDocumentAccess(req.params.id, "EXPORT_PDF", actor(req))),
   );
   payments = asyncController(async (req, res) =>
     res.json(await this.finance.payments(page(req).skip, page(req).take)),

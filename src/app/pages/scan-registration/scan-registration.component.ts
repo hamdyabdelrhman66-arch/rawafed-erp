@@ -19,6 +19,7 @@ interface ScanFields {
   arabicName: string;
   applyingGrade: string;
   nationality: string;
+  identityType: 'NATIONAL_ID' | 'IQAMA';
   nationalId: string;
   passportNumber: string;
   dateOfBirth: string;
@@ -126,7 +127,23 @@ export class ScanRegistrationComponent {
 
     this.isSubmitting.set(true);
     try {
-      const registration = this.composeRegistration();
+      let registration = this.composeRegistration();
+      const preview = await this.admission.feePreview(registration);
+      registration = {
+        ...registration,
+        financial: {
+          ...registration.financial,
+          vat: preview.chargedVat,
+          vatAmount: preview.chargedVat,
+          totalVat: preview.totalVat,
+          governmentBorneAmount: preview.governmentBorneAmount,
+          subtotal: preview.subtotal,
+          parentPayableTotal: preview.parentPayableTotal,
+          grandTotal: preview.grandTotal,
+          taxDecisionHash: preview.decisionHash,
+          taxDecision: preview
+        }
+      };
       const submitted = await this.admission.submit(registration);
       this.lastCreated.set(submitted);
       this.resetFormKeepConfirmation();
@@ -170,7 +187,7 @@ export class ScanRegistrationComponent {
       books: fees?.books ?? 0,
       uniform: fees?.uniform ?? 0,
       activities: fees?.activities ?? 0,
-      vat: this.admission.isSaudiNationalId(this.fields.nationalId) ? 0 : fees?.vat ?? settings.vat
+      vat: 0
     };
 
     return {
@@ -181,6 +198,7 @@ export class ScanRegistrationComponent {
         arabicName: this.fields.arabicName.trim(),
         applyingGrade: this.fields.applyingGrade,
         nationality: this.fields.nationality.trim(),
+        identityType: this.fields.identityType,
         nationalId: this.fields.nationalId.trim(),
         passportNumber: this.fields.passportNumber.trim(),
         dateOfBirth: this.fields.dateOfBirth,
@@ -208,10 +226,7 @@ export class ScanRegistrationComponent {
         ...registration.medical,
         specialNotes: this.fields.medicalNotes.trim()
       },
-      financial: {
-        ...financial,
-        grandTotal: this.admission.calculateGrandTotal(financial, this.fields.nationalId)
-      },
+      financial,
       agreement: {
         scrolledToEnd: true,
         accepted: true,
@@ -250,7 +265,10 @@ export class ScanRegistrationComponent {
 
     if (!this.fields.fatherEmail && email) this.fields.fatherEmail = email;
     if (!this.fields.fatherPhone && mobile) this.fields.fatherPhone = mobile;
-    if (!this.fields.nationalId && nationalId) this.fields.nationalId = nationalId;
+    if (!this.fields.nationalId && nationalId) {
+      this.fields.nationalId = nationalId;
+      this.fields.identityType = nationalId.startsWith('1') ? 'NATIONAL_ID' : 'IQAMA';
+    }
     if (!this.fields.applyingGrade && grade) this.fields.applyingGrade = grade;
 
     const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
@@ -267,6 +285,7 @@ export class ScanRegistrationComponent {
       arabicName: '',
       applyingGrade: '',
       nationality: '',
+      identityType: 'NATIONAL_ID',
       nationalId: '',
       passportNumber: '',
       dateOfBirth: '',

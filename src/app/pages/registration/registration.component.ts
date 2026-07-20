@@ -8,7 +8,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
-import { AdmissionRegistration, GRADE_LEVELS, GradeLevel, PaymentPlan, UploadedDocument, createEmptyRegistration } from '../../core/models/admission.models';
+import { AdmissionRegistration, GRADE_LEVELS, GradeLevel, PaymentPlan, RegistrationFeePreview, UploadedDocument, createEmptyRegistration } from '../../core/models/admission.models';
 import { AdmissionService } from '../../core/services/admission.service';
 import { StorageService } from '../../core/services/storage.service';
 import { duplicateValidator } from '../../core/validators/duplicate.validator';
@@ -74,6 +74,9 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   readonly isSubmitting = signal(false);
   readonly submittedRegistration = signal<AdmissionRegistration | null>(null);
   readonly submitError = signal('');
+  readonly feePreviewLoading = signal(false);
+  readonly feePreviewError = signal('');
+  private feePreviewSequence = 0;
 
   readonly grades = [...GRADE_LEVELS];
   readonly bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -95,8 +98,9 @@ export class RegistrationComponent implements OnInit, OnDestroy {
       arabicName: ['', Validators.required],
       applyingGrade: ['', Validators.required],
       nationality: ['', Validators.required],
+      identityType: ['NATIONAL_ID', Validators.required],
       religion: [''],
-      nationalId: ['', [Validators.required, duplicateValidator(this.storage, 'nationalId', () => this.draft().id)]],
+      nationalId: ['', [Validators.required, Validators.pattern(/^\d{10}$/), duplicateValidator(this.storage, 'nationalId', () => this.draft().id)]],
       passportNumber: ['', duplicateValidator(this.storage, 'passportNumber', () => this.draft().id)],
       dateOfBirth: ['', Validators.required],
       gender: ['', Validators.required],
@@ -146,6 +150,13 @@ export class RegistrationComponent implements OnInit, OnDestroy {
       transportationArea: [''],
       transportationFee: [0],
       vat: [this.storage.settings().vat],
+      vatAmount: [0],
+      totalVat: [0],
+      governmentBorneAmount: [0],
+      subtotal: [0],
+      parentPayableTotal: [0],
+      taxDecisionHash: [''],
+      taxDecision: [null as RegistrationFeePreview | null],
       paymentPlan: ['Full Payment'],
       grandTotal: [0],
       paymentStatus: ['Unpaid']
@@ -227,8 +238,13 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   }
 
   goNext(stepper: MatStepper, group: FormGroup, requireSignature = false): void {
-    this.recalculate();
+    if (group !== this.financialGroup) this.recalculate();
     group.markAllAsTouched();
+
+    if (group === this.financialGroup && (this.feePreviewLoading() || this.feePreviewError() || !this.financialGroup.controls['taxDecisionHash'].value)) {
+      this.feedback.validation('Please wait for a valid VAT preview. / انتظر اكتمال معاينة الضريبة الصحيحة.');
+      return;
+    }
     
     if (requireSignature && !this.parentSignature()) {
       this.feedback.validation('Parent signature is required before review.');
@@ -288,6 +304,9 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     this.submitError.set('');
 
     try {
+      if (!(await this.refreshFeePreview())) {
+        throw new Error(this.feePreviewError() || 'VAT eligibility could not be verified. / تعذر التحقق من الأهلية الضريبية.');
+      }
       const submitted = await this.admission.submit(this.composeRegistration());
       this.admission.downloadSubmittedPdfs(submitted);
       this.feedback.success(`Registration ${submitted.registrationNumber} submitted successfully.`, 'Finance account and admission review were updated.');
@@ -369,7 +388,8 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     return [
       ['Grand Total', `${(item.grandTotal ?? 0).toLocaleString()} SAR`],
       ['Payment Plan', item.paymentPlan],
-      ['VAT', `${item.vat}%`],
+      ['VAT charged to parent', `${(item.vatAmount ?? 0).toLocaleString()} SAR`],
+      ['Government-borne VAT', `${(item.governmentBorneAmount ?? 0).toLocaleString()} SAR`],
       ['Transportation', item.transportationRequired ? `${item.transportationFee.toLocaleString()} SAR` : 'Not Selected'],
       ['Payment Status', item.paymentStatus ?? 'Unpaid']
     ];
@@ -396,16 +416,54 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   }
 
   private recalculate(): void {
-    const rawFinancial = this.financialGroup.getRawValue() as AdmissionRegistration['financial'];
-    const nationalId = String(this.studentGroup.controls['nationalId'].value || '');
-    const vat = this.admission.isSaudiNationalId(nationalId) ? 0 : this.currentGradeVat();
-    if (rawFinancial.vat !== vat) {
-      this.financialGroup.controls['vat'].setValue(vat, { emitEvent: false });
-    }
+    void this.refreshFeePreview();
+  }
 
-    const financial = { ...rawFinancial, vat };
-    const grandTotal = this.admission.calculateGrandTotal(financial, nationalId);
-    this.financialGroup.controls['grandTotal'].setValue(grandTotal, { emitEvent: false });
+  private async refreshFeePreview(): Promise<boolean> {
+    const identityNumber = String(this.studentGroup.controls['nationalId'].value || '').replace(/\D/g, '');
+    const nationality = String(this.studentGroup.controls['nationality'].value || '').trim();
+    const identityType = String(this.studentGroup.controls['identityType'].value || '');
+    if (!nationality || !identityType || identityNumber.length !== 10) {
+      this.financialGroup.patchValue({
+        vatAmount: 0,
+        totalVat: 0,
+        governmentBorneAmount: 0,
+        subtotal: 0,
+        parentPayableTotal: 0,
+        grandTotal: 0,
+        taxDecisionHash: '',
+        taxDecision: null
+      }, { emitEvent: false });
+      this.feePreviewError.set(identityNumber || nationality ? 'Complete a valid 10-digit identity, identity type, and nationality. / أكمل رقم الهوية الصحيح ونوعها والجنسية.' : '');
+      return false;
+    }
+    const sequence = ++this.feePreviewSequence;
+    this.feePreviewLoading.set(true);
+    this.feePreviewError.set('');
+    this.financialGroup.controls['taxDecisionHash'].setValue('', { emitEvent: false });
+    try {
+      const preview = await this.admission.feePreview(this.composeRegistration());
+      if (sequence !== this.feePreviewSequence) return false;
+      this.financialGroup.patchValue({
+        vat: preview.chargedVat,
+        vatAmount: preview.chargedVat,
+        totalVat: preview.totalVat,
+        governmentBorneAmount: preview.governmentBorneAmount,
+        subtotal: preview.subtotal,
+        parentPayableTotal: preview.parentPayableTotal,
+        grandTotal: preview.grandTotal,
+        taxDecisionHash: preview.decisionHash,
+        taxDecision: preview
+      }, { emitEvent: false });
+      return true;
+    } catch (error) {
+      if (sequence !== this.feePreviewSequence) return false;
+      this.feePreviewError.set(safeErrorMessage(error));
+      this.financialGroup.patchValue({ taxDecisionHash: '', taxDecision: null }, { emitEvent: false });
+      return false;
+    } finally {
+      if (sequence === this.feePreviewSequence) this.feePreviewLoading.set(false);
+    }
   }
 
   private applyGradeFees(grade: string | null | undefined): void {
@@ -436,12 +494,6 @@ export class RegistrationComponent implements OnInit, OnDestroy {
 
   private isGradeLevel(value: string | null | undefined): value is GradeLevel {
     return GRADE_LEVELS.includes(value as GradeLevel);
-  }
-
-  private currentGradeVat(): number {
-    const grade = this.studentGroup.controls['applyingGrade'].value;
-    if (!this.isGradeLevel(grade)) return this.storage.settings().vat;
-    return this.storage.settings().gradeFees[grade]?.vat ?? this.storage.settings().vat;
   }
 
   private syncSignatureSignals(): void {

@@ -28,13 +28,13 @@ export const categoryLabel = (category: string) =>
 export async function mappingFor(tx: DatabaseClient, category: RevenueCategory) {
   const mapping = await tx.revenueCategoryMapping.findUnique({ where: { category } });
   if (!mapping?.active)
-    throw new ServiceError(`Accounting mapping is not configured for ${category}.`, 422, "MAPPING_REQUIRED");
+    throw new ServiceError(`Accounting mapping is not configured for ${category}.`, 422, "ACCOUNT_MAPPING_MISSING");
   const [revenue, cost, receivable, inventory] = await Promise.all([
     tx.chartOfAccount.findUnique({ where: { id: mapping.revenueAccountId } }),
     mapping.costAccountId ? tx.chartOfAccount.findUnique({ where: { id: mapping.costAccountId } }) : null,
     mapping.receivableAccountId ? tx.chartOfAccount.findUnique({ where: { id: mapping.receivableAccountId } }) : null,
     mapping.inventoryAccountId ? tx.chartOfAccount.findUnique({ where: { id: mapping.inventoryAccountId } }) : null,
   ]);
-  if (!revenue) throw new ServiceError(`Revenue account is missing for ${category}.`, 422, "MAPPING_REQUIRED");
+  if (!revenue) throw new ServiceError(`Revenue account is missing for ${category}.`, 422, "ACCOUNT_MAPPING_MISSING");
   return { ...mapping, revenue, cost, receivable, inventory };
 }

@@ -55,11 +55,11 @@ export class JournalService {
     actor: Actor = {},
   ) {
     if (!input.sourceType || !input.sourceId)
-      throw new ServiceError("Journal source is required.", 422);
+      throw new ServiceError("Journal source is required.", 422, "JOURNAL_POSTING_FAILED");
     const debit = input.lines.reduce((n, line) => n + cents(line.debit), 0);
     const credit = input.lines.reduce((n, line) => n + cents(line.credit), 0);
     if (input.lines.length < 2 || debit <= 0 || debit !== credit)
-      throw new ServiceError("Journal entry must balance.", 422);
+      throw new ServiceError("Journal entry must balance.", 422, "JOURNAL_POSTING_FAILED");
     if (
       input.lines.some(
         (line) =>
@@ -69,8 +69,7 @@ export class JournalService {
       )
     )
       throw new ServiceError(
-        "Each journal line must contain either a debit or a credit.",
-        422,
+        "Each journal line must contain either a debit or a credit.", 422, "JOURNAL_POSTING_FAILED",
       );
     const accountIds = [...new Set(input.lines.map((line) => line.accountId))];
     const postingAccounts = await db.chartOfAccount.findMany({
@@ -98,7 +97,7 @@ export class JournalService {
       where: { active: true, deletedAt: null },
     });
     if (!branch)
-      throw new ServiceError("Active branch is not configured.", 422);
+      throw new ServiceError("Active branch is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
     await ensureOpenPeriod(db, branch.id, new Date(input.postingDate), actor.role);
     const prefix = `JE-${new Date(input.postingDate).getFullYear()}-`;
     const latest = await repo.nextNumber(prefix);
@@ -387,6 +386,6 @@ export class JournalService {
 async function ensureOpenPeriod(db: DatabaseClient, branchId: string, date: Date, role?: string) {
   const period = await db.accountingPeriod.findFirst({ where: { branchId, startsAt: { lte: date }, endsAt: { gte: date } } });
   if (!period) return;
-  if (period.status === "CLOSED") throw new ServiceError("The accounting period is closed.", 409, "ACCOUNTING_PERIOD_CLOSED");
+  if (period.status === "CLOSED") throw new ServiceError("The accounting period is closed.", 409, "CLOSED_ACCOUNTING_PERIOD");
   if (period.status === "SOFT_CLOSED" && !["Super Admin", "Finance Manager", "Chief Accountant"].includes(String(role || ""))) throw new ServiceError("The accounting period is soft closed.", 403, "ACCOUNTING_PERIOD_SOFT_CLOSED");
 }

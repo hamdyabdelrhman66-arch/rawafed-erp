@@ -166,7 +166,7 @@ export class PatientPackages implements OnInit, OnDestroy {
     ).length;
   }
 
-  latestInvoiceId(account: any): number | null {
+  latestInvoiceId(account: any): string | number | null {
     const invoice = this.invoices
       .filter(
         (item) =>
@@ -175,6 +175,6 @@ export class PatientPackages implements OnInit, OnDestroy {
       )
       .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0];
 
-    return invoice?.id || null;
+    return invoice?.backendId || invoice?.id || null;
   }
 }

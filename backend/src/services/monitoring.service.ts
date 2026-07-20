@@ -29,12 +29,15 @@ export class MonitoringService {
       };
     } catch {}
     const memory = process.memoryUsage();
+    const databaseUrl = new URL(process.env.DATABASE_URL || "postgresql://unconfigured");
     return {
       ok: database && disk.ok,
       database: {
         ok: database,
         driver: "postgres",
         latencyMs: Math.round((performance.now() - started) * 100) / 100,
+        connectionMode: /pooler/i.test(databaseUrl.hostname) ? "pooled" : "direct",
+        connectionLimit: Number(databaseUrl.searchParams.get("connection_limit") || process.env.DATABASE_CONNECTION_LIMIT || 5),
       },
       disk,
       memory: {

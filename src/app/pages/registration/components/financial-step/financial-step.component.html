@@ -70,13 +70,46 @@
         </strong>
       </div>
 
+      <div class="tax-message" *ngIf="group.get('taxDecision')?.value as decision" [class.government]="decision.governmentBorneAmount > 0">
+        <strong>{{ decision.messageAr }}</strong>
+        <span>{{ decision.messageEn }}</span>
+      </div>
+
+      <div class="tax-message error" *ngIf="previewError">
+        <strong>تعذر تحديد المعالجة الضريبية</strong>
+        <span>{{ previewError }}</span>
+      </div>
+
+      <div class="fee-row" *ngIf="previewLoading">
+        <span>Calculating VAT / جاري احتساب الضريبة</span>
+        <strong>...</strong>
+      </div>
+
+      <ng-container *ngIf="group.get('taxDecision')?.value as decision">
+        <div class="tax-line" *ngFor="let line of decision.lines">
+          <div>
+            <strong>{{ line.name }}</strong>
+            <small>{{ line.treatment }} · {{ line.reasonAr }}</small>
+          </div>
+          <div class="tax-values">
+            <span>{{ line.subtotal | number:'1.2-2' }} SAR</span>
+            <small>VAT {{ line.vatAmount | number:'1.2-2' }} · Parent {{ line.parentPayable | number:'1.2-2' }}</small>
+          </div>
+        </div>
+      </ng-container>
+
       <div class="fee-row">
-        <span>VAT</span>
-        <strong>{{ group.get('vat')?.value }}%</strong>
+        <span>VAT charged to parent / الضريبة على ولي الأمر</span>
+        <strong>{{ group.get('vatAmount')?.value | number:'1.2-2' }} SAR</strong>
+      </div>
+
+      <div class="fee-row" *ngIf="group.get('governmentBorneAmount')?.value > 0">
+        <span>Government-borne VAT / الضريبة التي تتحملها الدولة</span>
+        <strong>{{ group.get('governmentBorneAmount')?.value | number:'1.2-2' }} SAR</strong>
       </div>
 
       <div class="fee-row total">
-        <span>Grand Total</span>
+        <span>Parent Payable / المستحق على ولي الأمر</span>
         <strong>{{ group.get('grandTotal')?.value | number:'1.2-2' }} SAR</strong>
       </div>
     </section>

@@ -41,6 +41,7 @@ export class AddPayment implements OnInit {
   previousPayments: any[] = [];
   paymentLines: PaymentLine[] = [];
   saving = false;
+  private pendingReceiptNumber = "";
   readonly accountLabel = (account: any) =>
     account
       ? `${account.patient} - ${account.registrationNumber || account.fileNo || "-"} - ${this.l('Grade', 'الصف')} ${account.grade || "-"} - ${this.l('Remaining', 'المتبقي')} ${Number(account.remaining || 0).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US')} ${this.currency()}`
@@ -108,6 +109,7 @@ export class AddPayment implements OnInit {
   }
 
   onAccountChange(): void {
+    this.pendingReceiptNumber = "";
     this.paymentLines = this.buildPaymentLines();
     this.loadPreviousPayments();
   }
@@ -170,7 +172,8 @@ export class AddPayment implements OnInit {
     if (!confirmed) return;
 
     this.saving = true;
-    const receiptNumber = `REC-${crypto.randomUUID()}`;
+    const receiptNumber = this.pendingReceiptNumber || `REC-${crypto.randomUUID()}`;
+    this.pendingReceiptNumber = receiptNumber;
     const studentName = this.selectedAccount.patient;
 
     try {
@@ -200,13 +203,14 @@ export class AddPayment implements OnInit {
         this.l(`Payment ${receiptNumber} recorded successfully.`, `تم تسجيل الدفعة ${receiptNumber} بنجاح.`),
         this.l("Receipt and student balance were updated from PostgreSQL.", "تم تحديث الإيصال ورصيد الطالب من PostgreSQL."),
       );
+      this.pendingReceiptNumber = "";
       const invoices = await firstValueFrom(this.invoicesService.getInvoices());
       const invoice = invoices.find(
         (item: any) =>
           item.registrationNumber === this.selectedAccount.registrationNumber,
       );
       if (invoice)
-        void this.router.navigate(["/finance/invoice-details", invoice.id], {
+        void this.router.navigate(["/finance/invoices", invoice.backendId || invoice.id], {
           queryParams: { receipt: result?.payment?.receiptNumber || receiptNumber },
         });
     } catch (error) {

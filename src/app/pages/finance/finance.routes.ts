@@ -27,6 +27,7 @@ export const financeRoutes: Routes = [
   { path: 'expense-details', loadComponent: () => import('./expense-details/expense-details').then((m) => m.ExpenseDetails) },
   { path: 'expense-details/:id', loadComponent: () => import('./expense-details/expense-details').then((m) => m.ExpenseDetails) },
   { path: 'invoices', loadComponent: () => import('./invoices/invoices').then((m) => m.Invoices) },
+  { path: 'invoices/:invoiceId', loadComponent: () => import('./invoice-detail-view/invoice-detail-view').then((m) => m.InvoiceDetailView) },
   { path: 'invoice-details/:id', loadComponent: () => import('./invoice-details/invoice-details').then((m) => m.InvoiceDetails) },
   { path: 'edit-invoice/:id', loadComponent: () => import('./edit-invoice/edit-invoice').then((m) => m.EditInvoice) },
   { path: 'edit-expense/:id', loadComponent: () => import('./edit-expense/edit-expense').then((m) => m.EditExpense) },

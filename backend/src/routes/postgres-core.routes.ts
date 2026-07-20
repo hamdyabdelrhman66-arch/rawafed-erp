@@ -5,6 +5,7 @@ import { CoreController } from "../controllers/core.controller.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import * as validators from "../validators/core.validators.js";
 import { requireActiveSession } from "../middlewares/active-session.middleware.js";
+import { requirePermission } from "../middlewares/permission.middleware.js";
 
 export function postgresCoreRoutes(
   prisma: PrismaClient,
@@ -49,6 +50,11 @@ export function postgresCoreRoutes(
     c.userStatus,
   );
   r.post(
+    "/api/public/registrations/fee-preview",
+    validate(validators.registrationFeePreview),
+    c.publicRegistrationFeePreview,
+  );
+  r.post(
     "/api/public/registrations",
     validate(validators.registration),
     c.publicRegistration,
@@ -58,6 +64,12 @@ export function postgresCoreRoutes(
     ...secured,
     requireRole(["Admissions", "Registrar", "Principal"]),
     c.registrationsList,
+  );
+  r.get(
+    "/api/finance/vat/student-reconciliation",
+    ...secured,
+    requireRole(["Finance", "Finance Manager", "Chief Accountant", "Accountant", "Auditor", "Super Admin"]),
+    c.vatReconciliation,
   );
   r.post(
     "/api/registrations",
@@ -137,13 +149,31 @@ export function postgresCoreRoutes(
   r.get(
     "/api/finance/invoices",
     ...secured,
-    requireRole(["Finance"]),
+    requirePermission(prisma, "finance.invoices.view"),
     c.invoices,
+  );
+  r.get(
+    "/api/finance/invoices/:id",
+    ...secured,
+    requirePermission(prisma, "finance.invoices.view"),
+    c.invoiceDetails,
+  );
+  r.post(
+    "/api/finance/invoices/:id/print",
+    ...secured,
+    requirePermission(prisma, "finance.invoices.print"),
+    c.printInvoice,
+  );
+  r.post(
+    "/api/finance/invoices/:id/export-pdf",
+    ...secured,
+    requirePermission(prisma, "finance.invoices.exportPdf"),
+    c.exportInvoicePdf,
   );
   r.get(
     "/api/finance/payments",
     ...secured,
-    requireRole(["Finance"]),
+    requirePermission(prisma, "finance.receipts.view"),
     c.payments,
   );
   r.post(

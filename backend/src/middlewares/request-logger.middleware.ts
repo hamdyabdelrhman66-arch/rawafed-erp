@@ -43,10 +43,14 @@ export function requestLogger(
   });
 }
 export function logError(error: unknown, requestId: string): void {
+  const diagnostic = error as { code?: string; originalCode?: string; step?: string };
   write("error", {
     event: "application_error",
     requestId,
     errorName: error instanceof Error ? error.name : "UnknownError",
+    errorCode: diagnostic?.code || "SERVER_ERROR",
+    originalCode: diagnostic?.originalCode || null,
+    transactionStep: diagnostic?.step || null,
     message: "Request processing failed",
   });
 }

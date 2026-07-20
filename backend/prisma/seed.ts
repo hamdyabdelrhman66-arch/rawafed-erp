@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     ],
     ["3100", "Retained Earnings", AccountType.EQUITY, "retained-earnings"],
     ["4100", "Tuition Revenue", AccountType.REVENUE, "tuition-revenue"],
+    ["1155", "Government VAT Receivable", AccountType.ASSET, "government-vat-receivable"],
     ["5100", "Operating Expenses", AccountType.EXPENSE, "operating-expenses"],
     [
       "1150",

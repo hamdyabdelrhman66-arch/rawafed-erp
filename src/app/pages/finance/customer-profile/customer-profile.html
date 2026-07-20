@@ -52,7 +52,9 @@
 
   <section class="panel" *ngIf="tab === 'invoices'">
     <h2>{{ 'nav.invoices' | t }}</h2>
-    <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.invoices }"></ng-container>
+    <div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'invoice.number' | t }}</th><th>{{ 'common.item' | t }}</th><th>{{ 'common.total' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
+      <tbody><tr class="clickable-row" *ngFor="let invoice of customer.invoices" (click)="openInvoice(invoice, $event)" tabindex="0" (keydown.enter)="openInvoice(invoice)"><td>{{ invoice.issuedAt }}</td><td class="reference-text"><a [routerLink]="['/finance/invoices', invoice.id]"><bdi>{{ invoice.invoiceNumber }}</bdi></a></td><td>{{ invoice.feeItem }}</td><td>{{ money(invoice.total) }}</td><td><span class="status">{{ i18n.status(invoice.status) }}</span></td><td class="row-actions"><a [routerLink]="['/finance/invoices', invoice.id]">{{ 'coa.view' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ print: 1 }">{{ 'common.print' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ pdf: 1 }">{{ 'invoice.pdf' | t }}</a></td></tr>
+      <tr *ngIf="!customer.invoices.length"><td colspan="6" class="empty-cell">{{ 'customer.no_rows' | t }}</td></tr></tbody></table></div>
   </section>
 
   <section class="panel" *ngIf="tab === 'payments'">

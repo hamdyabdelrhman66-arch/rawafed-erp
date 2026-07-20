@@ -8,6 +8,7 @@ import { FinancePaymentsRepository } from "../repositories/finance-payments.repo
 import { ServiceError } from "./service.error.js";
 import { JournalService } from "./journal.service.js";
 import {
+  calculateFeePreview,
   isSaudiNationalId,
   money,
   vatForSubtotal,
@@ -16,11 +17,21 @@ import {
 import { categoryLabel, mappingFor, revenueCategory } from "./revenue-category.js";
 import { nextInvoiceNumber } from "./invoice-number.service.js";
 import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
+import { classifyPaymentError } from "./payment-error.js";
 
 const paidForAccount = (account: any) =>
   money(
     account.payments.reduce((n: number, p: any) => n + Number(p.amount), 0),
   );
+const studentTaxIdentity = (student: any) => {
+  const profile = (student?.profile || {}) as Record<string, any>;
+  const source = profile.student || profile;
+  return {
+    identityType: source.identityType,
+    identityNumber: student?.nationalId || source.nationalId,
+    nationality: source.nationality,
+  };
+};
 const accountShape = (a: any) => {
   const paid = paidForAccount(a);
   const expected = money(a.expectedTotal);
@@ -57,12 +68,17 @@ const accountShape = (a: any) => {
       amount: expectedAmount,
       subtotal: money(item.subtotal ?? (String(item.name).toUpperCase() === "VAT" ? 0 : item.amount)),
       vat: money(item.vatAmount ?? (String(item.name).toUpperCase() === "VAT" ? item.amount : 0)),
+      vatRate: Number(item.vatRate || 0),
+      governmentBorneVat: money(item.governmentBorneVat),
+      taxTreatment: item.taxTreatment || "STANDARD",
+      taxReason: item.taxReason || null,
       paid: paidAmount,
       remaining: money(expectedAmount - paidAmount),
     };
   });
   const subtotal = money(feeItems.reduce((sum: number, item: any) => sum + item.subtotal, 0));
   const vat = money(feeItems.reduce((sum: number, item: any) => sum + item.vat, 0));
+  const governmentBorneVat = money(feeItems.reduce((sum: number, item: any) => sum + item.governmentBorneVat, 0));
   const plan = a.student?.customer?.installmentPlans?.[0];
   const installments = (plan?.installments || []).map((row: any) => ({ ...row, computedStatus: installmentStatus({ ...row, plan }) }));
   const paidInstallments = installments.filter((row: any) => row.computedStatus === "paid").length;
@@ -80,6 +96,8 @@ const accountShape = (a: any) => {
     vatExempt: isSaudiNationalId(a.student.nationalId),
     subtotal,
     vat,
+    totalVat: money(vat + governmentBorneVat),
+    governmentBorneVat,
     total: expected,
     expectedTotal: expected,
     paid,
@@ -119,6 +137,10 @@ const invoiceShape = (i: any) => {
     discount: money(i.discount),
     amountBeforeVat: money(i.subtotal),
     vat: money(i.vatAmount),
+    governmentBorneVat: money(i.governmentBorneVat),
+    parentPayable: money(i.parentPayable ?? i.total),
+    taxTreatment: i.taxTreatment || "STANDARD",
+    taxReason: i.taxReason || null,
     total,
     totalInvoice: total,
     vatExempt: isSaudiNationalId(i.account.student.nationalId),
@@ -129,7 +151,7 @@ const invoiceShape = (i: any) => {
     accountingAccount: i.lines[0]?.revenueAccount ? `${i.lines[0].revenueAccount.code} - ${i.lines[0].revenueAccount.name}` : "",
     costCenterId: i.costCenterId || null,
     branchId: i.branchId || null,
-    vatStatus: Number(i.vatAmount) > 0 ? "STANDARD_15" : "EXEMPT",
+    vatStatus: i.taxTreatment || (Number(i.vatAmount) > 0 ? "STANDARD_15" : "EXEMPT"),
     legacyCombined: Boolean(i.legacyCombined),
     status: i.status === "VOID" ? "Void" : paid >= total ? "Paid" : paid > 0 ? "Partially Paid" : "Pending",
     issuedAt: i.issuedAt.toISOString(),
@@ -199,12 +221,14 @@ export class FinanceService {
       update: {
         revenueAccountId: input.revenueAccountId, costAccountId: input.costAccountId || null,
         receivableAccountId: input.receivableAccountId || null, inventoryAccountId: input.inventoryAccountId || null, costCenterId: input.costCenterId || null,
-        branchId: input.branchId || null, taxTreatment: input.taxTreatment || 'STANDARD', active: input.active !== false,
+        branchId: input.branchId || null, taxTreatment: input.taxTreatment || 'STANDARD',
+        saudiTaxTreatment: input.saudiTaxTreatment || 'STANDARD', vatRate: money(input.vatRate ?? 15), active: input.active !== false,
       },
       create: {
         category, revenueAccountId: input.revenueAccountId, costAccountId: input.costAccountId || null,
         receivableAccountId: input.receivableAccountId || null, inventoryAccountId: input.inventoryAccountId || null, costCenterId: input.costCenterId || null,
-        branchId: input.branchId || null, taxTreatment: input.taxTreatment || 'STANDARD', active: input.active !== false,
+        branchId: input.branchId || null, taxTreatment: input.taxTreatment || 'STANDARD',
+        saudiTaxTreatment: input.saudiTaxTreatment || 'STANDARD', vatRate: money(input.vatRate ?? 15), active: input.active !== false,
       },
     });
   }
@@ -266,6 +290,147 @@ export class FinanceService {
       await new FinanceInvoicesRepository(this.prisma).list(skip, take)
     ).map(invoiceShape);
   }
+  async invoiceDetails(id: string) {
+    const invoice = await new FinanceInvoicesRepository(this.prisma).findById(id);
+    if (!invoice) throw new ServiceError("Invoice not found.", 404, "INVOICE_NOT_FOUND");
+    const registration = invoice.registration || invoice.account.registration;
+    const student = invoice.account.student;
+    const registrationData = (registration?.data || {}) as Record<string, any>;
+    const profile = (student.profile || {}) as Record<string, any>;
+    const paid = money(invoice.payments.reduce((sum: number, row: any) => sum + Number(row.amount), 0));
+    const subtotal = money(invoice.subtotal);
+    const discount = money(invoice.discount);
+    const taxableSubtotal = money(Math.max(subtotal - discount, 0));
+    const vatAmount = money(invoice.vatAmount);
+    const total = money(invoice.total);
+    const primaryJournal = invoice.journalEntries.find((row: any) => row.sourceType === "invoice" || row.invoiceId === invoice.id)
+      || invoice.journalEntries[0]
+      || null;
+    const settingsRows = await this.prisma.setting.findMany({
+      where: { key: { in: ["school", "schoolInfo", "school_name", "school_address", "school_phone", "school_email", "vat_number", "commercial_registration"] } },
+    });
+    const settings = Object.fromEntries(settingsRows.map((row) => [row.key, row.value]));
+    const school = (settings.school || settings.schoolInfo || {}) as Record<string, any>;
+    const category = invoice.serviceCategory || "LEGACY_COMBINED";
+    const categoryDetails: Record<string, unknown> = {};
+    const candidateDetails: Record<string, unknown> = {
+      grade: student.grade,
+      className: profile.className || profile.class || registrationData.className || registrationData.class,
+      route: registrationData.transportation?.route || registrationData.route,
+      area: registrationData.transportation?.area || registrationData.area,
+      size: registrationData.uniform?.size || registrationData.uniformSize,
+      item: registrationData.books?.item || registrationData.uniform?.item,
+      activity: registrationData.activities?.name || registrationData.activityName,
+      servicePeriod: registrationData.servicePeriod,
+    };
+    for (const [key, value] of Object.entries(candidateDetails)) {
+      if (value !== undefined && value !== null && String(value).trim() !== "") categoryDetails[key] = value;
+    }
+    return {
+      school: {
+        nameAr: school.nameAr || settings.school_name || "مدارس روافد العالمية",
+        nameEn: school.nameEn || "Rawafed International School",
+        address: school.address || settings.school_address || null,
+        phone: school.phone || settings.school_phone || null,
+        email: school.email || settings.school_email || null,
+        vatNumber: school.vatNumber || settings.vat_number || null,
+        commercialRegistration: school.commercialRegistration || settings.commercial_registration || null,
+        logoUrl: school.logoUrl || "/assets/rawafed-logo.png",
+      },
+      invoice: {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        category,
+        categoryLabel: categoryLabel(category),
+        status: invoice.status === "VOID" ? "Void" : paid >= total ? "Paid" : paid > 0 ? "Partially Paid" : "Pending",
+        issuedAt: invoice.issuedAt.toISOString(),
+        dueAt: invoice.dueAt?.toISOString() || null,
+        academicYear: registration?.academicYear?.name || null,
+        branch: registration?.branch ? { id: registration.branch.id, code: registration.branch.code, nameEn: registration.branch.name, nameAr: registration.branch.nameAr } : null,
+        paymentPlan: registrationData.financial?.paymentPlan || registrationData.paymentPlan || null,
+        createdBy: primaryJournal?.createdBy?.displayName || null,
+        createdAt: invoice.createdAt.toISOString(),
+        notes: primaryJournal?.notes || null,
+      },
+      student: {
+        id: student.id,
+        customerId: student.customer?.id || null,
+        registrationNumber: registration?.registrationNumber || student.registrationNumber,
+        nameAr: student.arabicName,
+        nameEn: student.englishName,
+        grade: student.grade,
+        className: profile.className || profile.class || registrationData.className || registrationData.class || null,
+        nationalId: student.nationalId,
+        guardianName: student.parentName,
+        guardianPhone: student.parentPhone,
+      },
+      lines: invoice.lines.map((line: any) => ({
+        id: line.id,
+        description: line.description,
+        quantity: Number(line.quantity),
+        unitPrice: money(line.unitPrice),
+        vatRate: Number(line.vatRate),
+        netAmount: money(line.netAmount),
+        vatAmount: money(line.vatAmount),
+        governmentBorneVat: money(line.governmentBorneVat),
+        taxTreatment: line.taxTreatment || invoice.taxTreatment,
+        taxReason: line.taxReason || invoice.taxReason,
+        totalAmount: money(line.totalAmount),
+        revenueAccount: line.revenueAccount ? { id: line.revenueAccount.id, code: line.revenueAccount.code, nameEn: line.revenueAccount.name, nameAr: line.revenueAccount.nameAr } : null,
+      })),
+      totals: {
+        subtotal,
+        discount,
+        taxableSubtotal,
+        vatRate: taxableSubtotal > 0 ? Math.round((vatAmount / taxableSubtotal) * 10000) / 100 : 0,
+        vatAmount,
+        totalVat: money(vatAmount + Number(invoice.governmentBorneVat || 0)),
+        governmentBorneVat: money(invoice.governmentBorneVat),
+        parentPayable: money(invoice.parentPayable ?? invoice.total),
+        taxTreatment: invoice.taxTreatment || "STANDARD",
+        taxReason: invoice.taxReason || null,
+        total,
+        paid,
+        remaining: money(Math.max(total - paid, 0)),
+        currency: invoice.account.currency,
+        vatStatus: invoice.taxTreatment || (vatAmount > 0 ? "STANDARD_15" : "EXEMPT"),
+      },
+      categoryDetails,
+      allocations: invoice.payments.map((allocation: any) => ({
+        id: allocation.id,
+        paymentId: allocation.paymentId,
+        receiptNumber: allocation.payment.receiptNumber,
+        paidAt: allocation.payment.paidAt.toISOString(),
+        method: allocation.payment.method,
+        referenceNumber: allocation.payment.referenceNumber,
+        status: allocation.payment.status,
+        amount: money(allocation.amount),
+      })),
+      journal: primaryJournal ? {
+        id: primaryJournal.id,
+        entryNumber: primaryJournal.entryNumber,
+        status: primaryJournal.status,
+        postingDate: primaryJournal.postingDate.toISOString(),
+      } : null,
+      links: {
+        customerId: student.customer?.id || null,
+        financeAccountId: invoice.accountId,
+      },
+      warnings: primaryJournal ? [] : ["MISSING_POSTED_JOURNAL"],
+    };
+  }
+  async recordInvoiceDocumentAccess(id: string, action: "PRINT" | "EXPORT_PDF", actor: Actor) {
+    const detail = await this.invoiceDetails(id);
+    await new AuditRepository(this.prisma).create({
+      action: action === "PRINT" ? "INVOICE_PRINTED" : "INVOICE_PDF_EXPORTED",
+      entityType: "FinanceInvoice",
+      entityId: id,
+      actorId: actor.id,
+      actorRole: actor.role,
+      details: { invoiceNumber: detail.invoice.invoiceNumber, action },
+    });
+    return detail;
+  }
   async payments(skip?: number, take?: number) {
     return (
       await new FinancePaymentsRepository(this.prisma).list(skip, take)
@@ -286,13 +451,19 @@ export class FinanceService {
       if (discount < 0 || discount > subtotal)
         throw new ServiceError("Invoice discount is invalid.", 422, "VALIDATION_ERROR");
       const taxableAmount = money(subtotal - discount);
-      const vat = String(account.student.nationalId || "").trim()
-        ? vatForSubtotal(taxableAmount, account.student.nationalId)
-        : money(input.vat);
-      const total = money(taxableAmount + vat);
-      if (total <= 0)
-        throw new ServiceError("Invoice totals are invalid.", 422);
       const category = revenueCategory(input.serviceCategory || input.feeItem || input.service);
+      const mapping = await mappingFor(tx, category);
+      const taxPreview = calculateFeePreview(
+        studentTaxIdentity(account.student),
+        [{ name: String(input.feeItem || input.service || categoryLabel(category)), category, amount: taxableAmount }],
+        [mapping],
+      );
+      const taxLine = taxPreview.lines[0];
+      const vat = taxLine.chargedVat;
+      const governmentBorneVat = taxLine.governmentBorneAmount;
+      const totalVat = taxLine.vatAmount;
+      const total = taxLine.parentPayable;
+      if (total <= 0) throw new ServiceError("Invoice totals are invalid.", 422);
       const issuedAt = new Date(input.date || Date.now());
       const invoiceNumber = input.invoiceNumber
         ? String(input.invoiceNumber)
@@ -322,6 +493,11 @@ export class FinanceService {
           registrationId: account.registrationId,
           subtotal,
           vatAmount: vat,
+          governmentBorneVat,
+          parentPayable: total,
+          taxTreatment: taxLine.treatment,
+          taxReason: taxLine.reasonCode,
+          taxDecision: taxPreview as unknown as Prisma.InputJsonValue,
           discount,
           total,
           serviceCategory: category,
@@ -334,9 +510,12 @@ export class FinanceService {
           description: String(input.feeItem || input.service || "School Fees"),
           quantity: 1,
           unitPrice: taxableAmount,
-          vatRate: taxableAmount ? money((vat / taxableAmount) * 100) : 0,
+          vatRate: taxLine.vatRate,
           netAmount: taxableAmount,
           vatAmount: vat,
+          governmentBorneVat,
+          taxTreatment: taxLine.treatment,
+          taxReason: taxLine.reasonCode,
           totalAmount: total,
         },
       );
@@ -350,18 +529,19 @@ export class FinanceService {
       const customer = await tx.accountingCustomer.findUnique({
         where: { studentId: account.studentId },
       });
-      const revenue = await tx.chartOfAccount.findUnique({
-        where: { systemKey: "tuition-revenue" },
-      });
-      const vatAccount = vat
+      const vatAccount = totalVat
         ? await tx.chartOfAccount.findUnique({
             where: { systemKey: "vat-payable" },
           })
         : null;
-      if (!customer || !revenue || (vat && !vatAccount))
+      const governmentVatAccount = governmentBorneVat
+        ? await tx.chartOfAccount.findUnique({ where: { systemKey: "government-vat-receivable" } })
+        : null;
+      if (!customer || (totalVat && !vatAccount) || (governmentBorneVat && !governmentVatAccount))
         throw new ServiceError(
-          "Required accounting accounts are not configured.",
+          "Required VAT accounting accounts are not configured.",
           422,
+          "ACCOUNT_MAPPING_MISSING",
         );
       const outbox = await tx.accountingOutbox.create({
         data: {
@@ -381,9 +561,10 @@ export class FinanceService {
           sourceId: row.id,
           invoiceId: row.id,
           lines: [
-            { accountId: customer.receivableAccountId, debit: total },
-            { accountId: revenue.id, credit: taxableAmount },
-            ...(vat ? [{ accountId: vatAccount!.id, credit: vat }] : []),
+            { accountId: mapping.receivable?.id || customer.receivableAccountId, debit: total },
+            ...(governmentBorneVat ? [{ accountId: governmentVatAccount!.id, debit: governmentBorneVat }] : []),
+            { accountId: mapping.revenue.id, credit: taxableAmount },
+            ...(totalVat ? [{ accountId: vatAccount!.id, credit: totalVat }] : []),
           ],
         },
         actor,
@@ -396,16 +577,19 @@ export class FinanceService {
     });
   }
   async createPayment(input: PaymentInput, actor: Actor) {
-    const preview = await new FinanceAccountsRepository(this.prisma).findById(input.accountId);
-    if (!preview) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
-    const categorized = preview.feeItems.some((item: any) => item.serviceCategory && item.serviceCategory !== "LEGACY_COMBINED");
-    if (!categorized || input.invoiceId) return this.createPaymentLegacy(input, actor);
+    let transactionStep = "ACCOUNT_LOAD";
+    try {
+      const preview = await new FinanceAccountsRepository(this.prisma).findById(input.accountId);
+      if (!preview) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
+      const categorized = preview.feeItems.some((item: any) => item.serviceCategory && item.serviceCategory !== "LEGACY_COMBINED");
+      if (!categorized || input.invoiceId) return await this.createPaymentLegacy(input, actor);
 
-    return this.prisma.$transaction(async (tx) => {
+      return await this.prisma.$transaction(async (tx) => {
+      transactionStep = "ACCOUNT_LOAD";
       const account = await new FinanceAccountsRepository(tx).findById(input.accountId);
       if (!account) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
       const customer = await tx.accountingCustomer.findUnique({ where: { studentId: account.studentId } });
-      if (!customer) throw new ServiceError("Student receivable account is not configured.", 422);
+      if (!customer) throw new ServiceError("Student receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
 
       const amount = money(input.amount);
       const shaped = accountShape(account);
@@ -428,9 +612,10 @@ export class FinanceService {
         feeAllocations.push({ feeItemId: feeItem.id, amount: lineAmount });
         resolvedLines.push({ feeItem, amount: lineAmount });
       }
-      if (submittedTotal !== amount) throw new ServiceError("Payment lines do not equal the payment total.", 422);
+      if (submittedTotal !== amount) throw new ServiceError("Payment lines do not equal the payment total.", 422, "INVALID_PAYMENT_ALLOCATION");
 
       const invoiceRepo = new FinanceInvoicesRepository(tx);
+      transactionStep = "INVOICE_ALLOCATION";
       const openInvoices = await invoiceRepo.findOpenAllForAccount(account.id);
       const invoiceAllocations: Array<{ invoiceId: string; amount: number }> = [];
       const affected = new Map<string, { invoice: any; previousPaid: number; allocated: number; receivableAccountId: string }>();
@@ -444,6 +629,7 @@ export class FinanceService {
 
       for (const [categoryKey, selectedAmount] of selectedByCategory) {
         const category = revenueCategory(categoryKey);
+        transactionStep = "ACCOUNT_MAPPING";
         const mapping = await mappingFor(tx, category);
         const receivableAccountId = mapping.receivable?.id || customer.receivableAccountId;
         let invoice = openInvoices.find((row: any) => row.serviceCategory === category);
@@ -455,12 +641,22 @@ export class FinanceService {
             (sum: number, item: any) => sum + Number(item.subtotal ?? item.amount),
             0,
           ));
-          const invoiceVat = mapping.taxTreatment === "STANDARD" ? money(categoryItems.reduce(
-            (sum: number, item: any) => sum + Number(item.vatAmount ?? vatForSubtotal(Number(item.subtotal ?? item.amount), account.student.nationalId)),
-            0,
-          )) : 0;
-          const invoiceTotal = money(invoiceSubtotal + invoiceVat);
-          if (invoiceVat && !vatAccount) throw new ServiceError("VAT payable account is not configured.", 422);
+          const invoiceTaxPreview = calculateFeePreview(
+            studentTaxIdentity(account.student),
+            [{ name: categoryItems.map((item: any) => item.name).join(", ") || categoryLabel(category), category, amount: invoiceSubtotal }],
+            [mapping],
+          );
+          const invoiceTaxLine = invoiceTaxPreview.lines[0];
+          const invoiceVat = invoiceTaxLine.chargedVat;
+          const invoiceGovernmentVat = invoiceTaxLine.governmentBorneAmount;
+          const invoiceTotalVat = invoiceTaxLine.vatAmount;
+          const invoiceTotal = invoiceTaxLine.parentPayable;
+          if (invoiceTotalVat && !vatAccount) throw new ServiceError("VAT payable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
+          const governmentVatAccount = invoiceGovernmentVat
+            ? await tx.chartOfAccount.findUnique({ where: { systemKey: "government-vat-receivable" } })
+            : null;
+          if (invoiceGovernmentVat && !governmentVatAccount)
+            throw new ServiceError("Government VAT receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
           const issuedAt = new Date(input.paidAt || Date.now());
           invoice = await invoiceRepo.create(
             {
@@ -470,6 +666,11 @@ export class FinanceService {
               registrationId: account.registrationId,
               subtotal: invoiceSubtotal,
               vatAmount: invoiceVat,
+              governmentBorneVat: invoiceGovernmentVat,
+              parentPayable: invoiceTotal,
+              taxTreatment: invoiceTaxLine.treatment,
+              taxReason: invoiceTaxLine.reasonCode,
+              taxDecision: invoiceTaxPreview as unknown as Prisma.InputJsonValue,
               total: invoiceTotal,
               serviceCategory: category,
               costCenterId: mapping.costCenterId,
@@ -482,9 +683,12 @@ export class FinanceService {
               description: categoryItems.map((item: any) => item.name).join(", ") || categoryLabel(category),
               quantity: 1,
               unitPrice: invoiceSubtotal,
-              vatRate: invoiceSubtotal ? money((invoiceVat / invoiceSubtotal) * 100) : 0,
+              vatRate: invoiceTaxLine.vatRate,
               netAmount: invoiceSubtotal,
               vatAmount: invoiceVat,
+              governmentBorneVat: invoiceGovernmentVat,
+              taxTreatment: invoiceTaxLine.treatment,
+              taxReason: invoiceTaxLine.reasonCode,
               totalAmount: invoiceTotal,
               revenueAccountId: mapping.revenue.id,
             },
@@ -493,6 +697,7 @@ export class FinanceService {
           const outbox = await tx.accountingOutbox.create({
             data: { eventType: "INVOICE_CREATED", aggregateType: "finance_invoice", aggregateId: invoice.id, payload: { invoiceId: invoice.id, category } },
           });
+          transactionStep = "AUTOMATIC_JOURNAL";
           await JournalService.postUsing(tx, {
             postingDate: invoice.issuedAt,
             description: `${categoryLabel(category)} invoice ${invoice.invoiceNumber}`,
@@ -502,11 +707,13 @@ export class FinanceService {
             invoiceId: invoice.id,
             lines: [
               { accountId: receivableAccountId, debit: invoiceTotal, costCenterId: mapping.costCenterId || undefined },
+              ...(invoiceGovernmentVat ? [{ accountId: governmentVatAccount!.id, debit: invoiceGovernmentVat, costCenterId: mapping.costCenterId || undefined }] : []),
               { accountId: mapping.revenue.id, credit: invoiceSubtotal, costCenterId: mapping.costCenterId || undefined },
-              ...(invoiceVat ? [{ accountId: vatAccount!.id, credit: invoiceVat, costCenterId: mapping.costCenterId || undefined }] : []),
+              ...(invoiceTotalVat ? [{ accountId: vatAccount!.id, credit: invoiceTotalVat, costCenterId: mapping.costCenterId || undefined }] : []),
             ],
           }, actor);
           await tx.accountingOutbox.update({ where: { id: outbox.id }, data: { processedAt: new Date() } });
+          transactionStep = "AUDIT_LOG";
           await new AuditRepository(tx).create({
             actorId: actor.id, actorRole: actor.role, action: "create categorized invoice", entityType: "finance_invoice", entityId: invoice.id,
             details: { category, accountId: account.id },
@@ -525,6 +732,7 @@ export class FinanceService {
       const receiptNumber = input.receiptNumber || `REC-${Date.now()}-${randomUUID().slice(0, 8)}`;
       if (await new FinancePaymentsRepository(tx).findByReceipt(receiptNumber))
         throw new ServiceError("Receipt number has already been posted.", 409, "DUPLICATE_RECEIPT");
+      transactionStep = "PAYMENT_CREATION";
       const payment = await new FinancePaymentsRepository(tx).createWithAllocation({
         receiptNumber,
         accountId: account.id,
@@ -538,18 +746,22 @@ export class FinanceService {
         invoiceAllocations,
         feeAllocations,
       });
+      transactionStep = "INSTALLMENT_UPDATE";
       await allocateInstallmentPayment(tx, customer.id, amount);
+      transactionStep = "STUDENT_BALANCE_UPDATE";
       for (const value of affected.values()) {
         const paidAfter = money(value.previousPaid + value.allocated);
         await invoiceRepo.updateStatus(value.invoice.id, paidAfter >= money(value.invoice.total) ? "PAID" : "PARTIALLY_PAID");
       }
 
       const cashKey = /bank|transfer|card|online/i.test(input.method || "") ? "bank-main" : "cash-main";
+      transactionStep = "ACCOUNT_MAPPING";
       const cash = await tx.chartOfAccount.findUnique({ where: { systemKey: cashKey } });
-      if (!cash) throw new ServiceError("Cash or bank account is not configured.", 422);
+      if (!cash) throw new ServiceError("Cash or bank account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
       const paymentOutbox = await tx.accountingOutbox.create({
         data: { eventType: "PAYMENT_CREATED", aggregateType: "finance_payment", aggregateId: payment.id, payload: { paymentId: payment.id, invoiceIds: invoiceAllocations.map((item) => item.invoiceId) } },
       });
+      transactionStep = "AUTOMATIC_JOURNAL";
       await JournalService.postUsing(tx, {
         postingDate: payment.paidAt,
         description: `Consolidated receipt ${payment.receiptNumber}`,
@@ -566,6 +778,7 @@ export class FinanceService {
         ],
       }, actor);
       await tx.accountingOutbox.update({ where: { id: paymentOutbox.id }, data: { processedAt: new Date() } });
+      transactionStep = "AUDIT_LOG";
       await new AuditRepository(tx).create({
         actorId: actor.id, actorRole: actor.role, action: "add categorized payment", entityType: "finance_payment", entityId: payment.id,
         details: { accountId: account.id, invoiceIds: invoiceAllocations.map((item) => item.invoiceId), amount },
@@ -581,12 +794,18 @@ export class FinanceService {
         invoices: invoiceResults,
         consolidatedReceipt: { receiptNumber, total: amount, invoices: invoiceAllocations },
       };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
+    } catch (error) {
+      throw classifyPaymentError(error, transactionStep);
+    }
   }
 
   private async createPaymentLegacy(input: PaymentInput, actor: Actor) {
-    return this.prisma.$transaction(
+    let transactionStep = "ACCOUNT_LOAD";
+    try {
+      return await this.prisma.$transaction(
       async (tx) => {
+        transactionStep = "ACCOUNT_LOAD";
         const accounts = new FinanceAccountsRepository(tx);
         const account = await accounts.findById(input.accountId);
         if (!account)
@@ -608,7 +827,7 @@ export class FinanceService {
         if (!customer)
           throw new ServiceError(
             "Student receivable account is not configured.",
-            422,
+            422, "ACCOUNT_MAPPING_MISSING",
           );
         if (!invoice) {
           const shapedAccount = accountShape(account);
@@ -618,13 +837,13 @@ export class FinanceService {
               "Student account has no outstanding balance to invoice.",
               422,
             );
+          transactionStep = "ACCOUNT_MAPPING";
           const revenue = await tx.chartOfAccount.findUnique({
             where: { systemKey: "tuition-revenue" },
           });
           if (!revenue)
             throw new ServiceError(
-              "Tuition revenue account is not configured.",
-              422,
+              "Tuition revenue account is not configured.", 422, "ACCOUNT_MAPPING_MISSING",
             );
           const invoiceSubtotal = money(shapedAccount.subtotal);
           const invoiceVat = vatForSubtotal(
@@ -642,7 +861,7 @@ export class FinanceService {
               })
             : null;
           if (invoiceVat && !vatAccount)
-            throw new ServiceError("VAT payable account is not configured.", 422);
+            throw new ServiceError("VAT payable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
           const invoiceNumber = `INV-AUTO-${Date.now()}-${randomUUID().slice(0, 8)}`;
           invoice = await invoices.create(
             {
@@ -682,6 +901,7 @@ export class FinanceService {
               payload: { invoiceId: invoice.id },
             },
           });
+          transactionStep = "AUTOMATIC_JOURNAL";
           await JournalService.postUsing(
             tx,
             {
@@ -763,7 +983,7 @@ export class FinanceService {
           if (submittedTotal !== amount)
             throw new ServiceError(
               "Payment lines do not equal the payment total.",
-              422,
+              422, "INVALID_PAYMENT_ALLOCATION",
             );
         }
         if (amount > remaining)
@@ -782,6 +1002,7 @@ export class FinanceService {
             409,
             "DUPLICATE_RECEIPT",
           );
+        transactionStep = "PAYMENT_CREATION";
         const payment = await new FinancePaymentsRepository(
           tx,
         ).createWithAllocation({
@@ -797,11 +1018,14 @@ export class FinanceService {
           invoiceId: invoice.id,
           feeAllocations,
         });
+        transactionStep = "INSTALLMENT_UPDATE";
         await allocateInstallmentPayment(tx, customer.id, amount);
+        transactionStep = "STUDENT_BALANCE_UPDATE";
         await invoices.updateStatus(
           invoice.id,
           amount === remaining ? "PAID" : "PARTIALLY_PAID",
         );
+        transactionStep = "AUDIT_LOG";
         await new AuditRepository(tx).create({
           actorId: actor.id,
           actorRole: actor.role,
@@ -813,13 +1037,13 @@ export class FinanceService {
         const cashKey = /bank|transfer|card|online/i.test(input.method || "")
           ? "bank-main"
           : "cash-main";
+        transactionStep = "ACCOUNT_MAPPING";
         const cash = await tx.chartOfAccount.findUnique({
           where: { systemKey: cashKey },
         });
         if (!cash)
           throw new ServiceError(
-            "Cash or bank account is not configured.",
-            422,
+            "Cash or bank account is not configured.", 422, "ACCOUNT_MAPPING_MISSING",
           );
         const paymentOutbox = await tx.accountingOutbox.create({
           data: {
@@ -829,6 +1053,7 @@ export class FinanceService {
             payload: { paymentId: payment.id, invoiceId: invoice.id },
           },
         });
+        transactionStep = "AUTOMATIC_JOURNAL";
         await JournalService.postUsing(
           tx,
           {
@@ -866,7 +1091,10 @@ export class FinanceService {
         maxWait: 10_000,
         timeout: 30_000,
       },
-    );
+      );
+    } catch (error) {
+      throw classifyPaymentError(error, transactionStep);
+    }
   }
 
   private async reversePayment(

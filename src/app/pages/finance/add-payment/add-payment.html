@@ -50,8 +50,13 @@
   </article>
 
   <article class="stat-card">
-    <h3>{{ l('VAT', 'ضريبة القيمة المضافة') }} {{ selectedAccount.vatExempt ? l('(Exempt)', '(معفى)') : '15%' }}</h3>
+    <h3>{{ l('VAT charged to parent', 'الضريبة المحملة على ولي الأمر') }}</h3>
     <h2>{{ selectedAccount.vat | number }} {{ currency() }}</h2>
+  </article>
+
+  <article class="stat-card" *ngIf="selectedAccount.governmentBorneVat">
+    <h3>{{ l('Government-borne VAT', 'الضريبة التي تتحملها الدولة') }}</h3>
+    <h2>{{ selectedAccount.governmentBorneVat | number }} {{ currency() }}</h2>
   </article>
 
   <article class="stat-card">

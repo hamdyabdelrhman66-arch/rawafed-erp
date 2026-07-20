@@ -28,6 +28,23 @@ describe("payment request validator", () => {
     ).toBe(true);
   });
 
+  it("preserves the 11,902.50 SAR payment and its five exact allocations", () => {
+    const result = payment.parse({
+      ...validPayment,
+      amount: 11902.5,
+      paidAt: "2026-07-19",
+      lines: [
+        { feeItem: "Tuition", amount: 8625 },
+        { feeItem: "Books", amount: 632.5 },
+        { feeItem: "Uniform", amount: 517.5 },
+        { feeItem: "Activities", amount: 402.5 },
+        { feeItem: "Transportation", amount: 1725 },
+      ],
+    });
+    expect(Math.round(result.amount * 100)).toBe(1190250);
+    expect(result.lines?.reduce((sum, line) => sum + Math.round(line.amount * 100), 0)).toBe(1190250);
+  });
+
   it("still rejects unknown request fields", () => {
     expect(
       payment.safeParse({ ...validPayment, unexpected: true }).success,

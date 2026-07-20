@@ -25,6 +25,7 @@ import { postgresInventoryRoutes } from "./routes/postgres-inventory.routes.js";
 import { postgresOperationsRoutes } from "./routes/postgres-operations.routes.js";
 import { postgresSecurityRoutes } from "./routes/postgres-security.routes.js";
 import { ServiceError } from "./services/service.error.js";
+import { classifyPersistenceError } from "./services/payment-error.js";
 import { startSecurityCleanupJob } from "./services/security.service.js";
 
 const port = Number(process.env.PORT || 4300);
@@ -144,27 +145,37 @@ app.use("/api", (req, res) =>
     .json({ message: `Endpoint ${req.method} ${req.path} was not found.` }),
 );
 app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
-  const message = safeErrorMessage(error),
+  const classifiedError = classifyPersistenceError(error, "REQUEST") || error;
+  const message = safeErrorMessage(classifiedError),
     status =
-      error instanceof ServiceError
-        ? error.status
+      classifiedError instanceof ServiceError
+        ? classifiedError.status
         : message === "Unsupported file type."
           ? 400
           : 500,
     requestId = String((req as any).requestId || "unknown");
-  logError(error, requestId);
+  logError(classifiedError, requestId);
   res
     .status(status)
     .json({
       success: false,
       errorCode:
-        error instanceof ServiceError
-          ? error.code
+        classifiedError instanceof ServiceError
+          ? classifiedError.code
           : status === 400
             ? "VALIDATION_ERROR"
             : "SERVER_ERROR",
       safeMessage: message,
       requestId,
+      details:
+        classifiedError instanceof ServiceError &&
+        (classifiedError.step || classifiedError.originalCode)
+          ? {
+              transactionStep: classifiedError.step,
+              originalCode: classifiedError.originalCode,
+              rolledBack: true,
+            }
+          : undefined,
     });
 });
 

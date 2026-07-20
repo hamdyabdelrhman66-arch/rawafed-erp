@@ -71,6 +71,25 @@
   font-weight: 800;
 }
 
+.tax-message {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 18px;
+  padding: 16px;
+  border: 1px solid #bdd7ff;
+  border-radius: 14px;
+  background: #f3f8ff;
+  color: var(--raw-navy);
+}
+
+.tax-message.government { border-color: #9ad7bb; background: #effbf5; }
+.tax-message.error { border-color: #efb0b0; background: #fff3f3; color: #9d2424; }
+.tax-message span { color: var(--raw-muted); font-size: 13px; }
+.tax-line { display: flex; justify-content: space-between; gap: 18px; padding: 12px 0; border-bottom: 1px dashed var(--raw-border); }
+.tax-line > div { display: grid; gap: 4px; }
+.tax-line small { color: var(--raw-muted); }
+.tax-values { text-align: right; }
+
 @media (max-width: 900px) {
   .finance-layout {
     grid-template-columns: 1fr;

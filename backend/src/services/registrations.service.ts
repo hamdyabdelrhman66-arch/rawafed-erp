@@ -7,8 +7,7 @@ import { NotificationsRepository } from "../repositories/notifications.repositor
 import { RegistrationsRepository } from "../repositories/registrations.repository.js";
 import { StudentsRepository } from "../repositories/students.repository.js";
 import { ServiceError } from "./service.error.js";
-import { money, vatForSubtotal } from "./student-vat.js";
-import { revenueCategory } from "./revenue-category.js";
+import { authoritativeFeePreviewUsing, money, type FeePreview } from "./student-vat.js";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const unpack = (row: any) => ({
@@ -20,33 +19,30 @@ const unpack = (row: any) => ({
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
-const baseFees = (r: RegistrationInput) =>
-  [
-    ["Registration Fee", "registrationFee"],
-    ["Tuition", "tuition"],
-    ["Books", "books"],
-    ["Uniform", "uniform"],
-    ["Activities", "activities"],
-    ["Transportation", "transportationFee"],
-  ]
-    .map(([name, key]) => ({ name, amount: Number(r.financial?.[key] || 0) }))
-    .filter((item) => item.amount > 0);
-const subtotal = (r: RegistrationInput) =>
-  money(baseFees(r).reduce((sum, item) => sum + item.amount, 0));
-const vat = (r: RegistrationInput) =>
-  vatForSubtotal(subtotal(r), r.student?.nationalId);
-const total = (r: RegistrationInput) => money(subtotal(r) + vat(r));
-const fees = (r: RegistrationInput) =>
-  baseFees(r).map((item) => {
-    const itemVat = vatForSubtotal(item.amount, r.student?.nationalId);
-    return {
-      name: item.name,
-      serviceCategory: revenueCategory(item.name),
-      subtotal: money(item.amount),
-      vatAmount: itemVat,
-      amount: money(item.amount + itemVat),
-    };
-  });
+const canonicalFinancial = (input: RegistrationInput, preview: FeePreview) => ({
+  ...(input.financial || {}),
+  vat: preview.chargedVat,
+  vatAmount: preview.chargedVat,
+  totalVat: preview.totalVat,
+  governmentBorneAmount: preview.governmentBorneAmount,
+  subtotal: preview.subtotal,
+  parentPayableTotal: preview.parentPayableTotal,
+  grandTotal: preview.grandTotal,
+  taxDecisionHash: preview.decisionHash,
+  taxDecision: preview,
+});
+
+const feesFromPreview = (preview: FeePreview) => preview.lines.map((line) => ({
+  name: line.name,
+  serviceCategory: line.category,
+  subtotal: line.subtotal,
+  vatRate: line.vatRate,
+  vatAmount: line.chargedVat,
+  governmentBorneVat: line.governmentBorneAmount,
+  taxTreatment: line.treatment,
+  taxReason: line.reasonCode,
+  amount: line.parentPayable,
+}));
 
 export class RegistrationsService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -55,13 +51,76 @@ export class RegistrationsService {
       await new RegistrationsRepository(this.prisma).list(skip, take)
     ).map(unpack);
   }
-  async create(input: RegistrationInput, actor?: Actor) {
-    const vatAmount = vat(input);
-    input.financial = {
-      ...(input.financial || {}),
-      vat: vatAmount,
-      grandTotal: money(subtotal(input) + vatAmount),
+  async feePreview(input: RegistrationInput) {
+    return authoritativeFeePreviewUsing(this.prisma, input);
+  }
+  async vatReconciliation(limit = 1000) {
+    const rows = await this.prisma.registration.findMany({
+      where: { deletedAt: null },
+      include: {
+        financeAccount: {
+          include: {
+            feeItems: true,
+            invoices: { where: { deletedAt: null }, include: { payments: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+      take: Math.min(Math.max(limit, 1), 5000),
+    });
+    const records: Array<Record<string, unknown>> = [];
+    for (const row of rows) {
+      const data = row.data as unknown as RegistrationInput;
+      try {
+        const expected = await authoritativeFeePreviewUsing(this.prisma, data);
+        const stored = data.financial || {};
+        const issues: string[] = [];
+        if (String(stored.taxDecisionHash || "") !== expected.decisionHash) issues.push("MISSING_OR_STALE_TAX_DECISION");
+        if (money(stored.grandTotal) !== expected.parentPayableTotal) issues.push("REGISTRATION_TOTAL_MISMATCH");
+        for (const invoice of row.financeAccount?.invoices || []) {
+          const paid = invoice.payments.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+          if (money(invoice.total) !== money(invoice.parentPayable ?? invoice.total)) issues.push("INVOICE_PARENT_PAYABLE_MISMATCH");
+          if (money(invoice.governmentBorneVat) === 0 && expected.governmentBorneAmount > 0) issues.push(paid ? "PAID_INVOICE_REQUIRES_CREDIT_REISSUE_REVIEW" : "UNPAID_INVOICE_REQUIRES_REVIEW");
+        }
+        if (issues.length) records.push({
+          registrationId: row.id,
+          registrationNumber: row.registrationNumber,
+          status: row.status,
+          issues: [...new Set(issues)],
+          storedParentPayable: money(stored.grandTotal),
+          expectedParentPayable: expected.parentPayableTotal,
+          expectedGovernmentBorneVat: expected.governmentBorneAmount,
+          decisionHash: expected.decisionHash,
+          action: "REVIEW_ONLY_NO_DATA_CHANGED",
+        });
+      } catch (error) {
+        records.push({
+          registrationId: row.id,
+          registrationNumber: row.registrationNumber,
+          status: row.status,
+          issues: [(error as ServiceError).code || "VAT_ELIGIBILITY_REVIEW_REQUIRED"],
+          action: "AUTHORIZED_MANUAL_REVIEW_REQUIRED",
+        });
+      }
+    }
+    return {
+      dryRun: true,
+      scanned: rows.length,
+      affectedRegistrations: records.length,
+      recordsRequiringReview: records,
+      correctionPolicy: "Never overwrite posted invoices or journals; use credit/cancel/reissue workflows after authorized review.",
     };
+  }
+  async create(input: RegistrationInput, actor?: Actor) {
+    const preview = await authoritativeFeePreviewUsing(this.prisma, input);
+    const suppliedHash = String(input.financial?.taxDecisionHash || "");
+    if (!actor && suppliedHash !== preview.decisionHash)
+      throw new ServiceError(
+        "The fee preview is missing or stale. Recalculate Step 06 before submitting. / معاينة الرسوم مفقودة أو غير محدثة. أعد احتساب الخطوة 06 قبل الإرسال.",
+        409,
+        "STALE_VAT_PREVIEW",
+      );
+    input.financial = canonicalFinancial(input, preview);
     return this.prisma.$transaction(
       async (tx) => {
         const repo = new RegistrationsRepository(tx);
@@ -114,7 +173,7 @@ export class RegistrationsService {
           action: actor ? "create registration" : "public create registration",
           entityType: "registration",
           entityId: row.id,
-          details: { registrationNumber },
+          details: { registrationNumber, taxDecisionHash: preview.decisionHash, vatReason: preview.eligibility.reasonCode },
         });
         return unpack(row);
       },
@@ -153,18 +212,12 @@ export class RegistrationsService {
             profile: json(data),
           },
         );
-        const feeRows = fees(data);
-        const mappings = await tx.revenueCategoryMapping.findMany({ where: { active: true } });
-        const mappedFees = feeRows.map((item) => {
-          const mapping = mappings.find((row) => row.category === item.serviceCategory);
-          return mapping && mapping.taxTreatment !== "STANDARD"
-            ? { ...item, vatAmount: 0, amount: item.subtotal }
-            : item;
-        });
+        const preview = await authoritativeFeePreviewUsing(tx, data);
+        const mappedFees = feesFromPreview(preview);
         await new FinanceAccountsRepository(tx).upsert(
           id,
           student.id,
-          money(mappedFees.reduce((sum, item) => sum + item.amount, 0)),
+          preview.parentPayableTotal,
           mappedFees,
         );
         let customer = await tx.accountingCustomer.findUnique({

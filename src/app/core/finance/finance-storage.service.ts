@@ -452,6 +452,10 @@ export class FinanceStorageService {
         price: Number(item.amount || 0),
         paid: Number(item.paid || 0),
         remaining: Number(item.remaining ?? item.amount ?? 0),
+        vatRate: Number(item.vatRate || 0),
+        governmentBorneVat: Number(item.governmentBorneVat || 0),
+        taxTreatment: item.taxTreatment || 'STANDARD',
+        taxReason: item.taxReason || undefined,
         customPrice: false,
       })),
       grade: account.grade,
@@ -468,6 +472,8 @@ export class FinanceStorageService {
       canonicalInvoiceId: account.canonicalInvoiceId,
       subtotal: Number(account.subtotal || 0),
       vat: Number(account.vat || 0),
+      totalVat: Number(account.totalVat || account.vat || 0),
+      governmentBorneVat: Number(account.governmentBorneVat || 0),
       vatExempt: Boolean(account.vatExempt),
       nationalId: account.nationalId || '',
     };
@@ -507,6 +513,7 @@ export class FinanceStorageService {
   private backendInvoiceToInvoice(invoice: any): FinanceInvoice {
     return {
       id: this.numericId(invoice.id),
+      backendId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       patient: invoice.studentName || invoice.patient || "",
       studentArabicName: invoice.studentArabicName || '',

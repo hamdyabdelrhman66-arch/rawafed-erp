@@ -195,7 +195,9 @@
         <raw-financial-step
   [group]="financialGroup"
   [paymentPlans]="paymentPlans"
-  [transportationAreas]="transportationAreas()">
+  [transportationAreas]="transportationAreas()"
+  [previewLoading]="feePreviewLoading()"
+  [previewError]="feePreviewError()">
 </raw-financial-step>
 
         <nav class="actions">

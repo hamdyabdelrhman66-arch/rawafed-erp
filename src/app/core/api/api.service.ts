@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { catchError, firstValueFrom, throwError } from 'rxjs';
+import { catchError, firstValueFrom, from, Observable, switchMap, throwError } from 'rxjs';
 import { ApiSafeError } from '../feedback/http-error.interceptor';
 
 const TOKEN_KEY = 'rawafed_api_token';
@@ -14,6 +14,8 @@ declare global {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
+  private refreshPromise?: Promise<string>;
+
   constructor(private readonly http: HttpClient) {}
 
   get token(): string {
@@ -36,27 +38,76 @@ export class ApiService {
   }
 
   get<T>(path: string): Promise<T> {
-    return firstValueFrom(this.http.get<T>(this.url(path), { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
+    return this.request(() => this.http.get<T>(this.url(path), { headers: this.headers() }));
   }
 
   post<T>(path: string, body: unknown): Promise<T> {
-    return firstValueFrom(this.http.post<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
+    return this.request(() => this.http.post<T>(this.url(path), body, { headers: this.headers() }), path === '/auth/refresh');
   }
 
   postForm<T>(path: string, body: FormData): Promise<T> {
-    return firstValueFrom(this.http.post<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
+    return this.request(() => this.http.post<T>(this.url(path), body, { headers: this.headers() }));
   }
 
   patch<T>(path: string, body: unknown): Promise<T> {
-    return firstValueFrom(this.http.patch<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
+    return this.request(() => this.http.patch<T>(this.url(path), body, { headers: this.headers() }));
   }
 
   put<T>(path: string, body: unknown): Promise<T> {
-    return firstValueFrom(this.http.put<T>(this.url(path), body, { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
+    return this.request(() => this.http.put<T>(this.url(path), body, { headers: this.headers() }));
   }
 
   delete<T>(path: string): Promise<T> {
-    return firstValueFrom(this.http.delete<T>(this.url(path), { headers: this.headers() }).pipe(catchError((error) => this.handleError(error))));
+    return this.request(() => this.http.delete<T>(this.url(path), { headers: this.headers() }));
+  }
+
+  private request<T>(factory: () => Observable<T>, skipRefresh = false): Promise<T> {
+    return firstValueFrom(factory().pipe(
+      catchError((error: unknown) => {
+        if (!skipRefresh && this.isUnauthorized(error) && this.readRefreshToken()) {
+          return from(this.refreshAccessToken()).pipe(switchMap(() => factory()));
+        }
+        return this.handleError(error);
+      }),
+      catchError((error: unknown) => this.handleError(error)),
+    ));
+  }
+
+  private isUnauthorized(error: unknown): boolean {
+    return (error instanceof ApiSafeError || error instanceof HttpErrorResponse) && error.status === 401;
+  }
+
+  private readRefreshToken(): string {
+    try { return JSON.parse(sessionStorage.getItem('rawafed_auth') || 'null')?.refreshToken || ''; }
+    catch { return ''; }
+  }
+
+  private refreshAccessToken(): Promise<string> {
+    if (this.refreshPromise) return this.refreshPromise;
+    const refreshToken = this.readRefreshToken();
+    this.refreshPromise = firstValueFrom(this.http.post<{ token: string; refreshToken?: string }>(
+      this.url('/auth/refresh'),
+      { refreshToken },
+      { headers: new HttpHeaders({ 'Content-Type': 'application/json' }) },
+    )).then((response) => {
+      const session = JSON.parse(sessionStorage.getItem('rawafed_auth') || 'null');
+      if (!session || !response.token) throw new Error('Session refresh did not return an access token.');
+      session.token = response.token;
+      if (response.refreshToken) session.refreshToken = response.refreshToken;
+      sessionStorage.setItem('rawafed_auth', JSON.stringify(session));
+      this.setToken(response.token);
+      return response.token;
+    }).catch((error) => {
+      this.clearSession();
+      throw error;
+    }).finally(() => { this.refreshPromise = undefined; });
+    return this.refreshPromise;
+  }
+
+  private clearSession(): void {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem('rawafed_auth');
+    window.dispatchEvent(new Event('rawafed-session-expired'));
   }
 
   private url(path: string): string {
@@ -70,15 +121,13 @@ export class ApiService {
   private handleError(error: unknown) {
     if (error instanceof ApiSafeError) {
       if (error.status === 401) {
-        sessionStorage.removeItem(TOKEN_KEY);
-        sessionStorage.removeItem('rawafed_auth');
+        this.clearSession();
       }
       return throwError(() => error);
     }
     if (error instanceof HttpErrorResponse) {
       if (error.status === 401) {
-        sessionStorage.removeItem(TOKEN_KEY);
-        sessionStorage.removeItem('rawafed_auth');
+        this.clearSession();
       }
       const message = error.error?.safeMessage || error.error?.message || error.message || 'Could not reach backend.';
       return throwError(() => new Error(`${message} (${error.status})`));

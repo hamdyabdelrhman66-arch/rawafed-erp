@@ -38,4 +38,8 @@ export class FinancialStepComponent {
 
   @Input() transportationAreas: TransportationArea[] = [];
 
+  @Input() previewLoading = false;
+
+  @Input() previewError = '';
+
 }

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
-import { AdmissionLetterRequest, AdmissionRegistration, PersonInfo, UploadedDocument } from '../models/admission.models';
+import { AdmissionLetterRequest, AdmissionRegistration, PersonInfo, RegistrationFeePreview, UploadedDocument } from '../models/admission.models';
 import { ContractService } from '../contract-engine/contract.service';
 import { ApiService } from '../api/api.service';
 import { StorageService } from './storage.service';
@@ -63,6 +63,13 @@ export class AdmissionService {
     this.storage.upsertRegistration(saved);
     this.storage.clearDraft();
     return saved;
+  }
+
+  feePreview(registration: Pick<AdmissionRegistration, 'student' | 'financial'>): Promise<RegistrationFeePreview> {
+    return this.api.post<RegistrationFeePreview>('/public/registrations/fee-preview', {
+      student: registration.student,
+      financial: registration.financial
+    });
   }
 
   duplicate(registration: AdmissionRegistration): AdmissionRegistration {
@@ -144,7 +151,9 @@ export class AdmissionService {
       Uniform: item.financial.uniform,
       Activities: item.financial.activities,
       Transportation: item.financial.transportationRequired ? item.financial.transportationFee : 0,
-      VAT: item.financial.vat,
+      'VAT Charged to Parent': item.financial.vatAmount ?? item.financial.vat,
+      'Government-borne VAT': item.financial.governmentBorneAmount ?? 0,
+      'Tax Decision': item.financial.taxDecision?.eligibility.reasonCode || '',
       'Grand Total': item.financial.grandTotal,
       'Payment Plan': item.financial.paymentPlan,
       'Contract PDF': item.contractPdf?.fileName || '',
@@ -244,17 +253,6 @@ export class AdmissionService {
     };
   }
 
-  calculateGrandTotal(value: AdmissionRegistration['financial'], nationalId = ''): number {
-    const transportation = value.transportationRequired ? value.transportationFee : 0;
-    const subtotal = value.registrationFee + value.tuition + transportation + value.books + value.uniform + value.activities;
-    const vatAmount = this.isSaudiNationalId(nationalId) ? 0 : subtotal * (value.vat / 100);
-    return subtotal + vatAmount;
-  }
-
-  isSaudiNationalId(value: string): boolean {
-    return value.replace(/\D/g, '').startsWith('1');
-  }
-
   private async downloadRegistrationPdf(registration: AdmissionRegistration, kind: PdfKind): Promise<void> {
     const document = kind === 'contract' ? registration.contractPdf : registration.registrationInfoPdf;
     if (document?.dataUrl) {
@@ -324,7 +322,9 @@ export class AdmissionService {
       ['Uniform', this.currency(registration.financial.uniform)],
       ['Activities', this.currency(registration.financial.activities)],
       ['Transportation', registration.financial.transportationRequired ? `${registration.financial.transportationArea} | ${this.currency(registration.financial.transportationFee)}` : 'Not selected'],
-      ['VAT', `${registration.financial.vat}%`],
+      ['VAT charged to parent', this.currency(registration.financial.vatAmount ?? registration.financial.vat)],
+      ['Government-borne VAT', this.currency(registration.financial.governmentBorneAmount ?? 0)],
+      ['Tax treatment', registration.financial.taxDecision?.eligibility.reasonEn || 'Pending authoritative calculation'],
       ['Payment Plan', registration.financial.paymentPlan],
       ['Payment Status', registration.financial.paymentStatus],
       ['Grand Total', this.currency(registration.financial.grandTotal)]

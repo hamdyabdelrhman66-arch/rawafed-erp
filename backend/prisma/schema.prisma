@@ -264,6 +264,10 @@ model FinanceAccountFeeItem {
   serviceCategory    String                 @default("LEGACY_COMBINED") @map("service_category")
   subtotal           Decimal?               @db.Decimal(14, 2)
   vatAmount          Decimal?               @map("vat_amount") @db.Decimal(14, 2)
+  vatRate            Decimal                @default(0) @map("vat_rate") @db.Decimal(5, 2)
+  governmentBorneVat Decimal                @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  taxTreatment       String                 @default("STANDARD") @map("tax_treatment")
+  taxReason          String?                @map("tax_reason")
   createdAt          DateTime               @default(now()) @map("created_at")
   updatedAt          DateTime               @updatedAt @map("updated_at")
   paymentAllocations PaymentFeeAllocation[]
@@ -282,6 +286,11 @@ model FinanceInvoice {
   registration    Registration?       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
   subtotal        Decimal             @db.Decimal(14, 2)
   vatAmount       Decimal             @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  governmentBorneVat Decimal          @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  parentPayable   Decimal?            @map("parent_payable") @db.Decimal(14, 2)
+  taxTreatment    String              @default("STANDARD") @map("tax_treatment")
+  taxReason       String?             @map("tax_reason")
+  taxDecision     Json?               @map("tax_decision")
   discount        Decimal             @default(0) @db.Decimal(14, 2)
   total           Decimal             @db.Decimal(14, 2)
   serviceCategory String              @default("LEGACY_COMBINED") @map("service_category")
@@ -325,6 +334,8 @@ model RevenueCategoryMapping {
   costCenterId        String?  @map("cost_center_id") @db.Uuid
   branchId            String?  @map("branch_id") @db.Uuid
   taxTreatment        String   @default("STANDARD") @map("tax_treatment")
+  saudiTaxTreatment   String   @default("STANDARD") @map("saudi_tax_treatment")
+  vatRate             Decimal  @default(15) @map("vat_rate") @db.Decimal(5, 2)
   active              Boolean  @default(true)
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
@@ -363,6 +374,9 @@ model InvoiceLine {
   vatRate          Decimal         @default(0) @map("vat_rate") @db.Decimal(5, 2)
   netAmount        Decimal         @map("net_amount") @db.Decimal(14, 2)
   vatAmount        Decimal         @map("vat_amount") @db.Decimal(14, 2)
+  governmentBorneVat Decimal       @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  taxTreatment     String          @default("STANDARD") @map("tax_treatment")
+  taxReason        String?         @map("tax_reason")
   totalAmount      Decimal         @map("total_amount") @db.Decimal(14, 2)
   revenueAccountId String?         @map("revenue_account_id") @db.Uuid
   revenueAccount   ChartOfAccount? @relation(fields: [revenueAccountId], references: [id], onDelete: Restrict)

@@ -45,6 +45,7 @@ export interface StudentInfo {
   arabicName: string;
   applyingGrade: string;
   nationality: string;
+  identityType: 'NATIONAL_ID' | 'IQAMA';
   religion: string;
   nationalId: string;
   passportNumber: string;
@@ -83,9 +84,53 @@ export interface FinancialInfo {
   transportationArea: string;
   transportationFee: number;
   vat: number;
+  vatAmount?: number;
+  totalVat?: number;
+  governmentBorneAmount?: number;
+  subtotal?: number;
+  parentPayableTotal?: number;
+  taxDecisionHash?: string;
+  taxDecision?: RegistrationFeePreview;
   paymentPlan: PaymentPlan;
   grandTotal: number;
   paymentStatus: PaymentStatus;
+}
+
+export interface RegistrationFeePreviewLine {
+  name: string;
+  category: string;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  chargedVat: number;
+  governmentBorneAmount: number;
+  parentPayable: number;
+  treatment: 'STANDARD' | 'GOVERNMENT_BORNE' | 'EXEMPT' | 'ZERO_RATE';
+  reasonCode: string;
+  reasonEn: string;
+  reasonAr: string;
+}
+
+export interface RegistrationFeePreview {
+  version: string;
+  decisionHash: string;
+  eligibility: {
+    eligible: boolean;
+    classification: 'SAUDI_CITIZEN' | 'NON_SAUDI_RESIDENT';
+    reasonCode: string;
+    reasonEn: string;
+    reasonAr: string;
+  };
+  lines: RegistrationFeePreviewLine[];
+  subtotal: number;
+  totalVat: number;
+  chargedVat: number;
+  governmentBorneAmount: number;
+  parentPayableTotal: number;
+  grandTotal: number;
+  economicTotal: number;
+  messageEn: string;
+  messageAr: string;
 }
 
 export interface GradeFeeSettings {
@@ -314,6 +359,7 @@ export function createEmptyRegistration(): AdmissionRegistration {
       arabicName: '',
       applyingGrade: '',
       nationality: '',
+      identityType: 'NATIONAL_ID',
       religion: '',
       nationalId: '',
       passportNumber: '',

@@ -15,6 +15,10 @@ export class AuthService {
   ) {
     const current = this.session();
     if (current?.token) this.api.setToken(current.token);
+    window.addEventListener('rawafed-session-expired', () => {
+      this.session.set(null);
+      void this.router.navigate(['/login'], { queryParams: { reason: 'session-expired' } });
+    });
   }
 
   async login(username: string, password: string): Promise<boolean> {

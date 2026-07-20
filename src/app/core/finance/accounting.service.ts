@@ -62,6 +62,19 @@ export interface JournalEntry {
   lines: JournalEntryLine[];
 }
 
+export interface InvoiceDetail {
+  school: any;
+  invoice: any;
+  student: any;
+  lines: any[];
+  totals: { subtotal: number; discount: number; taxableSubtotal: number; vatRate: number; vatAmount: number; totalVat: number; governmentBorneVat: number; parentPayable: number; taxTreatment: string; taxReason?: string; total: number; paid: number; remaining: number; currency: string; vatStatus: string };
+  categoryDetails: Record<string, unknown>;
+  allocations: any[];
+  journal: any | null;
+  links: { customerId?: string; financeAccountId?: string };
+  warnings: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AccountingService {
   constructor(private readonly api: ApiService) {}
@@ -192,6 +205,18 @@ export class AccountingService {
 
   getCustomerInstallments(id: string): Promise<any> {
     return this.api.get<any>(`/accounting/customers/${id}/installments`);
+  }
+
+  getInvoiceDetails(id: string): Promise<InvoiceDetail> {
+    return this.api.get<InvoiceDetail>(`/finance/invoices/${id}`);
+  }
+
+  authorizeInvoicePrint(id: string): Promise<InvoiceDetail> {
+    return this.api.post<InvoiceDetail>(`/finance/invoices/${id}/print`, {});
+  }
+
+  authorizeInvoicePdf(id: string): Promise<InvoiceDetail> {
+    return this.api.post<InvoiceDetail>(`/finance/invoices/${id}/export-pdf`, {});
   }
 
   createCustomerInstallmentPlan(id: string, payload: any): Promise<any> {
