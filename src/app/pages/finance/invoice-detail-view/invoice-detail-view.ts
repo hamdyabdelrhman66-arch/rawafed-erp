@@ -97,19 +97,32 @@ export class InvoiceDetailView implements OnInit {
       pdf.setFontSize(9); pdf.setTextColor(91, 107, 129); pdf.text(tx(label), rtl ? right : 15, y, { align: rtl ? 'right' : 'left' });
       pdf.setFontSize(10); pdf.setTextColor(15, 23, 42); pdf.text(tx(value), rtl ? 120 : 80, y, { align: rtl ? 'right' : 'left' });
     };
-    pdf.setFillColor(9, 54, 111); pdf.rect(0, 0, 210, 34, 'F');
-    pdf.setTextColor(255, 255, 255); pdf.setFontSize(18); pdf.text(tx(this.i18n.t('invoice.tax_invoice')), rtl ? right : 15, 15, { align: rtl ? 'right' : 'left' });
-    pdf.setFontSize(11); pdf.text(tx(rtl ? detail.school.nameAr : detail.school.nameEn), rtl ? right : 15, 25, { align: rtl ? 'right' : 'left' });
-    pdf.setFontSize(8); pdf.text(tx(rtl ? detail.school.addressAr : detail.school.addressEn), rtl ? right : 15, 31, { align: rtl ? 'right' : 'left' });
-    line(this.i18n.t('invoice.number'), detail.invoice.invoiceNumber, 46);
-    line(this.i18n.t('common.date'), this.date(detail.invoice.issuedAt), 54);
-    line(this.i18n.t('common.status'), this.i18n.status(detail.invoice.status), 62);
-    line(this.i18n.t('common.student'), rtl ? (detail.student.nameAr || detail.student.nameEn) : detail.student.nameEn, 74);
-    line(this.i18n.t('customer.registration'), detail.student.registrationNumber, 82);
-    line(this.i18n.t('customer.national_id'), detail.student.nationalId, 90);
-    let y = 105;
-    pdf.setFillColor(234, 242, 255); pdf.rect(15, y - 7, 180, 10, 'F');
-    pdf.setTextColor(7, 51, 107); pdf.setFontSize(9);
+    pdf.setFillColor(32, 29, 93); pdf.triangle(0, 0, 210, 0, 210, 15, 'F'); pdf.triangle(0, 0, 0, 12, 120, 0, 'F');
+    pdf.setFillColor(187, 47, 43); pdf.triangle(0, 0, 70, 0, 0, 10, 'F');
+    pdf.setFillColor(32, 29, 93); pdf.triangle(0, 297, 210, 297, 0, 286, 'F');
+    pdf.setFillColor(187, 47, 43); pdf.triangle(145, 297, 210, 289, 210, 297, 'F');
+    try {
+      const logoResponse = await fetch(detail.school.logoUrl);
+      if (logoResponse.ok) {
+        const bytes = new Uint8Array(await logoResponse.arrayBuffer());
+        let binary = ''; bytes.forEach((byte) => binary += String.fromCharCode(byte));
+        pdf.addImage(`data:${logoResponse.headers.get('content-type') || 'image/png'};base64,${btoa(binary)}`, 'PNG', rtl ? 168 : 15, 15, 26, 28);
+      }
+    } catch { /* The invoice remains valid if the optional logo cannot be loaded. */ }
+    const headingX = rtl ? 160 : 50;
+    pdf.setTextColor(32, 29, 93); pdf.setFontSize(15); pdf.text(tx(rtl ? detail.school.nameAr : detail.school.nameEn), headingX, 25, { align: rtl ? 'right' : 'left' });
+    pdf.setTextColor(187, 47, 43); pdf.setFontSize(13); pdf.text(tx(this.i18n.t('invoice.tax_invoice')), headingX, 34, { align: rtl ? 'right' : 'left' });
+    pdf.setTextColor(91, 96, 119); pdf.setFontSize(7); pdf.text(tx(rtl ? detail.school.addressAr : detail.school.addressEn), headingX, 40, { align: rtl ? 'right' : 'left' });
+    pdf.setDrawColor(32, 29, 93); pdf.setLineWidth(.7); pdf.line(15, 48, 195, 48);
+    line(this.i18n.t('invoice.number'), detail.invoice.invoiceNumber, 60);
+    line(this.i18n.t('common.date'), this.date(detail.invoice.issuedAt), 68);
+    line(this.i18n.t('common.status'), this.i18n.status(detail.invoice.status), 76);
+    line(this.i18n.t('common.student'), rtl ? (detail.student.nameAr || detail.student.nameEn) : detail.student.nameEn, 88);
+    line(this.i18n.t('customer.registration'), detail.student.registrationNumber, 96);
+    line(this.i18n.t('customer.national_id'), detail.student.nationalId, 104);
+    let y = 119;
+    pdf.setFillColor(32, 29, 93); pdf.rect(15, y - 7, 180, 10, 'F');
+    pdf.setTextColor(255, 255, 255); pdf.setFontSize(9);
     const headers = [this.i18n.t('common.item'), this.i18n.t('common.amount'), this.i18n.t('invoice.vat'), this.i18n.t('common.total')];
     [18, 105, 138, 170].forEach((x, index) => pdf.text(tx(headers[index]), x, y));
     y += 10;
@@ -129,7 +142,8 @@ export class InvoiceDetailView implements OnInit {
     totals.forEach(([label, value]) => { pdf.text(tx(label), 125, y); pdf.text(`${value.toFixed(2)} ${detail.totals.currency}`, 190, y, { align: 'right' }); y += 8; });
     const qr = await this.invoiceQr(detail);
     pdf.addImage(qr, 'PNG', 15, Math.min(y - 20, 245), 32, 32);
-    pdf.setFontSize(8); pdf.setTextColor(100, 116, 139); pdf.text(tx(this.i18n.t('invoice.generated_from_postgres')), 105, 286, { align: 'center' });
+    pdf.setFontSize(7); pdf.setTextColor(100, 105, 125); pdf.text(tx(rtl ? detail.school.addressAr : detail.school.addressEn), 105, 278, { align: 'center' });
+    pdf.text(tx(this.i18n.t('invoice.generated_from_postgres')), 105, 283, { align: 'center' });
     pdf.save(`invoice-${detail.invoice.invoiceNumber}.pdf`);
   }
 

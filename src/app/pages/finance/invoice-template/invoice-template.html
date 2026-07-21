@@ -1,11 +1,10 @@
 <div class="invoice-scroll">
   <article class="invoice-sheet" [class.no-vat]="!hasVat()" #invoiceSheet dir="rtl">
+    <div class="template-edge template-edge-top" aria-hidden="true"></div>
     <header class="invoice-head">
-      <div class="invoice-title">{{ hasVat() ? 'فاتورة ضريبية مبسطة' : 'فاتورة' }}</div>
-
       <img class="print-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
-
-      <div class="school-title">{{ schoolSettings.schoolNameAr }}</div>
+      <div class="school-title"><strong>{{ schoolSettings.schoolNameAr }}</strong><small>{{ schoolSettings.schoolName }}</small><small>{{ schoolSettings.addressAr }}</small></div>
+      <div class="invoice-title">{{ hasVat() ? 'فاتورة ضريبية مبسطة' : 'فاتورة' }}<small>INVOICE</small><bdi>{{ invoice.no || '-' }}</bdi></div>
     </header>
 
     <section class="invoice-meta">
@@ -141,5 +140,6 @@
       <small>{{ schoolSettings.addressAr }}</small>
       <small dir="ltr">{{ schoolSettings.addressEn }}</small>
     </footer>
+    <div class="template-edge template-edge-bottom" aria-hidden="true"></div>
   </article>
 </div>

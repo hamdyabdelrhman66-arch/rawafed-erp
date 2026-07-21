@@ -15,12 +15,16 @@
   direction: rtl;
   font-family: 'Cairo', Arial, sans-serif;
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  padding-top: 24mm;
+  padding-bottom: 22mm;
 }
 
 .invoice-head {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: start;
+  grid-template-columns: 34mm minmax(0, 1fr) 52mm;
+  align-items: center;
   gap: 18px;
   padding-bottom: 10mm;
   border-bottom: 2px solid #1e255f;
@@ -36,17 +40,33 @@
 
 .invoice-title {
   text-align: left;
+  color: #bb2f2b;
+  border-right: 1px solid #d8dce7;
+  padding-right: 5mm;
 }
 
 .school-title {
   text-align: right;
 }
 
+.school-title strong { color: #201d5d; font-size: 17px; }
+.school-title small { margin-top: 1.5mm; font-size: 8px; }
+.invoice-title small { color: #7b8092; letter-spacing: 1px; }
+.invoice-title bdi { display: block; margin-top: 2mm; color: #201d5d; font-size: 10px; overflow-wrap: anywhere; }
+
 .print-logo {
-  width: 30mm;
+  width: 29mm;
+  max-height: 32mm;
+  object-fit: contain;
   height: auto;
   display: block;
 }
+
+.template-edge { position: absolute; right: 0; left: 0; height: 20mm; pointer-events: none; }
+.template-edge-top { top: 0; background: linear-gradient(174deg, #201d5d 0 47%, transparent 48%); }
+.template-edge-top::after { content: ''; position: absolute; top: 0; right: 0; width: 38%; height: 10mm; background: #bb2f2b; clip-path: polygon(0 0,100% 0,100% 100%,20% 42%); }
+.template-edge-bottom { bottom: 0; background: linear-gradient(6deg, #201d5d 0 46%, transparent 47%); }
+.template-edge-bottom::after { content: ''; position: absolute; bottom: 0; left: 0; width: 35%; height: 8mm; background: #bb2f2b; clip-path: polygon(0 0,100% 55%,80% 100%,0 100%); }
 
 .invoice-meta,
 .details-grid,

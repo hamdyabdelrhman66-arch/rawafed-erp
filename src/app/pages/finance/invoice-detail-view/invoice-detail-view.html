@@ -9,10 +9,11 @@
     </header>
 
     <article class="invoice-document">
+      <div class="brand-edge brand-edge-top" aria-hidden="true"><i></i><b></b></div>
       <header class="invoice-header">
-        <img [src]="data.school.logoUrl" [alt]="data.school.nameEn" />
-        <div class="school"><h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1><p>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</p><p *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></p></div>
-        <div class="document-title"><span>{{ 'invoice.tax_invoice' | t }}</span><strong><bdi>{{ data.invoice.invoiceNumber }}</bdi></strong><em class="status" [attr.data-status]="data.invoice.status">{{ i18n.status(data.invoice.status) }}</em></div>
+        <div class="brand-logo"><img [src]="data.school.logoUrl" [alt]="data.school.nameEn" /></div>
+        <div class="school"><span class="school-kicker">RAWAFED INTERNATIONAL SCHOOL</span><h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1><p>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</p><p class="school-contact"><bdi>{{ data.school.phone || '' }}</bdi><span *ngIf="data.school.phone && data.school.email"> · </span><bdi>{{ data.school.email || '' }}</bdi></p></div>
+        <div class="document-title"><span>{{ 'invoice.tax_invoice' | t }}</span><strong><bdi>{{ data.invoice.invoiceNumber }}</bdi></strong><em class="status" [attr.data-status]="data.invoice.status">{{ i18n.status(data.invoice.status) }}</em><small *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></small></div>
       </header>
 
       <section class="meta-grid">
@@ -42,11 +43,11 @@
         <tbody><tr *ngFor="let line of data.lines; index as index"><td>{{ index + 1 }}</td><td><strong>{{ line.description }}</strong><small>{{ line.taxTreatment }} · {{ line.taxReason || '-' }}</small><small *ngIf="line.revenueAccount"><bdi>{{ line.revenueAccount.code }}</bdi> · {{ i18n.language() === 'ar' ? (line.revenueAccount.nameAr || line.revenueAccount.nameEn) : line.revenueAccount.nameEn }}</small></td><td>{{ line.quantity }}</td><td>{{ money(line.unitPrice) }}</td><td>{{ money(line.netAmount) }}</td><td>{{ money(line.vatAmount + line.governmentBorneVat) }} <small>({{ line.vatRate }}%)</small></td><td>{{ money(line.totalAmount) }}</td></tr></tbody></table></div>
 
       <section class="settlement-grid">
-        <div class="accounting-links">
-          <h2>{{ 'invoice.accounting_links' | t }}</h2>
-          <a *ngIf="data.links.customerId" [routerLink]="['/finance/customers', data.links.customerId]" [queryParams]="{ tab: 'ledger' }">{{ 'invoice.student_ledger' | t }}</a>
-          <a *ngIf="data.journal" routerLink="/finance/accounting" [queryParams]="{ tab: 'journal', journalId: data.journal.id }">{{ 'invoice.journal_entry' | t }}: <bdi>{{ data.journal.entryNumber }}</bdi></a>
-          <p class="warning" *ngIf="data.warnings.includes('MISSING_POSTED_JOURNAL')">{{ 'invoice.missing_journal' | t }}</p>
+        <div class="settlement-summary">
+          <span>{{ i18n.language() === 'ar' ? 'ملخص السداد' : 'PAYMENT SUMMARY' }}</span>
+          <strong>{{ i18n.status(data.invoice.status) }}</strong>
+          <p>{{ 'customer.amount_paid' | t }}: <b>{{ money(data.totals.paid) }}</b></p>
+          <p>{{ 'customer.remaining' | t }}: <b>{{ money(data.totals.remaining) }}</b></p>
         </div>
         <div class="totals">
           <p><span>{{ 'invoice.subtotal' | t }}</span><strong>{{ money(data.totals.subtotal) }}</strong></p>
@@ -69,7 +70,8 @@
         </tbody></table></div>
       </section>
 
-      <footer class="invoice-footer"><img *ngIf="qrImage" [src]="qrImage" [alt]="'invoice.qr' | t" /><span>{{ 'invoice.generated_from_postgres' | t }}</span><span *ngIf="data.invoice.createdBy">{{ 'invoice.created_by' | t }}: {{ data.invoice.createdBy }}</span></footer>
+      <footer class="invoice-footer"><img *ngIf="qrImage" [src]="qrImage" [alt]="'invoice.qr' | t" /><div><strong>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</strong><span>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</span><span *ngIf="data.invoice.createdBy">{{ 'invoice.created_by' | t }}: {{ data.invoice.createdBy }}</span></div><span class="verified">{{ 'invoice.generated_from_postgres' | t }}</span></footer>
+      <div class="brand-edge brand-edge-bottom" aria-hidden="true"><i></i><b></b></div>
     </article>
   </ng-container>
 </section>
