@@ -207,8 +207,14 @@ export interface SchoolSettings {
   schoolNameAr: string;
   logoDataUrl: string;
   address: string;
+  addressAr: string;
+  addressEn: string;
   phone: string;
   email: string;
+  website: string;
+  vatNumber: string;
+  commercialRegistration: string;
+  invoiceFooter: { ar: string; en: string };
   academicYear: string;
   vat: number;
   fees: Record<string, number>;
@@ -262,9 +268,15 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
   schoolName: 'Rawafed International School',
   schoolNameAr: 'مدارس روافد العالمية',
   logoDataUrl: '',
-  address: 'Riyadh, Kingdom of Saudi Arabia',
+  address: 'Riyadh, Al Khaleej District, Bahr Al Arab Street',
+  addressAr: 'الرياض، حي الخليج، شارع بحر العرب',
+  addressEn: 'Riyadh, Al Khaleej District, Bahr Al Arab Street',
   phone: '+966 11 000 0000',
   email: 'admissions@rawafed.school',
+  website: '',
+  vatNumber: '',
+  commercialRegistration: '',
+  invoiceFooter: { ar: 'شكراً لتعاملكم معنا', en: 'Thank you for choosing Rawafed' },
   academicYear: '',
   vat: 15,
   fees: {

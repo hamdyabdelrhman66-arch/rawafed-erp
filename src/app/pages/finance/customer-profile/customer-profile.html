@@ -7,7 +7,7 @@
       <p>{{ customer.registrationNumber }} · {{ customer.grade || '-' }} · {{ customer.parentLink || '-' }}</p>
     </div>
     <div class="header-actions">
-      <a class="secondary-action" [routerLink]="['/finance/add-payment']" [queryParams]="{ accountId: customer.financeAccountId }">{{ 'finance_accounts.record_payment' | t }}</a>
+      <a class="secondary-action" [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, source: 'student-profile', customerId: customer.id, returnTab: tab }">{{ 'finance_accounts.record_payment' | t }}</a>
       <button type="button" (click)="printStatement()">{{ 'common.print' | t }}</button>
     </div>
   </header>
@@ -53,7 +53,7 @@
   <section class="panel" *ngIf="tab === 'invoices'">
     <h2>{{ 'nav.invoices' | t }}</h2>
     <div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'invoice.number' | t }}</th><th>{{ 'common.item' | t }}</th><th>{{ 'common.total' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
-      <tbody><tr class="clickable-row" *ngFor="let invoice of customer.invoices" (click)="openInvoice(invoice, $event)" tabindex="0" (keydown.enter)="openInvoice(invoice)"><td>{{ invoice.issuedAt }}</td><td class="reference-text"><a [routerLink]="['/finance/invoices', invoice.id]"><bdi>{{ invoice.invoiceNumber }}</bdi></a></td><td>{{ invoice.feeItem }}</td><td>{{ money(invoice.total) }}</td><td><span class="status">{{ i18n.status(invoice.status) }}</span></td><td class="row-actions"><a [routerLink]="['/finance/invoices', invoice.id]">{{ 'coa.view' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ print: 1 }">{{ 'common.print' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ pdf: 1 }">{{ 'invoice.pdf' | t }}</a></td></tr>
+      <tbody><tr class="clickable-row" *ngFor="let invoice of customer.invoices" (click)="openInvoice(invoice, $event)" tabindex="0" (keydown.enter)="openInvoice(invoice)"><td>{{ invoice.issuedAt }}</td><td class="reference-text"><a [routerLink]="['/finance/invoices', invoice.id]"><bdi>{{ invoice.invoiceNumber }}</bdi></a></td><td>{{ invoice.feeItem }}</td><td>{{ money(invoice.total) }}</td><td><span class="status">{{ i18n.status(invoice.status) }}</span></td><td class="row-actions"><a [routerLink]="['/finance/invoices', invoice.id]">{{ 'coa.view' | t }}</a><a [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, invoiceId: invoice.id, source: 'student-profile', customerId: customer.id, returnTab: 'invoices' }">{{ 'finance_accounts.record_payment' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ print: 1 }">{{ 'common.print' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ pdf: 1 }">{{ 'invoice.pdf' | t }}</a></td></tr>
       <tr *ngIf="!customer.invoices.length"><td colspan="6" class="empty-cell">{{ 'customer.no_rows' | t }}</td></tr></tbody></table></div>
   </section>
 
@@ -85,7 +85,7 @@
       <tbody><tr *ngFor="let item of planForm.installments; index as index"><td>{{ index + 1 }}</td><td><input type="date" [(ngModel)]="item.dueDate" /></td><td><input type="number" min="0" [(ngModel)]="item.amount" [disabled]="planForm.calculationMode === 'PERCENTAGE'" /></td><td><input type="number" min="0" max="100" [(ngModel)]="item.percentage" [disabled]="planForm.calculationMode === 'FIXED'" /></td><td><input [(ngModel)]="item.notes" /></td></tr></tbody></table></div>
     <footer class="actions"><button type="button" class="primary" (click)="savePlan()">{{ 'installment.create' | t }}</button></footer>
     <div class="table-scroll"><table><thead><tr><th>{{ 'installment.due_date' | t }}</th><th>{{ 'common.amount' | t }}</th><th>{{ 'customer.amount_paid' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead>
-      <tbody><tr *ngFor="let item of installments.installments"><td>{{ item.dueDate }}</td><td>{{ money(item.amount) }}</td><td>{{ money(item.paidAmount) }}</td><td><span class="status">{{ i18n.status(item.status) }}</span></td></tr>
+      <tbody><tr *ngFor="let item of installments.installments"><td>{{ item.dueDate }}</td><td>{{ money(item.amount) }}</td><td>{{ money(item.paidAmount) }}</td><td><span class="status">{{ i18n.status(item.status) }}</span> <a *ngIf="item.status !== 'paid'" [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, installmentId: item.id, source: 'student-profile', customerId: customer.id, returnTab: 'installments' }">{{ 'finance_accounts.record_payment' | t }}</a></td></tr>
       <tr *ngIf="!installments.installments.length"><td colspan="4" class="empty-cell">{{ 'installment.none' | t }}</td></tr></tbody></table></div>
   </section>
 

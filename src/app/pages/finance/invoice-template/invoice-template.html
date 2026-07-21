@@ -5,7 +5,7 @@
 
       <img class="print-logo" src="/assets/rawafed-logo.png" alt="Rawafed International School" />
 
-      <div class="school-title">مدرسة روافد الشرق الأوسط العالمية</div>
+      <div class="school-title">{{ schoolSettings.schoolNameAr }}</div>
     </header>
 
     <section class="invoice-meta">
@@ -39,7 +39,7 @@
       </div>
       <div>
         <span>المدرسة</span>
-        <strong>مدرسة روافد الشرق الأوسط العالمية</strong>
+        <strong>{{ schoolSettings.schoolNameAr }}</strong>
         <small>School</small>
       </div>
       <div>
@@ -137,8 +137,9 @@
     </section>
 
     <footer class="invoice-footer">
-      <p>{{ invoice.notes || 'شكراً لزيارتكم' }}</p>
-      <small>العنوان: حي المروج، شارع الأمير بندر بن عبدالعزيز، الرياض، المملكة العربية السعودية</small>
+      <p>{{ invoice.notes || schoolSettings.invoiceFooter.ar }}</p>
+      <small>{{ schoolSettings.addressAr }}</small>
+      <small dir="ltr">{{ schoolSettings.addressEn }}</small>
     </footer>
   </article>
 </div>

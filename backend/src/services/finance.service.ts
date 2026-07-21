@@ -18,6 +18,7 @@ import { categoryLabel, mappingFor, revenueCategory } from "./revenue-category.j
 import { nextInvoiceNumber } from "./invoice-number.service.js";
 import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
 import { classifyPaymentError } from "./payment-error.js";
+import { schoolProfileUsing } from "./school-settings.service.js";
 
 const paidForAccount = (account: any) =>
   money(
@@ -89,6 +90,7 @@ const accountShape = (a: any) => {
     id: a.id,
     registrationId: a.registrationId,
     registrationNumber: a.registration.registrationNumber,
+    branchId: a.registration.branchId,
     studentId: a.studentId,
     studentName: a.student.englishName,
     grade: a.student.grade,
@@ -109,6 +111,28 @@ const accountShape = (a: any) => {
     overdueInstallments,
     nextInstallment: nextInstallment ? money(Number(nextInstallment.amount) - Number(nextInstallment.paidAmount)) : 0,
     nextDueDate: nextInstallment?.dueDate?.toISOString().slice(0, 10) || null,
+    installments: installments.map((row: any) => ({
+      id: row.id,
+      dueDate: row.dueDate.toISOString().slice(0, 10),
+      amount: money(row.amount),
+      paidAmount: money(row.paidAmount),
+      remaining: money(Math.max(Number(row.amount) - Number(row.paidAmount), 0)),
+      status: row.computedStatus,
+    })),
+    openInvoices: (a.invoices || []).map((invoice: any) => {
+      const invoicePaid = money((invoice.payments || []).reduce((sum: number, allocation: any) => sum + Number(allocation.amount), 0));
+      return {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        category: invoice.serviceCategory,
+        issuedAt: invoice.issuedAt.toISOString(),
+        dueAt: invoice.dueAt?.toISOString() || null,
+        total: money(invoice.total),
+        paid: invoicePaid,
+        remaining: money(Math.max(Number(invoice.total) - invoicePaid, 0)),
+        status: invoice.status,
+      };
+    }),
     feeItems,
     canonicalInvoiceId: a.invoices?.[0]?.id,
     createdAt: a.createdAt.toISOString(),
@@ -280,10 +304,52 @@ export class FinanceService {
       return event;
     });
   }
-  async accounts(skip?: number, take?: number) {
-    return (
-      await new FinanceAccountsRepository(this.prisma).list(skip, take)
-    ).map(accountShape);
+  async accounts(skip?: number, take?: number, actor?: Actor) {
+    const rows = (await new FinanceAccountsRepository(this.prisma).list(skip, take)).map(accountShape);
+    if (!actor?.id || actor.role === "Super Admin") return rows;
+    const scopeSetting = await this.prisma.setting.findUnique({ where: { key: "user_branch_scopes" } });
+    const scopes = (scopeSetting?.value || {}) as Record<string, unknown>;
+    const allowedBranches = Array.isArray(scopes[actor.id]) ? scopes[actor.id] as string[] : null;
+    return allowedBranches ? rows.filter((row: any) => allowedBranches.includes(row.branchId)) : rows;
+  }
+  async studentPaymentContext(
+    studentId: string,
+    options: { invoiceId?: string; installmentId?: string },
+    actor: Actor,
+  ) {
+    const account = await new FinanceAccountsRepository(this.prisma).findByStudentId(studentId);
+    if (!account)
+      throw new ServiceError("Student payment account was not found.", 404, "STUDENT_PAYMENT_ACCOUNT_NOT_FOUND");
+
+    // Branch scopes are configured centrally as { "user-id": ["branch-id"] }.
+    // An omitted user keeps the existing global finance access for backwards compatibility.
+    if (actor.id && actor.role !== "Super Admin") {
+      const scopeSetting = await this.prisma.setting.findUnique({ where: { key: "user_branch_scopes" } });
+      const scopes = (scopeSetting?.value || {}) as Record<string, unknown>;
+      const allowedBranches = Array.isArray(scopes[actor.id]) ? scopes[actor.id] as string[] : null;
+      if (allowedBranches && !allowedBranches.includes(account.registration.branchId))
+        throw new ServiceError("You are not authorized to access this student's branch.", 403, "STUDENT_BRANCH_ACCESS_DENIED");
+    }
+
+    const shaped = accountShape(account) as any;
+    if (options.invoiceId && !shaped.openInvoices.some((row: any) => row.id === options.invoiceId))
+      throw new ServiceError("The selected invoice does not belong to this student or is not open.", 422, "PAYMENT_CONTEXT_INVOICE_MISMATCH");
+    if (options.installmentId && !shaped.installments.some((row: any) => row.id === options.installmentId))
+      throw new ServiceError("The selected installment does not belong to this student.", 422, "PAYMENT_CONTEXT_INSTALLMENT_MISMATCH");
+
+    await new AuditRepository(this.prisma).create({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "VIEW_STUDENT_PAYMENT_CONTEXT",
+      entityType: "student",
+      entityId: studentId,
+      details: { financeAccountId: account.id, invoiceId: options.invoiceId, installmentId: options.installmentId },
+    });
+    return {
+      account: shaped,
+      selectedInvoice: options.invoiceId ? shaped.openInvoices.find((row: any) => row.id === options.invoiceId) : null,
+      selectedInstallment: options.installmentId ? shaped.installments.find((row: any) => row.id === options.installmentId) : null,
+    };
   }
   async invoices(skip?: number, take?: number) {
     return (
@@ -306,11 +372,9 @@ export class FinanceService {
     const primaryJournal = invoice.journalEntries.find((row: any) => row.sourceType === "invoice" || row.invoiceId === invoice.id)
       || invoice.journalEntries[0]
       || null;
-    const settingsRows = await this.prisma.setting.findMany({
-      where: { key: { in: ["school", "schoolInfo", "school_name", "school_address", "school_phone", "school_email", "vat_number", "commercial_registration"] } },
-    });
-    const settings = Object.fromEntries(settingsRows.map((row) => [row.key, row.value]));
-    const school = (settings.school || settings.schoolInfo || {}) as Record<string, any>;
+    const currentSchool = await schoolProfileUsing(this.prisma);
+    const taxDecision = (invoice.taxDecision || {}) as Record<string, any>;
+    const school = (taxDecision.schoolSnapshot || currentSchool) as Record<string, any>;
     const category = invoice.serviceCategory || "LEGACY_COMBINED";
     const categoryDetails: Record<string, unknown> = {};
     const candidateDetails: Record<string, unknown> = {
@@ -328,14 +392,8 @@ export class FinanceService {
     }
     return {
       school: {
-        nameAr: school.nameAr || settings.school_name || "مدارس روافد العالمية",
-        nameEn: school.nameEn || "Rawafed International School",
-        address: school.address || settings.school_address || null,
-        phone: school.phone || settings.school_phone || null,
-        email: school.email || settings.school_email || null,
-        vatNumber: school.vatNumber || settings.vat_number || null,
-        commercialRegistration: school.commercialRegistration || settings.commercial_registration || null,
-        logoUrl: school.logoUrl || "/assets/rawafed-logo.png",
+        ...school,
+        settingsSource: taxDecision.schoolSnapshot ? "HISTORICAL_INVOICE_SNAPSHOT" : "CURRENT_SCHOOL_SETTINGS",
       },
       invoice: {
         id: invoice.id,
@@ -485,6 +543,7 @@ export class FinanceService {
           "DUPLICATE_INVOICE",
         );
       }
+      const schoolSnapshot = await schoolProfileUsing(tx);
       const row = await new FinanceInvoicesRepository(tx).create(
         {
           id: input.id ? String(input.id) : randomUUID(),
@@ -497,7 +556,7 @@ export class FinanceService {
           parentPayable: total,
           taxTreatment: taxLine.treatment,
           taxReason: taxLine.reasonCode,
-          taxDecision: taxPreview as unknown as Prisma.InputJsonValue,
+          taxDecision: { ...taxPreview, schoolSnapshot } as unknown as Prisma.InputJsonValue,
           discount,
           total,
           serviceCategory: category,
@@ -581,6 +640,8 @@ export class FinanceService {
     try {
       const preview = await new FinanceAccountsRepository(this.prisma).findById(input.accountId);
       if (!preview) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
+      if (input.installmentId && !(accountShape(preview) as any).installments.some((row: any) => row.id === input.installmentId))
+        throw new ServiceError("The selected installment does not belong to this student.", 422, "PAYMENT_CONTEXT_INSTALLMENT_MISMATCH");
       const categorized = preview.feeItems.some((item: any) => item.serviceCategory && item.serviceCategory !== "LEGACY_COMBINED");
       if (!categorized || input.invoiceId) return await this.createPaymentLegacy(input, actor);
 
@@ -658,6 +719,7 @@ export class FinanceService {
           if (invoiceGovernmentVat && !governmentVatAccount)
             throw new ServiceError("Government VAT receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
           const issuedAt = new Date(input.paidAt || Date.now());
+          const schoolSnapshot = await schoolProfileUsing(tx);
           invoice = await invoiceRepo.create(
             {
               id: randomUUID(),
@@ -670,7 +732,7 @@ export class FinanceService {
               parentPayable: invoiceTotal,
               taxTreatment: invoiceTaxLine.treatment,
               taxReason: invoiceTaxLine.reasonCode,
-              taxDecision: invoiceTaxPreview as unknown as Prisma.InputJsonValue,
+              taxDecision: { ...invoiceTaxPreview, schoolSnapshot } as unknown as Prisma.InputJsonValue,
               total: invoiceTotal,
               serviceCategory: category,
               costCenterId: mapping.costCenterId,
@@ -863,6 +925,7 @@ export class FinanceService {
           if (invoiceVat && !vatAccount)
             throw new ServiceError("VAT payable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
           const invoiceNumber = `INV-AUTO-${Date.now()}-${randomUUID().slice(0, 8)}`;
+          const schoolSnapshot = await schoolProfileUsing(tx);
           invoice = await invoices.create(
             {
               id: randomUUID(),
@@ -871,6 +934,7 @@ export class FinanceService {
               registrationId: account.registrationId,
               subtotal: invoiceSubtotal,
               vatAmount: invoiceVat,
+              taxDecision: { schoolSnapshot } as unknown as Prisma.InputJsonValue,
               total: invoiceTotal,
               issuedAt: paidAt,
             },

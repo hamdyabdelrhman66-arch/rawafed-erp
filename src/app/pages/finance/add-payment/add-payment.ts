@@ -1,5 +1,5 @@
 import { CommonModule } from "@angular/common";
-import { Component, OnInit } from "@angular/core";
+import { Component, ElementRef, OnInit, ViewChild } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { firstValueFrom } from "rxjs";
@@ -31,6 +31,7 @@ interface PaymentLine {
   styleUrls: ["./add-payment.css", "../../../shared/finance/finance-ui.scss"],
 })
 export class AddPayment implements OnInit {
+  @ViewChild('paymentDetails') paymentDetails?: ElementRef<HTMLElement>;
   accounts: any[] = [];
   selectedAccount: any = null;
   paymentMethod = "Cash";
@@ -41,6 +42,11 @@ export class AddPayment implements OnInit {
   previousPayments: any[] = [];
   paymentLines: PaymentLine[] = [];
   saving = false;
+  loadingAccounts = true;
+  loadingStudent = false;
+  contextError = "";
+  selectedInvoice: any = null;
+  selectedInstallment: any = null;
   private pendingReceiptNumber = "";
   readonly accountLabel = (account: any) =>
     account
@@ -80,17 +86,28 @@ export class AddPayment implements OnInit {
     return label ? this.l(label[0], label[1]) : value;
   }
 
-  ngOnInit(): void {
-    this.accountService.getPackages().subscribe((accounts: any[]) => {
-      this.accounts = accounts;
-      const accountId = Number(
-        this.route.snapshot.queryParamMap.get("accountId"),
-      );
-      this.selectedAccount = accountId
-        ? this.accounts.find((item) => item.id === accountId) || null
-        : null;
-      if (this.selectedAccount) this.onAccountChange();
-    });
+  async ngOnInit(): Promise<void> {
+    // A direct visit must always start clean. Never reuse a previously viewed student.
+    this.clearSelectedStudent();
+    try {
+      this.accounts = await firstValueFrom(this.accountService.getPackages());
+    } catch (error) {
+      this.contextError = safeErrorMessage(error);
+    } finally {
+      this.loadingAccounts = false;
+    }
+
+    const studentId = this.route.snapshot.queryParamMap.get("studentId");
+    if (!studentId) return;
+    if (!this.isUuid(studentId)) {
+      this.contextError = this.l("The supplied student ID is invalid.", "معرّف الطالب المرسل غير صالح.");
+      return;
+    }
+    await this.loadStudentContext(
+      studentId,
+      this.route.snapshot.queryParamMap.get("invoiceId") || undefined,
+      this.route.snapshot.queryParamMap.get("installmentId") || undefined,
+    );
   }
 
   get outstanding(): number {
@@ -108,15 +125,36 @@ export class AddPayment implements OnInit {
     );
   }
 
-  onAccountChange(): void {
+  private applyAccount(account: any): void {
     this.pendingReceiptNumber = "";
+    this.contextError = "";
+    this.selectedAccount = account;
     this.paymentLines = this.buildPaymentLines();
     this.loadPreviousPayments();
   }
 
-  selectAccount(account: any): void {
-    this.selectedAccount = account;
-    this.onAccountChange();
+  async selectAccount(account: any): Promise<void> {
+    if (!account) {
+      this.clearSelectedStudent();
+      return;
+    }
+    if (!account.studentId) {
+      this.clearSelectedStudent();
+      this.contextError = this.l("This account is not linked to a valid student record.", "هذا الحساب غير مرتبط بسجل طالب صالح.");
+      return;
+    }
+    await this.loadStudentContext(account.studentId);
+  }
+
+  goBack(): void {
+    const source = this.route.snapshot.queryParamMap.get('source');
+    const customerId = this.route.snapshot.queryParamMap.get('customerId');
+    const tab = this.route.snapshot.queryParamMap.get('returnTab') || 'overview';
+    if (source === 'student-profile' && customerId) {
+      void this.router.navigate(['/finance/customers', customerId], { queryParams: { tab } });
+      return;
+    }
+    void this.router.navigate(['/finance/payments']);
   }
 
   payHalf(): void {
@@ -143,7 +181,7 @@ export class AddPayment implements OnInit {
   }
 
   async savePayment(): Promise<void> {
-    if (this.saving) return;
+    if (this.saving || this.loadingStudent) return;
     const payableLines = this.paymentLines
       .map((line) => ({ ...line, amount: Number(line.amount || 0) }))
       .filter((line) => line.amount > 0);
@@ -180,6 +218,8 @@ export class AddPayment implements OnInit {
       const result = await this.paymentsService.recordPayment({
         accountId: this.selectedAccount.backendId || this.selectedAccount.id,
         receiptNumber,
+        ...(this.selectedInvoice?.id ? { invoiceId: this.selectedInvoice.id } : {}),
+        ...(this.selectedInstallment?.id ? { installmentId: this.selectedInstallment.id } : {}),
         amount,
         method: this.paymentMethod,
         paidAt: this.paymentDate,
@@ -205,10 +245,8 @@ export class AddPayment implements OnInit {
       );
       this.pendingReceiptNumber = "";
       const invoices = await firstValueFrom(this.invoicesService.getInvoices());
-      const invoice = invoices.find(
-        (item: any) =>
-          item.registrationNumber === this.selectedAccount.registrationNumber,
-      );
+      const invoiceId = result?.payment?.invoiceId || result?.payment?.invoiceIds?.[0] || this.selectedInvoice?.id;
+      const invoice = invoices.find((item: any) => (item.backendId || item.id) === invoiceId);
       if (invoice)
         void this.router.navigate(["/finance/invoices", invoice.backendId || invoice.id], {
           queryParams: { receipt: result?.payment?.receiptNumber || receiptNumber },
@@ -247,8 +285,8 @@ export class AddPayment implements OnInit {
   }
 
   private loadPreviousPayments(): void {
-    const studentName = this.selectedAccount?.patient;
-    if (!studentName) {
+    const backendAccountId = this.selectedAccount?.backendId;
+    if (!backendAccountId) {
       this.previousPayments = [];
       return;
     }
@@ -256,11 +294,56 @@ export class AddPayment implements OnInit {
     this.paymentsService.getPayments().subscribe((payments: any[]) => {
       this.previousPayments = payments
         .filter(
-          (payment) =>
-            payment.patient === studentName ||
-            payment.accountId === this.selectedAccount.id,
+          (payment) => payment.backendAccountId === backendAccountId,
         )
         .reverse();
     });
+  }
+
+  private async loadStudentContext(studentId: string, invoiceId?: string, installmentId?: string): Promise<void> {
+    this.loadingStudent = true;
+    this.contextError = "";
+    this.clearSelectedStudent(false);
+    try {
+      const context = await this.accountService.getPaymentContext(studentId, invoiceId, installmentId);
+      const index = this.accounts.findIndex((row) => row.studentId === studentId);
+      if (index >= 0) this.accounts[index] = context.account;
+      else this.accounts = [context.account, ...this.accounts];
+      this.selectedInvoice = context.selectedInvoice;
+      this.selectedInstallment = context.selectedInstallment;
+      this.applyAccount(context.account);
+      this.preloadAllocation();
+      setTimeout(() => this.paymentDetails?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    } catch (error) {
+      this.clearSelectedStudent(false);
+      this.contextError = safeErrorMessage(error);
+    } finally {
+      this.loadingStudent = false;
+    }
+  }
+
+  private preloadAllocation(): void {
+    const target = Number(this.selectedInstallment?.remaining || this.selectedInvoice?.remaining || 0);
+    if (target <= 0) return;
+    let remaining = this.money(Math.min(target, this.outstanding));
+    this.paymentLines = this.paymentLines.map((line) => {
+      const amount = this.money(Math.min(line.expected, remaining));
+      remaining = this.money(remaining - amount);
+      return { ...line, amount };
+    });
+  }
+
+  private clearSelectedStudent(clearError = true): void {
+    this.selectedAccount = null;
+    this.selectedInvoice = null;
+    this.selectedInstallment = null;
+    this.paymentLines = [];
+    this.previousPayments = [];
+    this.pendingReceiptNumber = "";
+    if (clearError) this.contextError = "";
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 }

@@ -20,6 +20,7 @@ export interface RegistrationInput {
 export interface PaymentInput {
   accountId: string;
   invoiceId?: string;
+  installmentId?: string;
   receiptNumber?: string;
   paymentItem?: string;
   amount: number;

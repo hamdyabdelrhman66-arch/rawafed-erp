@@ -100,6 +100,7 @@ export class InvoiceDetailView implements OnInit {
     pdf.setFillColor(9, 54, 111); pdf.rect(0, 0, 210, 34, 'F');
     pdf.setTextColor(255, 255, 255); pdf.setFontSize(18); pdf.text(tx(this.i18n.t('invoice.tax_invoice')), rtl ? right : 15, 15, { align: rtl ? 'right' : 'left' });
     pdf.setFontSize(11); pdf.text(tx(rtl ? detail.school.nameAr : detail.school.nameEn), rtl ? right : 15, 25, { align: rtl ? 'right' : 'left' });
+    pdf.setFontSize(8); pdf.text(tx(rtl ? detail.school.addressAr : detail.school.addressEn), rtl ? right : 15, 31, { align: rtl ? 'right' : 'left' });
     line(this.i18n.t('invoice.number'), detail.invoice.invoiceNumber, 46);
     line(this.i18n.t('common.date'), this.date(detail.invoice.issuedAt), 54);
     line(this.i18n.t('common.status'), this.i18n.status(detail.invoice.status), 62);

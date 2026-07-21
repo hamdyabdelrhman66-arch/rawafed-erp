@@ -1,14 +1,23 @@
 <header class="page-header">
   <div>
+    <button class="back-link" type="button" (click)="goBack()">‹ {{ l('Back', 'رجوع') }}</button>
     <span>{{ l('Payments & Receipts', 'المدفوعات والإيصالات') }}</span>
     <h1>{{ l('Add Student Payment', 'إضافة دفعة طالب') }}</h1>
     <p>{{ l('Select a student, review the grade fees, then record one or more paid items in the same receipt.', 'اختر طالبًا وراجع رسوم الصف، ثم سجّل بندًا واحدًا أو أكثر في الإيصال نفسه.') }}</p>
   </div>
 
-  <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving">
+  <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving || loadingStudent || !selectedAccount">
     {{ saving ? l('Saving...', 'جاري الحفظ...') : l('Save Payment', 'حفظ الدفعة') }}
   </button>
 </header>
+
+<div class="context-state" *ngIf="loadingAccounts || loadingStudent">
+  <span class="spinner" aria-hidden="true"></span>
+  {{ loadingStudent ? l('Loading the selected student account...', 'جاري تحميل حساب الطالب المحدد...') : l('Loading student accounts...', 'جاري تحميل حسابات الطلاب...') }}
+</div>
+<div class="context-state error" *ngIf="contextError" role="alert">
+  {{ contextError }}
+</div>
 
 <section class="info-card">
   <h2>{{ l('Student Account', 'حساب الطالب') }}</h2>
@@ -27,6 +36,13 @@
       </app-searchable-select>
     </div>
 
+    <div class="selected-student wide" *ngIf="selectedAccount && !loadingStudent">
+      <div><span>{{ l('Selected Student', 'الطالب المحدد') }}</span><strong>{{ selectedAccount.patient }}</strong></div>
+      <div><span>{{ l('Registration Number', 'رقم التسجيل') }}</span><strong><bdi>{{ selectedAccount.registrationNumber || '-' }}</bdi></strong></div>
+      <div><span>{{ l('Grade', 'الصف') }}</span><strong>{{ selectedAccount.grade || '-' }}</strong></div>
+      <div><span>{{ l('Outstanding', 'المبلغ المستحق') }}</span><strong>{{ outstanding | number }} {{ currency() }}</strong></div>
+    </div>
+
     <div class="form-group">
       <label>{{ l('Payment Date', 'تاريخ الدفع') }}</label>
       <input type="date" [(ngModel)]="paymentDate" />
@@ -40,6 +56,23 @@
         <option value="Bank Transfer">{{ paymentMethodLabel('Bank Transfer') }}</option>
       </select>
     </div>
+  </div>
+</section>
+
+<section class="info-card account-context" *ngIf="selectedAccount && !loadingStudent">
+  <div>
+    <h2>{{ l('Payment Plan & Installments', 'خطة الدفع والأقساط') }}</h2>
+    <p><strong>{{ l('Plan', 'الخطة') }}:</strong> {{ selectedAccount.paymentPlan || '-' }}</p>
+    <p><strong>{{ l('Installment status', 'حالة الأقساط') }}:</strong> {{ selectedAccount.paidInstallments || 0 }} {{ l('paid', 'مدفوع') }} · {{ selectedAccount.remainingInstallments || 0 }} {{ l('remaining', 'متبقي') }}</p>
+    <p><strong>{{ l('Next due date', 'تاريخ الاستحقاق القادم') }}:</strong> {{ selectedAccount.nextDueDate || '-' }}</p>
+  </div>
+  <div>
+    <h2>{{ l('Open Invoices', 'الفواتير المفتوحة') }}</h2>
+    <p *ngFor="let invoice of selectedAccount.openInvoices"><bdi>{{ invoice.invoiceNumber }}</bdi> · {{ invoice.remaining | number }} {{ currency() }}</p>
+    <p *ngIf="!selectedAccount.openInvoices?.length">{{ l('No open invoices.', 'لا توجد فواتير مفتوحة.') }}</p>
+  </div>
+  <div class="preload-note" *ngIf="selectedInvoice || selectedInstallment">
+    {{ selectedInvoice ? l('Invoice allocation preloaded', 'تم تحميل توزيع الفاتورة') : l('Installment allocation preloaded', 'تم تحميل القسط المحدد') }}
   </div>
 </section>
 
@@ -108,7 +141,7 @@
   </table>
 </section>
 
-<section class="info-card">
+<section class="info-card" #paymentDetails *ngIf="selectedAccount && !loadingStudent">
   <h2>{{ l('Payment Details', 'تفاصيل الدفع') }}</h2>
 
   <div class="info-grid">
@@ -156,7 +189,7 @@
   </article>
 </section>
 
-<section class="info-card">
+<section class="info-card" *ngIf="selectedAccount && !loadingStudent">
   <h2>{{ l('Previous Payments', 'الدفعات السابقة') }}</h2>
   <table>
     <thead>

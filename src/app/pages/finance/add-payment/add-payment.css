@@ -24,6 +24,15 @@
     cursor:pointer;
     font-weight:600;
 }
+.save-btn:disabled{opacity:.55;cursor:not-allowed}
+.back-link{border:0;background:transparent;color:#0b5fc6;font-weight:700;padding:0 0 8px;cursor:pointer}
+.context-state{display:flex;align-items:center;gap:10px;background:#eef6ff;border:1px solid #bfdbfe;color:#174b88;padding:14px 18px;border-radius:12px;margin-bottom:18px;font-weight:700}
+.context-state.error{background:#fff1f2;border-color:#fecdd3;color:#b42318}
+.spinner{width:18px;height:18px;border:2px solid #93c5fd;border-top-color:#174b88;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.selected-student{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;background:#f8fbff;border:1px solid #dbeafe;border-radius:12px;padding:16px}
+.selected-student div{display:flex;flex-direction:column;gap:5px}.selected-student span{color:#64748b;font-size:13px}.selected-student strong{color:#07336b}
+.account-context{display:grid;grid-template-columns:1fr 1fr;gap:24px}.account-context p{margin:8px 0;color:#475569}.preload-note{grid-column:1/-1;background:#ecfdf3;color:#067647;border-radius:10px;padding:12px;font-weight:700}
 
 .info-card{
     background:white;
@@ -148,3 +157,4 @@ td{
     color:#64748b;
     text-align:center;
 }
+@media(max-width:850px){.selected-student,.account-context,.stats,.info-grid{grid-template-columns:1fr}.page-header{align-items:flex-start;gap:14px}.selected-student{grid-column:1}}

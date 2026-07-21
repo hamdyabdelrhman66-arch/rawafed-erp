@@ -104,7 +104,7 @@ export class CoreController {
     ),
   );
   studentsList = asyncController(async (req, res) =>
-    res.json(await this.students.list(page(req).skip, page(req).take)),
+    res.json(await this.students.list(page(req).skip, page(req).take, req.query.includeArchived === "true")),
   );
   student = asyncController(async (req, res) =>
     res.json(await this.students.get(req.params.id)),
@@ -123,9 +123,20 @@ export class CoreController {
     res.json(await this.students.update(req.params.id, req.body, actor(req))),
   );
   archiveStudent = asyncController(async (req, res) => {
-    await this.students.archive(req.params.id, actor(req));
-    res.status(204).send();
+    res.json(await this.students.archive(req.params.id, actor(req), req.body.reason));
   });
+  restoreStudent = asyncController(async (req, res) =>
+    res.json(await this.students.restore(req.params.id, actor(req), req.body.reason)),
+  );
+  studentDeletionEligibility = asyncController(async (req, res) =>
+    res.json(await this.students.deletionEligibility(req.params.id)),
+  );
+  permanentlyDeleteStudent = asyncController(async (req, res) =>
+    res.json(await this.students.permanentlyDelete(req.params.id, req.body, actor(req))),
+  );
+  studentAuditHistory = asyncController(async (req, res) =>
+    res.json(await this.students.auditHistory(req.params.id)),
+  );
   notificationsList = asyncController(async (req, res) =>
     res.json(
       await this.notifications.list(
@@ -182,7 +193,13 @@ export class CoreController {
     res.status(204).send();
   });
   accounts = asyncController(async (req, res) =>
-    res.json(await this.finance.accounts(page(req).skip, page(req).take)),
+    res.json(await this.finance.accounts(page(req).skip, page(req).take, actor(req))),
+  );
+  studentPaymentContext = asyncController(async (req, res) =>
+    res.json(await this.finance.studentPaymentContext(req.params.studentId, {
+      invoiceId: req.query.invoiceId ? String(req.query.invoiceId) : undefined,
+      installmentId: req.query.installmentId ? String(req.query.installmentId) : undefined,
+    }, actor(req))),
   );
   invoices = asyncController(async (req, res) =>
     res.json(await this.finance.invoices(page(req).skip, page(req).take)),

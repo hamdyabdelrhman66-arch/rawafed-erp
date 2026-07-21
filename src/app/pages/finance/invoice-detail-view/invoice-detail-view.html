@@ -5,13 +5,13 @@
   <ng-container *ngIf="detail as data">
     <header class="screen-toolbar no-print">
       <div><a routerLink="/finance/invoices">‹ {{ 'invoice.back_to_list' | t }}</a><span>/</span><bdi>{{ data.invoice.invoiceNumber }}</bdi></div>
-      <div class="toolbar-actions"><button type="button" (click)="print()" [disabled]="busy">{{ 'common.print' | t }}</button><button class="primary" type="button" (click)="downloadPdf()" [disabled]="busy">{{ 'invoice.download_pdf' | t }}</button></div>
+      <div class="toolbar-actions"><a class="primary" [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: data.student.id, invoiceId: data.invoice.id }">{{ 'finance_accounts.record_payment' | t }}</a><button type="button" (click)="print()" [disabled]="busy">{{ 'common.print' | t }}</button><button class="primary" type="button" (click)="downloadPdf()" [disabled]="busy">{{ 'invoice.download_pdf' | t }}</button></div>
     </header>
 
     <article class="invoice-document">
       <header class="invoice-header">
         <img [src]="data.school.logoUrl" [alt]="data.school.nameEn" />
-        <div class="school"><h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1><p *ngIf="data.school.address">{{ data.school.address }}</p><p *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></p></div>
+        <div class="school"><h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1><p>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</p><p *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></p></div>
         <div class="document-title"><span>{{ 'invoice.tax_invoice' | t }}</span><strong><bdi>{{ data.invoice.invoiceNumber }}</bdi></strong><em class="status" [attr.data-status]="data.invoice.status">{{ i18n.status(data.invoice.status) }}</em></div>
       </header>
 

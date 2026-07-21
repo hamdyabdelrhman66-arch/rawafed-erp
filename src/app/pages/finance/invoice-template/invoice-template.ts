@@ -3,6 +3,7 @@ import { Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } fro
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
+import { StorageService } from '../../../core/services/storage.service';
 
 @Component({
   selector: 'app-invoice-template',
@@ -19,6 +20,10 @@ export class InvoiceTemplate implements OnChanges {
   @ViewChild('invoiceSheet') invoiceSheet?: ElementRef<HTMLElement>;
 
   isExporting = false;
+
+  constructor(public readonly storage: StorageService) {}
+
+  get schoolSettings() { return this.storage.settings(); }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['qrData']) void this.refreshQrImage();

@@ -109,6 +109,8 @@ describe('school fee accounting behavior', () => {
               branchId: branch.id,
               englishName: 'Accounting Test Student',
               grade: 'Grade 1',
+              nationalId: `2${suffix.replace(/[^0-9]/g, '').padEnd(9, '7').slice(0, 9)}`,
+              profile: { student: { identityType: 'IQAMA', nationality: 'Jordanian' } },
             },
           });
           const account = await tx.financeAccount.create({
@@ -116,6 +118,7 @@ describe('school fee accounting behavior', () => {
               registrationId: registration.id,
               studentId: student.id,
               expectedTotal: 29325,
+              feeItems: { create: [{ name: 'School Fees', amount: 29325, subtotal: 25500, vatAmount: 3825, vatRate: 15 }] },
             },
           });
           await tx.accountingCustomer.create({
@@ -315,6 +318,8 @@ describe('school fee accounting behavior', () => {
               branchId: branch.id,
               englishName: 'Automatic Invoice Student',
               grade: 'KG1',
+              nationalId: `1${suffix.replace(/[^0-9]/g, '').padEnd(9, '8').slice(0, 9)}`,
+              profile: { student: { identityType: 'NATIONAL_ID', nationality: 'Saudi' } },
             },
           });
           const automaticAccount = await tx.financeAccount.create({
@@ -322,7 +327,7 @@ describe('school fee accounting behavior', () => {
               registrationId: automaticRegistration.id,
               studentId: automaticStudent.id,
               expectedTotal: 5000,
-              feeItems: { create: { name: 'Tuition', amount: 5000 } },
+              feeItems: { create: { name: 'Tuition', amount: 5000, subtotal: 5000, vatAmount: 0, vatRate: 0 } },
             },
           });
           await tx.accountingCustomer.create({

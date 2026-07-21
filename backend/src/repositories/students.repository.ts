@@ -3,9 +3,9 @@ import type { DatabaseClient } from "./repository.types.js";
 
 export class StudentsRepository {
   constructor(private readonly db: DatabaseClient) {}
-  list(skip = 0, take = 100) {
+  list(skip = 0, take = 100, includeArchived = false) {
     return this.db.student.findMany({
-      where: { deletedAt: null },
+      where: includeArchived ? {} : { deletedAt: null },
       orderBy: { createdAt: "desc" },
       skip,
       take,
@@ -13,6 +13,9 @@ export class StudentsRepository {
   }
   findById(id: string) {
     return this.db.student.findFirst({ where: { id, deletedAt: null } });
+  }
+  findByIdIncludingArchived(id: string) {
+    return this.db.student.findUnique({ where: { id } });
   }
   findByRegistrationId(registrationId: string) {
     return this.db.student.findUnique({ where: { registrationId } });
@@ -35,6 +38,9 @@ export class StudentsRepository {
       where: { id },
       data: { status: "archived", deletedAt: new Date() },
     });
+  }
+  restore(id: string) {
+    return this.db.student.update({ where: { id }, data: { status: "active", deletedAt: null } });
   }
   financeReferences(id: string) {
     return this.db.financeAccount.count({

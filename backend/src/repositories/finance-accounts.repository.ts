@@ -65,6 +65,31 @@ export class FinanceAccountsRepository {
       },
     });
   }
+  findByStudentId(studentId: string) {
+    return this.db.financeAccount.findFirst({
+      where: { studentId, deletedAt: null, student: { deletedAt: null } },
+      include: {
+        registration: { include: { branch: true, academicYear: true } },
+        student: { include: { customer: { include: { installmentPlans: { where: { active: true, deletedAt: null }, include: { installments: true }, take: 1, orderBy: { createdAt: "desc" } } } } } },
+        feeItems: {
+          include: {
+            paymentAllocations: {
+              where: { payment: { status: "COMPLETED", deletedAt: null } },
+            },
+          },
+        },
+        invoices: {
+          where: { deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID"] } },
+          include: {
+            lines: true,
+            payments: { where: { payment: { status: "COMPLETED", deletedAt: null } } },
+          },
+          orderBy: { issuedAt: "asc" },
+        },
+        payments: { where: { deletedAt: null, status: "COMPLETED" } },
+      },
+    });
+  }
   findByRegistrationId(registrationId: string) {
     return this.db.financeAccount.findUnique({
       where: { registrationId },

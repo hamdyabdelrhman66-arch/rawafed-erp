@@ -34,6 +34,7 @@ describe("categorized payment accounting", () => {
       const student = await tx.student.create({ data: {
         registrationId: registration.id, registrationNumber: registration.registrationNumber,
         branchId: branch.id, englishName: "Mixed Payment Student", grade: "Grade 1", nationalId: "2123456789",
+        profile: { student: { identityType: "IQAMA", nationalId: "2123456789", nationality: "Jordanian" } },
       } });
       const account = await tx.financeAccount.create({ data: {
         registrationId: registration.id, studentId: student.id, expectedTotal: 1380,

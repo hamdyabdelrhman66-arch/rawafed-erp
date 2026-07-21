@@ -54,8 +54,26 @@ export const studentPatch = z
     parentPhone: z.string().max(40).optional(),
     parentEmail: z.string().email().optional().or(z.literal("")),
     status: z.enum(["active", "inactive", "archived"]).optional(),
+    gender: z.string().max(40).optional(),
+    dateOfBirth: z.string().date().optional(),
+    academicYear: z.string().max(80).optional(),
+    className: z.string().max(80).optional(),
+    address: z.record(z.unknown()).optional(),
+    guardian: z.record(z.unknown()).optional(),
+    emergencyContact: z.record(z.unknown()).optional(),
+    medical: z.record(z.unknown()).optional(),
+    documents: z.array(z.record(z.unknown())).optional(),
+    transportationRequest: z.record(z.unknown()).optional(),
+    paymentPlan: z.string().max(80).optional(),
+    notes: z.string().max(4000).optional(),
+    reason: z.string().trim().min(3).max(1000).optional(),
   })
   .strict();
+export const studentReason = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
+export const permanentStudentDelete = z.object({
+  reason: z.string().trim().min(3).max(1000),
+  confirmation: z.string().trim().min(1).max(200),
+}).strict();
 export const settings = z.record(z.string().max(100), z.unknown());
 export const refresh = z.object({ refreshToken: z.string().min(20) });
 export const registration = z
@@ -91,6 +109,7 @@ export const payment = z
   .object({
     accountId: z.string().uuid(),
     invoiceId: z.string().uuid().optional(),
+    installmentId: z.string().uuid().optional(),
     receiptNumber: z.string().max(80).optional(),
     paymentItem: z.string().max(160).default("School Fees"),
     amount: z.coerce.number().positive().max(10000000),

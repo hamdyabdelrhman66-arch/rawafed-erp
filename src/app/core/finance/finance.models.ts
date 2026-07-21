@@ -41,6 +41,7 @@ export interface FinancePackage {
   registrationId?: string;
   registrationNumber?: string;
   backendId?: string;
+  studentId?: string;
   canonicalInvoiceId?: string;
   subtotal?: number;
   vat?: number;
@@ -48,10 +49,13 @@ export interface FinancePackage {
   governmentBorneVat?: number;
   vatExempt?: boolean;
   nationalId?: string;
+  openInvoices?: Array<{ id: string; invoiceNumber: string; category: string; issuedAt: string; dueAt?: string; total: number; paid: number; remaining: number; status: string }>;
+  installments?: Array<{ id: string; dueDate: string; amount: number; paidAmount: number; remaining: number; status: string }>;
 }
 
 export interface FinanceFeeItem {
   service: string;
+  category?: string;
   sessions: number;
   price: number;
   customPrice: boolean;
@@ -77,6 +81,7 @@ export interface FinancePayment {
   notes?: string;
   feeItem?: string;
   accountId?: number | string;
+  backendAccountId?: string;
   registrationNumber?: string;
   nationalId?: string;
   vatExempt?: boolean;

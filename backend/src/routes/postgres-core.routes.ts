@@ -106,16 +106,21 @@ export function postgresCoreRoutes(
   r.patch(
     "/api/students/:id",
     ...secured,
-    requireRole(["Admissions", "Registrar", "Principal"]),
+    requirePermission(prisma, "students.edit"),
     validate(validators.studentPatch),
     c.updateStudent,
   );
-  r.delete(
-    "/api/students/:id",
+  r.patch(
+    "/api/students/:id/archive",
     ...secured,
-    requireRole(["Super Admin"]),
+    requirePermission(prisma, "students.archive"),
+    validate(validators.studentReason),
     c.archiveStudent,
   );
+  r.patch("/api/students/:id/restore", ...secured, requirePermission(prisma, "students.restore"), validate(validators.studentReason), c.restoreStudent);
+  r.get("/api/students/:id/deletion-eligibility", ...secured, requirePermission(prisma, "students.delete"), c.studentDeletionEligibility);
+  r.delete("/api/students/:id/permanent", ...secured, requirePermission(prisma, "students.delete.permanent"), validate(validators.permanentStudentDelete), c.permanentlyDeleteStudent);
+  r.get("/api/students/:id/audit", ...secured, requirePermission(prisma, "students.audit.view"), c.studentAuditHistory);
   r.get("/api/notifications", ...secured, c.notificationsList);
   r.post("/api/notifications/:id/read", ...secured, c.notificationRead);
   r.post("/api/notifications/read-all", ...secured, c.notificationsReadAll);
@@ -143,8 +148,14 @@ export function postgresCoreRoutes(
   r.get(
     "/api/finance/accounts",
     ...secured,
-    requireRole(["Finance"]),
+    requirePermission(prisma, "finance.payments.record"),
     c.accounts,
+  );
+  r.get(
+    "/api/finance/students/:studentId/payment-context",
+    ...secured,
+    requirePermission(prisma, "finance.payments.record"),
+    c.studentPaymentContext,
   );
   r.get(
     "/api/finance/invoices",
@@ -186,7 +197,7 @@ export function postgresCoreRoutes(
   r.post(
     "/api/finance/payments",
     ...secured,
-    requireRole(["Finance"]),
+    requirePermission(prisma, "finance.payments.record"),
     validate(validators.payment),
     c.createPayment,
   );

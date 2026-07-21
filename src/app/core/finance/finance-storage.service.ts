@@ -94,6 +94,10 @@ export class FinanceStorageService {
     );
   }
 
+  fromBackendAccount(account: any): FinancePackage {
+    return this.backendAccountToPackage(account);
+  }
+
   getPackage(id: number): Observable<FinancePackage | undefined> {
     return this.getPackages().pipe(
       map((items) => items.find((item) => item.id === Number(id))),
@@ -448,6 +452,7 @@ export class FinanceStorageService {
             : "Unpaid",
       services: (account.feeItems || []).map((item: any) => ({
         service: item.name,
+        category: item.category,
         sessions: 1,
         price: Number(item.amount || 0),
         paid: Number(item.paid || 0),
@@ -469,6 +474,7 @@ export class FinanceStorageService {
       registrationId: account.registrationId,
       registrationNumber: account.registrationNumber,
       backendId: account.id,
+      studentId: account.studentId,
       canonicalInvoiceId: account.canonicalInvoiceId,
       subtotal: Number(account.subtotal || 0),
       vat: Number(account.vat || 0),
@@ -476,6 +482,8 @@ export class FinanceStorageService {
       governmentBorneVat: Number(account.governmentBorneVat || 0),
       vatExempt: Boolean(account.vatExempt),
       nationalId: account.nationalId || '',
+      openInvoices: account.openInvoices || [],
+      installments: account.installments || [],
     };
   }
 
@@ -498,6 +506,7 @@ export class FinanceStorageService {
       notes: payment.notes,
       feeItem: payment.paymentItem,
       accountId: this.numericId(payment.accountId),
+      backendAccountId: payment.accountId,
       registrationNumber: payment.registrationNumber,
       nationalId: payment.nationalId || '',
       vatExempt: Boolean(payment.vatExempt),
