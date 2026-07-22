@@ -9,20 +9,28 @@
     </header>
 
     <article class="invoice-document">
-      <div class="brand-edge brand-edge-top" aria-hidden="true"><i></i><b></b></div>
+      <div class="brand-edge brand-edge-top" aria-hidden="true"></div>
+
       <header class="invoice-header">
+        <div class="document-title">
+          <span>{{ 'invoice.tax_invoice' | t }}</span>
+          <strong><bdi>{{ data.invoice.invoiceNumber }}</bdi></strong>
+          <em class="status" [attr.data-status]="data.invoice.status">{{ i18n.status(data.invoice.status) }}</em>
+        </div>
+        <div class="school">
+          <span class="school-kicker">RAWAFED INTERNATIONAL SCHOOL</span>
+          <h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1>
+          <p>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</p>
+          <p class="school-contact"><bdi>{{ data.school.phone || '' }}</bdi><span *ngIf="data.school.phone && data.school.email"> · </span><bdi>{{ data.school.email || '' }}</bdi></p>
+          <p *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></p>
+        </div>
         <div class="brand-logo"><img [src]="data.school.logoUrl" [alt]="data.school.nameEn" /></div>
-        <div class="school"><span class="school-kicker">RAWAFED INTERNATIONAL SCHOOL</span><h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1><p>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</p><p class="school-contact"><bdi>{{ data.school.phone || '' }}</bdi><span *ngIf="data.school.phone && data.school.email"> · </span><bdi>{{ data.school.email || '' }}</bdi></p></div>
-        <div class="document-title"><span>{{ 'invoice.tax_invoice' | t }}</span><strong><bdi>{{ data.invoice.invoiceNumber }}</bdi></strong><em class="status" [attr.data-status]="data.invoice.status">{{ i18n.status(data.invoice.status) }}</em><small *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></small></div>
       </header>
 
       <section class="meta-grid">
         <div><span>{{ 'common.date' | t }}</span><strong>{{ date(data.invoice.issuedAt) }}</strong></div>
         <div><span>{{ 'invoice.due_date' | t }}</span><strong>{{ date(data.invoice.dueAt) }}</strong></div>
         <div><span>{{ 'invoice.category' | t }}</span><strong>{{ data.invoice.categoryLabel }}</strong></div>
-        <div><span>{{ 'invoice.academic_year' | t }}</span><strong>{{ data.invoice.academicYear || '-' }}</strong></div>
-        <div><span>{{ 'invoice.branch' | t }}</span><strong>{{ i18n.language() === 'ar' ? (data.invoice.branch?.nameAr || data.invoice.branch?.nameEn) : data.invoice.branch?.nameEn || '-' }}</strong></div>
-        <div><span>{{ 'customer.payment_plan' | t }}</span><strong>{{ data.invoice.paymentPlan ? i18n.status(data.invoice.paymentPlan) : '-' }}</strong></div>
       </section>
 
       <section class="student-card">
@@ -34,44 +42,23 @@
         <div><span>{{ 'common.phone' | t }}</span><strong><bdi>{{ data.student.guardianPhone || '-' }}</bdi></strong></div>
       </section>
 
-      <section class="category-card" *ngIf="categoryEntries.length">
-        <h2>{{ 'invoice.service_details' | t }}</h2>
-        <div class="category-grid"><div *ngFor="let entry of categoryEntries"><span>{{ label(entry[0]) }}</span><strong>{{ entry[1] }}</strong></div></div>
-      </section>
+      <div class="table-scroll"><table class="line-table"><thead><tr><th>{{ 'common.description' | t }}</th><th>{{ 'invoice.quantity' | t }}</th><th>{{ 'invoice.unit_price' | t }}</th><th>{{ 'invoice.subtotal' | t }}</th><th>{{ 'invoice.vat' | t }}</th><th>{{ 'common.total' | t }}</th></tr></thead>
+        <tbody><tr *ngFor="let line of data.lines"><td><strong>{{ line.description }}</strong></td><td>{{ line.quantity }}</td><td>{{ money(line.unitPrice) }}</td><td>{{ money(line.netAmount) }}</td><td>{{ money(line.vatAmount + line.governmentBorneVat) }} <small>({{ line.vatRate }}%)</small></td><td>{{ money(line.totalAmount) }}</td></tr></tbody></table></div>
 
-      <div class="table-scroll"><table class="line-table"><thead><tr><th>#</th><th>{{ 'common.description' | t }}</th><th>{{ 'invoice.quantity' | t }}</th><th>{{ 'invoice.unit_price' | t }}</th><th>{{ 'invoice.subtotal' | t }}</th><th>{{ 'invoice.vat' | t }}</th><th>{{ 'common.total' | t }}</th></tr></thead>
-        <tbody><tr *ngFor="let line of data.lines; index as index"><td>{{ index + 1 }}</td><td><strong>{{ line.description }}</strong><small>{{ line.taxTreatment }} · {{ line.taxReason || '-' }}</small><small *ngIf="line.revenueAccount"><bdi>{{ line.revenueAccount.code }}</bdi> · {{ i18n.language() === 'ar' ? (line.revenueAccount.nameAr || line.revenueAccount.nameEn) : line.revenueAccount.nameEn }}</small></td><td>{{ line.quantity }}</td><td>{{ money(line.unitPrice) }}</td><td>{{ money(line.netAmount) }}</td><td>{{ money(line.vatAmount + line.governmentBorneVat) }} <small>({{ line.vatRate }}%)</small></td><td>{{ money(line.totalAmount) }}</td></tr></tbody></table></div>
-
-      <section class="settlement-grid">
-        <div class="settlement-summary">
-          <span>{{ i18n.language() === 'ar' ? 'ملخص السداد' : 'PAYMENT SUMMARY' }}</span>
-          <strong>{{ i18n.status(data.invoice.status) }}</strong>
-          <p>{{ 'customer.amount_paid' | t }}: <b>{{ money(data.totals.paid) }}</b></p>
-          <p>{{ 'customer.remaining' | t }}: <b>{{ money(data.totals.remaining) }}</b></p>
-        </div>
+      <section class="invoice-summary">
+        <div class="qr-panel"><img *ngIf="qrImage" [src]="qrImage" [alt]="'invoice.qr' | t" /><small>{{ i18n.language() === 'ar' ? 'امسح للتحقق من بيانات الفاتورة' : 'Scan to verify invoice details' }}</small></div>
         <div class="totals">
           <p><span>{{ 'invoice.subtotal' | t }}</span><strong>{{ money(data.totals.subtotal) }}</strong></p>
           <p *ngIf="data.totals.discount"><span>{{ 'invoice.discount' | t }}</span><strong>- {{ money(data.totals.discount) }}</strong></p>
           <p><span>{{ 'invoice.vat' | t }} ({{ data.totals.vatRate }}%)</span><strong>{{ money(data.totals.totalVat) }}</strong></p>
-          <p *ngIf="data.totals.governmentBorneVat"><span>{{ 'invoice.government_borne_vat' | t }}</span><strong>{{ money(data.totals.governmentBorneVat) }}</strong></p>
-          <p><span>{{ 'invoice.parent_charged_vat' | t }}</span><strong>{{ money(data.totals.vatAmount) }}</strong></p>
-          <p *ngIf="data.totals.taxReason"><span>{{ 'invoice.tax_treatment' | t }}</span><strong>{{ data.totals.taxTreatment }} · {{ data.totals.taxReason }}</strong></p>
-          <p class="grand"><span>{{ 'invoice.parent_payable' | t }}</span><strong>{{ money(data.totals.parentPayable) }}</strong></p>
+          <p class="grand"><span>{{ 'common.total' | t }}</span><strong>{{ money(data.totals.parentPayable) }}</strong></p>
           <p><span>{{ 'customer.amount_paid' | t }}</span><strong>{{ money(data.totals.paid) }}</strong></p>
           <p class="remaining"><span>{{ 'customer.remaining' | t }}</span><strong>{{ money(data.totals.remaining) }}</strong></p>
         </div>
       </section>
 
-      <section class="payments-card">
-        <h2>{{ 'invoice.payment_allocations' | t }}</h2>
-        <div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'invoice.receipt_number' | t }}</th><th>{{ 'common.method' | t }}</th><th>{{ 'common.amount' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead><tbody>
-          <tr *ngFor="let payment of data.allocations"><td>{{ date(payment.paidAt) }}</td><td><a [routerLink]="['/finance/payment-details', payment.paymentId]"><bdi>{{ payment.receiptNumber }}</bdi></a></td><td>{{ i18n.status(payment.method) }}</td><td>{{ money(payment.amount) }}</td><td>{{ i18n.status(payment.status) }}</td></tr>
-          <tr *ngIf="!data.allocations.length"><td colspan="5" class="empty-cell">{{ 'invoice.no_payments' | t }}</td></tr>
-        </tbody></table></div>
-      </section>
-
-      <footer class="invoice-footer"><img *ngIf="qrImage" [src]="qrImage" [alt]="'invoice.qr' | t" /><div><strong>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</strong><span>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</span><span *ngIf="data.invoice.createdBy">{{ 'invoice.created_by' | t }}: {{ data.invoice.createdBy }}</span></div><span class="verified">{{ 'invoice.generated_from_postgres' | t }}</span></footer>
-      <div class="brand-edge brand-edge-bottom" aria-hidden="true"><i></i><b></b></div>
+      <footer class="invoice-footer"><strong>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</strong><span>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</span><span><bdi>{{ data.school.phone || '' }}</bdi><i *ngIf="data.school.phone && data.school.email"> · </i><bdi>{{ data.school.email || '' }}</bdi></span></footer>
+      <div class="brand-edge brand-edge-bottom" aria-hidden="true"></div>
     </article>
   </ng-container>
 </section>

@@ -49,7 +49,7 @@ export class InvoiceTemplate implements OnChanges {
       });
 
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
         compress: true,
@@ -114,6 +114,6 @@ export class InvoiceTemplate implements OnChanges {
   }
 
   private async refreshQrImage(): Promise<void> {
-    this.qrImageDataUrl = this.qrData ? await QRCode.toDataURL(this.qrData, { margin: 1, width: 133 }) : '';
+    this.qrImageDataUrl = this.qrData ? await QRCode.toDataURL(this.qrData, { margin: 1, width: 420 }) : '';
   }
 }

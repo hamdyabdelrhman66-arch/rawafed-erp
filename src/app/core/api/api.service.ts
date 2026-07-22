@@ -57,8 +57,8 @@ export class ApiService {
     return this.request(() => this.http.put<T>(this.url(path), body, { headers: this.headers() }));
   }
 
-  delete<T>(path: string): Promise<T> {
-    return this.request(() => this.http.delete<T>(this.url(path), { headers: this.headers() }));
+  delete<T>(path: string, body?: unknown): Promise<T> {
+    return this.request(() => this.http.delete<T>(this.url(path), { headers: this.headers(), ...(body === undefined ? {} : { body }) }));
   }
 
   private request<T>(factory: () => Observable<T>, skipRefresh = false): Promise<T> {

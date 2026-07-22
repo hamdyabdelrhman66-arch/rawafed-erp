@@ -136,7 +136,7 @@ export class StudentsService {
     if (!student) throw new ServiceError("Student not found.", 404, "NOT_FOUND");
     const account = await this.prisma.financeAccount.findUnique({ where: { studentId: id } });
     const customer = await this.prisma.accountingCustomer.findUnique({ where: { studentId: id } });
-    const [invoices, payments, journals, inventoryMovements, documents, directCosts, installments] = await Promise.all([
+    const [invoices, payments, journals, inventoryMovements, documents, directCosts, installments, customerPayments, receivableJournalLines] = await Promise.all([
       this.prisma.financeInvoice.count({ where: { account: { studentId: id }, deletedAt: null } }),
       this.prisma.financePayment.count({ where: { account: { studentId: id }, deletedAt: null } }),
       this.prisma.journalEntry.count({ where: { OR: [{ invoice: { account: { studentId: id } } }, { payment: { account: { studentId: id } } }], deletedAt: null } }),
@@ -144,13 +144,24 @@ export class StudentsService {
       this.prisma.uploadedFile.count({ where: { ownerId: { in: [id, student.registrationId || "00000000-0000-0000-0000-000000000000"] }, deletedAt: null } }),
       this.prisma.directCostEvent.count({ where: { studentId: id } }),
       customer ? this.prisma.installment.count({ where: { customerId: customer.id } }) : Promise.resolve(0),
+      customer ? this.prisma.customerPayment.count({ where: { customerId: customer.id, deletedAt: null } }) : Promise.resolve(0),
+      customer ? this.prisma.journalLine.count({ where: { accountId: customer.receivableAccountId, journalEntry: { deletedAt: null } } }) : Promise.resolve(0),
     ]);
-    const counts = { invoices, payments, receipts: payments, journals, inventoryMovements, documents, directCosts, installments };
+    const counts = { invoices, payments, receipts: payments + customerPayments, journals, customerPayments, receivableJournalLines, inventoryMovements, documents, directCosts, installments };
     const reasons = Object.entries(counts).filter(([, count]) => count > 0).map(([name, count]) => `${name}: ${count}`);
     return { studentId: id, registrationNumber: student.registrationNumber, displayName: student.arabicName || student.englishName, status: student.status, financeAccountId: account?.id || null, eligible: reasons.length === 0, counts, reasons };
   }
 
   async permanentlyDelete(id: string, input: { reason: string; confirmation: string }, actor: Actor) {
+    const existing = await new StudentsRepository(this.prisma).findByIdIncludingArchived(id);
+    if (!existing) {
+      const tombstone = await this.prisma.auditLog.findFirst({
+        where: { action: "STUDENT_PERMANENTLY_DELETED", entityType: "student_tombstone", entityId: id },
+        select: { id: true },
+      });
+      if (tombstone) return { deleted: true, alreadyDeleted: true };
+      throw new ServiceError("Student not found.", 404, "NOT_FOUND");
+    }
     const eligibility = await this.deletionEligibility(id);
     if (!eligibility.eligible)
       throw new ServiceError(`Permanent deletion is blocked. ${eligibility.reasons.join(", ")}`, 422, "STUDENT_DELETE_BLOCKED");

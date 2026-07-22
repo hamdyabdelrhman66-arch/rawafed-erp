@@ -1,21 +1,91 @@
-<section class="simple-page">
+<section class="students-page" dir="rtl">
   <header class="page-header">
-    <div>
-      <span class="eyebrow">Student Records</span>
-      <h1>Students</h1>
-    </div>
+    <div><span class="eyebrow">إدارة القبول</span><h1>إدارة الطلاب</h1><p>تعديل بيانات الطلاب المعتمدين، الأرشفة، الاستعادة والحذف الآمن.</p></div>
+    <div class="header-actions"><button type="button" (click)="load()"><mat-icon>refresh</mat-icon>تحديث</button></div>
   </header>
 
-  <section class="simple-list">
-    <article *ngFor="let item of students()" class="simple-card">
-      <div class="avatar">{{ initials(item) }}</div>
-      <div>
-        <h2>{{ item.student.englishName || 'Unnamed Student' }}</h2>
-        <p>{{ item.student.applyingGrade }} · {{ item.registrationNumber }} · {{ item.father.phone || item.mother.phone }}</p>
-      </div>
-      <strong>{{ paymentStatus(item) }}</strong>
-    </article>
+  <section class="toolbar">
+    <label class="search"><mat-icon>search</mat-icon><input [(ngModel)]="search" placeholder="ابحث بالاسم أو رقم التسجيل أو الهوية أو الصف" /></label>
+    <label class="archive-toggle"><input type="checkbox" [(ngModel)]="includeArchived" /> عرض الطلاب المؤرشفين</label>
+    <span class="count">{{ visibleStudents().length }} طالب</span>
+  </section>
 
-    <p class="empty" *ngIf="!students().length">No approved students yet.</p>
+  <div class="loading" *ngIf="loading()">جاري تحميل الطلاب من PostgreSQL...</div>
+  <section class="student-grid" *ngIf="!loading()">
+    <article *ngFor="let student of visibleStudents()" class="student-card" [class.archived]="student.status === 'archived'">
+      <div class="student-main">
+        <div class="avatar">{{ initials(student) }}</div>
+        <div><span class="status" [attr.data-status]="student.status">{{ student.status === 'archived' ? 'مؤرشف' : 'نشط' }}</span><h2>{{ student.arabicName || student.englishName }}</h2><p>{{ student.englishName }}</p></div>
+      </div>
+      <div class="facts">
+        <div><span>رقم التسجيل</span><strong><bdi>{{ student.registrationNumber || '-' }}</bdi></strong></div>
+        <div><span>الصف</span><strong>{{ student.grade || '-' }}</strong></div>
+        <div><span>هوية الطالب</span><strong><bdi>{{ student.nationalId || '-' }}</bdi></strong></div>
+        <div><span>ولي الأمر</span><strong>{{ student.parentName || '-' }}</strong></div>
+        <div><span>المتبقي</span><strong>{{ (accountFor(student)?.remaining || 0) | number }} ريال</strong></div>
+        <div><span>آخر تعديل</span><strong>{{ student.updatedAt | date:'yyyy/MM/dd' }}</strong></div>
+      </div>
+      <footer class="actions">
+        <button class="primary" type="button" (click)="beginEdit(student)"><mat-icon>edit</mat-icon>تعديل بيانات الطالب</button>
+        <a *ngIf="accountFor(student) as account" [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: student.id }"><mat-icon>payments</mat-icon>تسجيل دفعة</a>
+        <button *ngIf="student.status !== 'archived'" type="button" (click)="beginStatusAction(student, 'archive')"><mat-icon>archive</mat-icon>أرشفة</button>
+        <button *ngIf="student.status === 'archived'" type="button" (click)="beginStatusAction(student, 'restore')"><mat-icon>unarchive</mat-icon>استعادة</button>
+        <button type="button" (click)="viewAudit(student)"><mat-icon>history</mat-icon>سجل التعديلات</button>
+        <button class="danger" type="button" (click)="reviewDeletion(student)"><mat-icon>delete_forever</mat-icon>حذف نهائي</button>
+      </footer>
+    </article>
+    <p class="empty" *ngIf="!visibleStudents().length">لا توجد سجلات مطابقة.</p>
   </section>
 </section>
+
+<div class="modal-backdrop" *ngIf="editStudent" (click)="closeEdit()">
+  <section class="modal edit-modal" (click)="$event.stopPropagation()">
+    <header><div><span>ADMIN ACTIONS</span><h2>تعديل بيانات الطالب</h2><p>{{ editStudent.arabicName || editStudent.englishName }} · {{ editStudent.registrationNumber }}</p></div><button class="icon-btn" type="button" (click)="closeEdit()">×</button></header>
+    <div class="warning-box"><mat-icon>info</mat-icon><p>تعديل الملف لا يغيّر الفواتير أو الدفعات أو القيود المحاسبية المرحلة. التغييرات الحساسة تحتاج سببًا للمراجعة.</p></div>
+    <div class="form-sections">
+      <fieldset><legend>البيانات الأساسية</legend><div class="form-grid">
+        <label><span>الاسم العربي</span><input [(ngModel)]="editForm['arabicName']" /></label>
+        <label><span>الاسم الإنجليزي</span><input dir="ltr" [(ngModel)]="editForm['englishName']" /></label>
+        <label><span>الجنس</span><select [(ngModel)]="editForm['gender']"><option value="">غير محدد</option><option value="Male">ذكر</option><option value="Female">أنثى</option></select></label>
+        <label><span>تاريخ الميلاد</span><input type="date" [(ngModel)]="editForm['dateOfBirth']" /></label>
+      </div></fieldset>
+      <fieldset><legend>الهوية والدراسة</legend><div class="form-grid">
+        <label><span>نوع الهوية</span><select [(ngModel)]="editForm['identityType']"><option value="NATIONAL_ID">هوية وطنية</option><option value="IQAMA">إقامة</option></select></label>
+        <label><span>رقم الهوية / الإقامة</span><input dir="ltr" [(ngModel)]="editForm['nationalId']" /></label>
+        <label><span>الجنسية</span><input [(ngModel)]="editForm['nationality']" /></label>
+        <label><span>رقم الجواز</span><input dir="ltr" [(ngModel)]="editForm['passportNumber']" /></label>
+        <label><span>الصف</span><input [(ngModel)]="editForm['grade']" /></label>
+        <label><span>الفصل</span><input [(ngModel)]="editForm['className']" /></label>
+        <label><span>العام الدراسي</span><input [(ngModel)]="editForm['academicYear']" /></label>
+      </div></fieldset>
+      <fieldset><legend>ولي الأمر والتواصل</legend><div class="form-grid">
+        <label><span>اسم ولي الأمر</span><input [(ngModel)]="editForm['parentName']" /></label>
+        <label><span>الجوال</span><input dir="ltr" [(ngModel)]="editForm['parentPhone']" /></label>
+        <label><span>البريد الإلكتروني</span><input dir="ltr" type="email" [(ngModel)]="editForm['parentEmail']" /></label>
+      </div></fieldset>
+      <fieldset><legend>المراجعة</legend><div class="form-grid single">
+        <label><span>ملاحظات الطالب</span><textarea rows="3" [(ngModel)]="editForm['notes']"></textarea></label>
+        <label><span>سبب التعديل الحساس</span><textarea rows="3" [(ngModel)]="editForm['reason']" placeholder="مطلوب عند تغيير الهوية أو الجنسية أو الصف أو العام الدراسي"></textarea></label>
+      </div></fieldset>
+    </div>
+    <footer><button type="button" (click)="closeEdit()">إلغاء</button><button class="primary" type="button" [disabled]="saving()" (click)="saveEdit()"><mat-icon>save</mat-icon>{{ saving() ? 'جاري الحفظ...' : 'حفظ التعديلات' }}</button></footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="actionDialog" (click)="actionDialog = null">
+  <section class="modal compact-modal" (click)="$event.stopPropagation()"><header><div><h2>{{ actionDialog.action === 'archive' ? 'أرشفة الطالب' : 'استعادة الطالب' }}</h2><p>{{ actionDialog.student.arabicName || actionDialog.student.englishName }}</p></div><button class="icon-btn" (click)="actionDialog = null">×</button></header><label><span>سبب الإجراء</span><textarea rows="4" [(ngModel)]="actionDialog.reason"></textarea></label><footer><button (click)="actionDialog = null">إلغاء</button><button class="primary" [disabled]="saving()" (click)="submitStatusAction()">تأكيد</button></footer></section>
+</div>
+
+<div class="modal-backdrop" *ngIf="deletion && deletionStudent" (click)="closeDeletion()">
+  <section class="modal delete-modal" (click)="$event.stopPropagation()"><header><div><span>إجراء عالي الخطورة</span><h2>حذف الطالب نهائيًا</h2><p>{{ deletion.displayName }} · {{ deletion.registrationNumber }}</p></div><button class="icon-btn" (click)="closeDeletion()">×</button></header>
+    <div class="delete-result" [class.blocked]="!deletion.eligible"><mat-icon>{{ deletion.eligible ? 'verified' : 'block' }}</mat-icon><div><strong>{{ deletion.eligible ? 'الحذف مسموح' : 'الحذف محظور' }}</strong><p>{{ deletion.eligible ? 'لا توجد سجلات مالية أو تشغيلية مرتبطة بهذا الطالب.' : 'يوجد تاريخ يجب الاحتفاظ به. استخدم الأرشفة بدل الحذف.' }}</p></div></div>
+    <div class="count-grid"><div *ngFor="let item of deletion.counts | keyvalue"><span>{{ deletionCountLabel(item.key) }}</span><strong>{{ item.value }}</strong></div></div>
+    <ul *ngIf="deletion.reasons.length"><li *ngFor="let reason of deletion.reasons">{{ reason }}</li></ul>
+    <ng-container *ngIf="deletion.eligible"><label><span>سبب الحذف</span><textarea rows="3" [(ngModel)]="deletionReason"></textarea></label><label><span>اكتب رقم التسجيل أو اسم الطالب للتأكيد</span><input [(ngModel)]="deletionConfirmation" [placeholder]="deletion.registrationNumber || deletion.displayName" /></label></ng-container>
+    <footer><button type="button" (click)="closeDeletion()">إلغاء</button><button type="button" *ngIf="!deletion.eligible" class="primary" (click)="archiveFromDeletion()">أرشفة بدلًا من الحذف</button><button type="button" *ngIf="deletion.eligible" class="danger solid" [disabled]="saving()" (click)="permanentlyDelete()">حذف نهائي من قاعدة البيانات</button></footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="auditStudent" (click)="auditStudent = null">
+  <section class="modal audit-modal" (click)="$event.stopPropagation()"><header><div><h2>سجل تعديلات الطالب</h2><p>{{ auditStudent.arabicName || auditStudent.englishName }}</p></div><button class="icon-btn" (click)="auditStudent = null">×</button></header><div class="timeline"><article *ngFor="let row of auditRows"><i></i><div><strong>{{ row.action }}</strong><p>{{ row.displayNameSnapshot || row.usernameSnapshot || 'System' }} · {{ row.createdAt | date:'yyyy/MM/dd HH:mm' }}</p><small *ngIf="row.details?.reason">السبب: {{ row.details.reason }}</small></div></article><p class="empty" *ngIf="!auditRows.length">لا توجد تعديلات مسجلة.</p></div></section>
+</div>
