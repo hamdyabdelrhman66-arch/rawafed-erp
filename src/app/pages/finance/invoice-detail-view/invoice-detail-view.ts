@@ -4,6 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { AccountingService, InvoiceDetail } from '../../../core/finance/accounting.service';
+import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
@@ -31,6 +32,7 @@ export class InvoiceDetailView implements OnInit {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly accounting: AccountingService,
+    private readonly zatcaInvoice: ZatcaInvoiceService,
     private readonly feedback: FeedbackService,
     public readonly i18n: I18nService,
   ) {}
@@ -177,6 +179,13 @@ export class InvoiceDetailView implements OnInit {
   }
 
   private invoiceQr(detail: InvoiceDetail): Promise<string> {
-    return QRCode.toDataURL(JSON.stringify({ invoiceId: detail.invoice.id, invoiceNumber: detail.invoice.invoiceNumber, parentPayable: detail.totals.parentPayable, vat: detail.totals.totalVat, governmentBorneVat: detail.totals.governmentBorneVat, taxTreatment: detail.totals.taxTreatment }), { margin: 1, width: 420 });
+    const zatcaPayload = this.zatcaInvoice.qrData({
+      sellerName: detail.school.nameAr || detail.school.nameEn || this.zatcaInvoice.sellerName,
+      taxNumber: detail.school.vatNumber || this.zatcaInvoice.taxNumber,
+      date: detail.invoice.issuedAt,
+      total: Number(detail.totals.total ?? detail.totals.parentPayable ?? 0),
+      vat: Number(detail.totals.totalVat ?? detail.totals.vatAmount ?? 0),
+    });
+    return QRCode.toDataURL(zatcaPayload, { margin: 1, width: 420 });
   }
 }
