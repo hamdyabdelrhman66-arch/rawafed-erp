@@ -151,43 +151,53 @@ export class AccountingController {
     res.json(
       await this.statements.ledger(
         req.params.accountId,
-        String(req.query.from || ""),
-        String(req.query.to || ""),
+        String(req.query.fromDate || req.query.from || ""),
+        String(req.query.toDate || req.query.to || ""),
       ),
     ),
   );
   trialBalance = asyncController(async (req, res) =>
     res.json(
-      await this.statements.trialBalance(
-        String(req.query.from || ""),
-        String(req.query.to || ""),
-      ),
+      await this.statements.trialBalance({
+        fromDate: String(req.query.fromDate || req.query.from || ""),
+        toDate: String(req.query.toDate || req.query.to || ""),
+        displayMode: String(req.query.displayMode || "activity") as "activity" | "balance" | "all",
+        accountType: String(req.query.accountType || ""),
+        parentAccountId: String(req.query.parentAccountId || ""),
+        branch: String(req.query.branch || ""),
+        costCenterId: String(req.query.costCenterId || ""),
+        currency: String(req.query.currency || ""),
+        accountStatus: String(req.query.accountStatus || ""),
+        search: String(req.query.search || ""),
+        showZeroBalances: req.query.showZeroBalances === "true",
+        showParentAccounts: req.query.showParentAccounts === "true",
+      }),
     ),
   );
   dashboard = asyncController(async (req, res) =>
     res.json(
       await this.statements.dashboard(
-        String(req.query.from || ""),
-        String(req.query.to || ""),
+        String(req.query.fromDate || req.query.from || ""),
+        String(req.query.toDate || req.query.to || ""),
       ),
     ),
   );
   incomeStatement = asyncController(async (req, res) =>
     res.json(
       await this.statements.incomeStatement(
-        String(req.query.from || ""),
-        String(req.query.to || ""),
+        String(req.query.fromDate || req.query.from || ""),
+        String(req.query.toDate || req.query.to || ""),
       ),
     ),
   );
   balanceSheet = asyncController(async (req, res) =>
-    res.json(await this.statements.balanceSheet(String(req.query.to || ""))),
+    res.json(await this.statements.balanceSheet(String(req.query.toDate || req.query.to || ""))),
   );
   cashFlow = asyncController(async (req, res) =>
     res.json(
       await this.statements.cashFlow(
-        String(req.query.from || ""),
-        String(req.query.to || ""),
+        String(req.query.fromDate || req.query.from || ""),
+        String(req.query.toDate || req.query.to || ""),
       ),
     ),
   );

@@ -1,10 +1,31 @@
-import type { AccountType, PrismaClient } from "@prisma/client";
+import type { AccountType, Prisma, PrismaClient } from "@prisma/client";
 import { AccountsRepository } from "../repositories/accounts.repository.js";
 import { LedgerRepository } from "../repositories/ledger.repository.js";
 import { AccountingSearchRepository } from "../repositories/accounting-search.repository.js";
 
 const num = (v: unknown) => Number(v || 0);
 const round = (v: number) => Math.round(v * 100) / 100;
+
+export interface TrialBalanceFilters {
+  fromDate?: string;
+  toDate?: string;
+  displayMode?: "activity" | "balance" | "all";
+  accountType?: string;
+  parentAccountId?: string;
+  branch?: string;
+  costCenterId?: string;
+  currency?: string;
+  accountStatus?: string;
+  search?: string;
+  showZeroBalances?: boolean;
+  showParentAccounts?: boolean;
+}
+
+const splitBalance = (value: number) => ({
+  debit: value > 0 ? round(value) : 0,
+  credit: value < 0 ? round(-value) : 0,
+});
+
 export class FinancialStatementsService {
   constructor(private readonly prisma: PrismaClient) {}
   private dates(from?: string, to?: string) {
@@ -13,41 +34,147 @@ export class FinancialStatementsService {
       to: to ? new Date(to) : undefined,
     };
   }
-  async trialBalance(from?: string, to?: string) {
-    const dates = this.dates(from, to);
-    const [accounts, balances] = await Promise.all([
-      new AccountsRepository(this.prisma).list(),
-      new LedgerRepository(this.prisma).balances(dates),
+  async trialBalance(
+    filtersOrFrom: TrialBalanceFilters | string = {},
+    legacyTo?: string,
+  ) {
+    const filters: TrialBalanceFilters =
+      typeof filtersOrFrom === "string"
+        ? { fromDate: filtersOrFrom, toDate: legacyTo }
+        : filtersOrFrom;
+    const from = filters.fromDate ? new Date(filters.fromDate) : undefined;
+    const to = filters.toDate ? new Date(filters.toDate) : undefined;
+    const accountWhere: Prisma.ChartOfAccountWhereInput = {};
+    if (filters.accountType) {
+      accountWhere.type = filters.accountType.toUpperCase() as AccountType;
+    }
+    if (filters.parentAccountId) accountWhere.parentId = filters.parentAccountId;
+    if (filters.currency) accountWhere.currency = filters.currency.toUpperCase();
+    if (filters.accountStatus === "active") accountWhere.active = true;
+    if (["inactive", "archived"].includes(filters.accountStatus || "")) {
+      accountWhere.active = false;
+    }
+    if (filters.search) {
+      accountWhere.OR = [
+        { code: { contains: filters.search, mode: "insensitive" } },
+        { name: { contains: filters.search, mode: "insensitive" } },
+        { nameAr: { contains: filters.search, mode: "insensitive" } },
+      ];
+    }
+
+    const branchFilter = filters.branch
+      ? /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(filters.branch)
+        ? { branchId: filters.branch }
+        : { branch: { code: { equals: filters.branch, mode: "insensitive" as const } } }
+      : {};
+    const lineFilter: Prisma.JournalLineWhereInput = {
+      costCenterId: filters.costCenterId || undefined,
+      currency: filters.currency ? filters.currency.toUpperCase() : undefined,
+      journalEntry: {
+        status: { in: ["POSTED", "REVERSED"] },
+        deletedAt: null,
+        ...branchFilter,
+      },
+    };
+    const periodWhere: Prisma.JournalLineWhereInput = {
+      ...lineFilter,
+      journalEntry: {
+        ...(lineFilter.journalEntry as Prisma.JournalEntryWhereInput),
+        postingDate: { gte: from, lte: to },
+      },
+    };
+    const openingWhere: Prisma.JournalLineWhereInput | undefined = from
+      ? {
+          ...lineFilter,
+          journalEntry: {
+            ...(lineFilter.journalEntry as Prisma.JournalEntryWhereInput),
+            postingDate: { lt: from },
+          },
+        }
+      : undefined;
+
+    const [accounts, periodBalances, priorBalances] = await Promise.all([
+      new AccountsRepository(this.prisma).list(accountWhere),
+      this.prisma.journalLine.groupBy({
+        by: ["accountId"],
+        where: periodWhere,
+        _sum: { debit: true, credit: true },
+      }),
+      openingWhere
+        ? this.prisma.journalLine.groupBy({
+            by: ["accountId"],
+            where: openingWhere,
+            _sum: { debit: true, credit: true },
+          })
+        : Promise.resolve([]),
     ]);
-    const map = new Map(
-      balances.map((b) => [
-        b.accountId,
-        { debit: num(b._sum.debit), credit: num(b._sum.credit) },
-      ]),
-    );
-    const rows = accounts
-      .map((a) => ({
-        accountId: a.id,
-        code: a.code,
-        nameAr: a.nameAr,
-        nameEn: a.name,
-        accountType: a.type.toLowerCase(),
-        debit: round(map.get(a.id)?.debit || 0),
-        credit: round(map.get(a.id)?.credit || 0),
-        balance: round(
-          (map.get(a.id)?.debit || 0) - (map.get(a.id)?.credit || 0),
-        ),
-      }))
-      .filter((r) => r.debit || r.credit);
-    const totalDebit = round(rows.reduce((n, r) => n + r.debit, 0)),
-      totalCredit = round(rows.reduce((n, r) => n + r.credit, 0));
+    const periodMap = new Map(periodBalances.map((b) => [b.accountId, b._sum]));
+    const priorMap = new Map(priorBalances.map((b) => [b.accountId, b._sum]));
+    const childCount = new Map<string, number>();
+    for (const account of accounts) {
+      if (account.parentId) childCount.set(account.parentId, (childCount.get(account.parentId) || 0) + 1);
+    }
+
+    const allRows = accounts.map((account) => {
+      const configuredOpening =
+        !account.openingDate || !from || account.openingDate <= from
+          ? num(account.openingBalance) * (account.normalBalance.toUpperCase() === "CREDIT" ? -1 : 1)
+          : 0;
+      const prior = priorMap.get(account.id);
+      const period = periodMap.get(account.id);
+      const openingBalance = round(configuredOpening + num(prior?.debit) - num(prior?.credit));
+      const periodDebit = round(num(period?.debit));
+      const periodCredit = round(num(period?.credit));
+      const closingBalance = round(openingBalance + periodDebit - periodCredit);
+      const opening = splitBalance(openingBalance);
+      const closing = splitBalance(closingBalance);
+      return {
+        accountId: account.id,
+        parentId: account.parentId,
+        code: account.code,
+        nameAr: account.nameAr,
+        nameEn: account.name,
+        accountType: account.type.toLowerCase(),
+        isParent: childCount.has(account.id),
+        level: account.parentId ? 1 : 0,
+        openingBalance,
+        openingDebit: opening.debit,
+        openingCredit: opening.credit,
+        periodDebit,
+        periodCredit,
+        closingBalance,
+        closingDebit: closing.debit,
+        closingCredit: closing.credit,
+        // Backwards-compatible fields used by the dashboard and balance sheet.
+        debit: periodDebit,
+        credit: periodCredit,
+        balance: closingBalance,
+      };
+    });
+    const displayMode = filters.showZeroBalances ? "all" : filters.displayMode || "activity";
+    const rows = allRows.filter((row) => {
+      if (displayMode === "all") return true;
+      if (displayMode === "balance") return row.closingBalance !== 0;
+      return row.periodDebit !== 0 || row.periodCredit !== 0;
+    });
+    const totals = {
+      openingDebit: round(rows.reduce((sum, row) => sum + row.openingDebit, 0)),
+      openingCredit: round(rows.reduce((sum, row) => sum + row.openingCredit, 0)),
+      periodDebit: round(rows.reduce((sum, row) => sum + row.periodDebit, 0)),
+      periodCredit: round(rows.reduce((sum, row) => sum + row.periodCredit, 0)),
+      closingDebit: round(rows.reduce((sum, row) => sum + row.closingDebit, 0)),
+      closingCredit: round(rows.reduce((sum, row) => sum + row.closingCredit, 0)),
+    };
+    const totalDebit = totals.periodDebit;
+    const totalCredit = totals.periodCredit;
     return {
       rows,
+      totals,
       totalDebit,
       totalCredit,
       balanced: totalDebit === totalCredit,
-      fromDate: from || "",
-      toDate: to || "",
+      fromDate: filters.fromDate || "",
+      toDate: filters.toDate || "",
     };
   }
   async ledger(accountId: string, from?: string, to?: string) {
@@ -101,7 +228,7 @@ export class FinancialStatementsService {
     };
   }
   async balanceSheet(to?: string) {
-    const tb = await this.trialBalance(undefined, to);
+    const tb = await this.trialBalance({ toDate: to, displayMode: "balance" });
     const totals: any = { asset: 0, liability: 0, equity: 0 };
     for (const row of tb.rows)
       if (row.accountType === "asset") totals.asset += row.balance;
