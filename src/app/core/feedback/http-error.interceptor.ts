@@ -1,6 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, throwError } from 'rxjs';
+import { catchError, retry, throwError, timer } from 'rxjs';
 import { FeedbackService } from './feedback.service';
 import { I18nService } from '../i18n/i18n.service';
 
@@ -19,6 +19,12 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
   const feedback = inject(FeedbackService);
   const i18n = inject(I18nService);
   return next(req).pipe(
+    retry({
+      count: 4,
+      delay: (error: unknown, retryCount: number) => isSafeTransientRead(req.method, error)
+        ? timer(Math.min(750 * (2 ** (retryCount - 1)), 6000))
+        : throwError(() => error),
+    }),
     catchError((error: unknown) => {
       if (!(error instanceof HttpErrorResponse)) return throwError(() => error);
 
@@ -45,7 +51,9 @@ function mapHttpError(error: HttpErrorResponse, i18n: I18nService): { message: s
       : error.status === 403 ? 'error.permission_denied'
       : error.status === 404 ? 'error.not_found'
       : [400, 409, 422].includes(error.status) ? 'error.validation_error'
-      : 'error.database_unavailable';
+      : error.status === 504 ? 'error.request_timeout'
+      : [0, 502, 503].includes(error.status) ? 'error.service_unavailable'
+      : 'error.server_error';
     return { message: i18n.t(genericKey), errorCode, requestId };
   }
   if (safeMessage) return { message: safeMessage, errorCode, requestId };
@@ -60,7 +68,9 @@ function mapHttpError(error: HttpErrorResponse, i18n: I18nService): { message: s
     422: 'This action cannot be completed because a business rule was not met.',
     429: 'Too many requests. Please wait and try again.',
     500: 'The server could not complete the request. Please try again.',
-    503: 'The service is temporarily unavailable. Please try again.'
+    502: 'The service is starting. Please wait and try again.',
+    503: 'The service is temporarily unavailable. Please try again.',
+    504: 'The request took too long. Please try again.'
   };
 
   return {
@@ -68,6 +78,13 @@ function mapHttpError(error: HttpErrorResponse, i18n: I18nService): { message: s
     errorCode,
     requestId
   };
+}
+
+function isSafeTransientRead(method: string, error: unknown): boolean {
+  if (!['GET', 'HEAD'].includes(method.toUpperCase()) || !(error instanceof HttpErrorResponse)) return false;
+  const code = String(error.error?.errorCode || '');
+  return [0, 502, 503, 504].includes(error.status)
+    || ['DATABASE_UNAVAILABLE', 'SERVICE_UNAVAILABLE', 'TRANSACTION_TIMEOUT'].includes(code);
 }
 
 function shouldShowHttpError(url: string, status: number): boolean {
@@ -92,7 +109,9 @@ function statusCodeToErrorCode(status: number): string {
     422: 'BUSINESS_RULE_FAILED',
     429: 'RATE_LIMITED',
     500: 'SERVER_ERROR',
-    503: 'SERVICE_UNAVAILABLE'
+    502: 'SERVICE_UNAVAILABLE',
+    503: 'SERVICE_UNAVAILABLE',
+    504: 'TRANSACTION_TIMEOUT'
   };
   return map[status] || 'REQUEST_FAILED';
 }

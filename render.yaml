@@ -21,6 +21,14 @@ services:
         value: postgres
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_USE_NEON_POOLER
+        value: "true"
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "3"
+      - key: DATABASE_POOL_TIMEOUT
+        value: "20"
+      - key: DATABASE_CONNECT_TIMEOUT
+        value: "15"
       - key: BUILD_VERSION
         value: render
       - key: CORS_ORIGIN

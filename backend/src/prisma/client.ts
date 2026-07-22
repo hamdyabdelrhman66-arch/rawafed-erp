@@ -1,19 +1,21 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { requestContext } from "../observability/request-context.js";
+import { buildRuntimeDatabaseUrl } from "./database-url.js";
 
-const databaseUrl = () => {
-  const raw = process.env.DATABASE_URL || "";
-  if (!raw) return undefined;
-  const url = new URL(raw);
-  if (!url.searchParams.has("connection_limit")) url.searchParams.set("connection_limit", process.env.DATABASE_CONNECTION_LIMIT || "5");
-  if (!url.searchParams.has("pool_timeout")) url.searchParams.set("pool_timeout", process.env.DATABASE_POOL_TIMEOUT || "10");
-  if (!url.searchParams.has("connect_timeout")) url.searchParams.set("connect_timeout", process.env.DATABASE_CONNECT_TIMEOUT || "10");
-  return url.toString();
-};
+export const runtimeDatabaseUrl = () => buildRuntimeDatabaseUrl(
+  process.env.DATABASE_URL || "",
+  {
+    poolUrl: process.env.DATABASE_POOL_URL,
+    useNeonPooler: process.env.DATABASE_USE_NEON_POOLER !== "false",
+    connectionLimit: process.env.DATABASE_CONNECTION_LIMIT,
+    poolTimeout: process.env.DATABASE_POOL_TIMEOUT,
+    connectTimeout: process.env.DATABASE_CONNECT_TIMEOUT,
+  },
+);
 
 const createClient = () =>
   new PrismaClient({
-    datasourceUrl: databaseUrl(),
+    datasourceUrl: runtimeDatabaseUrl(),
     log: [
       { emit: "event", level: "query" },
       { emit: "stdout", level: "error" },
