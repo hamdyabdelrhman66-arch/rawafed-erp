@@ -167,7 +167,10 @@ export class ReceivablesService {
       where: { id, deletedAt: null },
       include: {
         receivableAccount: true,
-        student: { include: { financeAccount: { select: { id: true } } } },
+        student: { include: { financeAccount: { select: {
+          id: true, expectedTotal: true,
+          discounts: { where: { status: "APPROVED" }, select: { id: true, calculatedAmount: true, reason: true, effectiveDate: true, creditNoteNumber: true } },
+        } } } },
         payments: {
           where: { deletedAt: null },
           orderBy: { paidAt: "desc" },
@@ -176,7 +179,7 @@ export class ReceivablesService {
           include: {
             invoices: {
               where: { deletedAt: null, status: { not: "VOID" } },
-              include: { lines: true },
+              include: { lines: true, studentDiscounts: { where: { status: "APPROVED" } } },
               orderBy: { issuedAt: "desc" },
             },
             payments: {
@@ -211,11 +214,15 @@ export class ReceivablesService {
       (sum: number, invoice: any) => sum + Number(invoice.total),
       0,
     );
+    const approvedDiscounts = customer.student?.financeAccount?.discounts || [];
+    const grossFees = Number(customer.student?.financeAccount?.expectedTotal ?? invoiceTotal);
+    const totalDiscounts = approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0);
+    const netFees = Math.max(grossFees - totalDiscounts, 0);
     const paymentTotal = payments.reduce(
       (sum: number, payment: any) => sum + Number(payment.amount),
       0,
     );
-    const balance = Math.round((invoiceTotal - paymentTotal) * 100) / 100;
+    const balance = Math.round((netFees - paymentTotal) * 100) / 100;
     const activePlan = customer.installmentPlans?.[0];
     const planInstallments = activePlan?.installments || [];
     const now = new Date();
@@ -244,6 +251,9 @@ export class ReceivablesService {
       receivableNameEn: customer.receivableAccount.name,
       status: customer.active ? "active" : "inactive",
       summary: {
+        grossFees,
+        totalDiscounts,
+        netFees,
         currentBalance: balance,
         outstanding: Math.max(balance, 0),
         credit: Math.max(-balance, 0),
@@ -259,6 +269,10 @@ export class ReceivablesService {
         nextInstallmentAmount: nextInstallment ? Number(nextInstallment.amount) - Number(nextInstallment.paidAmount) : 0,
         nextDueDate: nextInstallment?.dueDate?.toISOString().slice(0, 10) || null,
       },
+      discounts: approvedDiscounts.map((row: any) => ({
+        id: row.id, amount: Number(row.calculatedAmount), reason: row.reason,
+        effectiveDate: row.effectiveDate.toISOString().slice(0, 10), creditNoteNumber: row.creditNoteNumber,
+      })),
       invoices: invoices.map((invoice: any) => ({
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,

@@ -12,6 +12,7 @@ export class FinanceInvoicesRepository {
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
+        studentDiscounts: { where: { status: "APPROVED" }, include: { approvedBy: true } },
       },
       orderBy: { issuedAt: "desc" },
       skip,
@@ -39,6 +40,7 @@ export class FinanceInvoicesRepository {
           include: { createdBy: true, branch: true },
           orderBy: { createdAt: "asc" },
         },
+        studentDiscounts: { include: { requestedBy: true, approvedBy: true }, orderBy: { createdAt: "asc" } },
       },
     });
   }
@@ -51,6 +53,7 @@ export class FinanceInvoicesRepository {
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
+        studentDiscounts: { where: { status: "APPROVED" } },
       },
     });
   }
@@ -67,6 +70,7 @@ export class FinanceInvoicesRepository {
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
+        studentDiscounts: { where: { status: "APPROVED" } },
       },
       orderBy: { issuedAt: "asc" },
     });
@@ -78,6 +82,7 @@ export class FinanceInvoicesRepository {
         account: { include: { student: { include: { customer: true } }, registration: true } },
         lines: { include: { revenueAccount: true } },
         payments: { where: { payment: { status: "COMPLETED", deletedAt: null } } },
+        studentDiscounts: { where: { status: "APPROVED" } },
       },
       orderBy: { issuedAt: "asc" },
     });
@@ -94,6 +99,7 @@ export class FinanceInvoicesRepository {
         payments: {
           where: { payment: { status: "COMPLETED", deletedAt: null } },
         },
+        studentDiscounts: { where: { status: "APPROVED" } },
       },
     });
   }

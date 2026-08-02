@@ -39,6 +39,19 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum StudentDiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum StudentDiscountStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 model Role {
   id          String           @id @default(uuid()) @db.Uuid
   name        String           @unique
@@ -88,6 +101,10 @@ model User {
   payrollRuns         PayrollRun[]         @relation("PayrollCreator")
   reportTemplates     ReportTemplate[]
   notificationReads   NotificationRead[]
+  requestedStudentDiscounts StudentDiscount[] @relation("StudentDiscountRequester")
+  approvedStudentDiscounts  StudentDiscount[] @relation("StudentDiscountApprover")
+  rejectedStudentDiscounts  StudentDiscount[] @relation("StudentDiscountRejecter")
+  cancelledStudentDiscounts StudentDiscount[] @relation("StudentDiscountCanceller")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   deletedAt           DateTime?            @map("deleted_at")
@@ -153,6 +170,7 @@ model Branch {
   fixedAssets        FixedAsset[]
   assetTransfersFrom FixedAssetTransfer[] @relation("AssetTransferFromBranch")
   assetTransfersTo   FixedAssetTransfer[] @relation("AssetTransferToBranch")
+  studentDiscounts   StudentDiscount[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
   deletedAt          DateTime?            @map("deleted_at")
@@ -171,6 +189,7 @@ model AcademicYear {
   active         Boolean        @default(false)
   registrations  Registration[]
   journalEntries JournalEntry[]
+  studentDiscounts StudentDiscount[]
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
   deletedAt      DateTime?      @map("deleted_at")
@@ -227,6 +246,7 @@ model Student {
   financeAccount     FinanceAccount?
   customer           AccountingCustomer?
   inventoryMovements StockMovement[]
+  discounts          StudentDiscount[]
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   deletedAt          DateTime?           @map("deleted_at")
@@ -247,6 +267,7 @@ model FinanceAccount {
   invoices       FinanceInvoice[]
   payments       FinancePayment[]
   feeItems       FinanceAccountFeeItem[]
+  discounts      StudentDiscount[]
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
   deletedAt      DateTime?               @map("deleted_at")
@@ -303,6 +324,7 @@ model FinanceInvoice {
   lines           InvoiceLine[]
   payments        PaymentAllocation[]
   journalEntries  JournalEntry[]
+  studentDiscounts StudentDiscount[]
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
   deletedAt       DateTime?           @map("deleted_at")
@@ -404,6 +426,7 @@ model FinancePayment {
   allocations     PaymentAllocation[]
   feeAllocations  PaymentFeeAllocation[]
   journalEntries  JournalEntry[]
+  studentDiscounts StudentDiscount[]
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @updatedAt @map("updated_at")
   deletedAt       DateTime?              @map("deleted_at")
@@ -440,6 +463,61 @@ model PaymentAllocation {
   @@unique([paymentId, invoiceId])
   @@index([invoiceId])
   @@map("payment_allocations")
+}
+
+model StudentDiscount {
+  id                 String                @id @default(uuid()) @db.Uuid
+  idempotencyKey     String                @unique @map("idempotency_key")
+  studentId          String                @map("student_id") @db.Uuid
+  student            Student               @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  accountId          String                @map("account_id") @db.Uuid
+  account            FinanceAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  invoiceId          String?               @map("invoice_id") @db.Uuid
+  invoice            FinanceInvoice?       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  academicYearId     String?               @map("academic_year_id") @db.Uuid
+  academicYear       AcademicYear?         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  branchId           String                @map("branch_id") @db.Uuid
+  branch             Branch                @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  discountType       StudentDiscountType   @map("discount_type")
+  discountValue      Decimal               @map("discount_value") @db.Decimal(14, 4)
+  calculatedAmount   Decimal               @map("calculated_amount") @db.Decimal(14, 2)
+  baseAmount         Decimal               @map("base_amount") @db.Decimal(14, 2)
+  vatAmount          Decimal               @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  governmentBorneVat Decimal               @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  reason             String
+  notes              String?
+  effectiveDate      DateTime              @map("effective_date") @db.Date
+  status             StudentDiscountStatus @default(PENDING_APPROVAL)
+  source             String                @default("PAYMENT_PAGE")
+  approvalReference  String?               @map("approval_reference")
+  creditNoteNumber   String?               @unique @map("credit_note_number")
+  paymentId          String?               @map("payment_id") @db.Uuid
+  payment            FinancePayment?       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  requestedById      String?               @map("requested_by_id") @db.Uuid
+  requestedBy        User?                 @relation("StudentDiscountRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedById       String?               @map("approved_by_id") @db.Uuid
+  approvedBy         User?                 @relation("StudentDiscountApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt         DateTime?             @map("approved_at")
+  rejectedById       String?               @map("rejected_by_id") @db.Uuid
+  rejectedBy         User?                 @relation("StudentDiscountRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt         DateTime?             @map("rejected_at")
+  rejectionReason    String?               @map("rejection_reason")
+  cancelledById      String?               @map("cancelled_by_id") @db.Uuid
+  cancelledBy        User?                 @relation("StudentDiscountCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledAt        DateTime?             @map("cancelled_at")
+  cancellationReason String?               @map("cancellation_reason")
+  journalEntryId     String?               @unique @map("journal_entry_id") @db.Uuid
+  journalEntry       JournalEntry?         @relation("StudentDiscountApprovalJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  reversalJournalId  String?               @unique @map("reversal_journal_id") @db.Uuid
+  reversalJournal    JournalEntry?         @relation("StudentDiscountReversalJournal", fields: [reversalJournalId], references: [id], onDelete: Restrict)
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  @@index([studentId, status, effectiveDate])
+  @@index([accountId, status])
+  @@index([invoiceId, status])
+  @@index([branchId, academicYearId])
+  @@map("student_discounts")
 }
 
 model FinanceExpense {
@@ -566,6 +644,8 @@ model JournalEntry {
   acquiredAsset           FixedAsset?
   assetDepreciation       FixedAssetDepreciation?
   assetDisposal           FixedAssetDisposal?
+  approvedStudentDiscount StudentDiscount?         @relation("StudentDiscountApprovalJournal")
+  reversedStudentDiscount StudentDiscount?         @relation("StudentDiscountReversalJournal")
   lines                   JournalLine[]
   createdAt               DateTime                @default(now()) @map("created_at")
   updatedAt               DateTime                @updatedAt @map("updated_at")

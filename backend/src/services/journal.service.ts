@@ -14,6 +14,8 @@ export interface PostingLine {
   costCenterId?: string;
 }
 export interface Posting {
+  branchId?: string;
+  academicYearId?: string;
   referenceNumber?: string;
   postingDate: string | Date;
   description: string;
@@ -93,9 +95,9 @@ export class JournalService {
     const repo = new JournalsRepository(db);
     const existing = await repo.bySource(input.sourceType, input.sourceId);
     if (existing) return shape(existing);
-    const branch = await db.branch.findFirst({
-      where: { active: true, deletedAt: null },
-    });
+    const branch = input.branchId
+      ? await db.branch.findFirst({ where: { id: input.branchId, active: true, deletedAt: null } })
+      : await db.branch.findFirst({ where: { active: true, deletedAt: null } });
     if (!branch)
       throw new ServiceError("Active branch is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
     await ensureOpenPeriod(db, branch.id, new Date(input.postingDate), actor.role);
@@ -107,6 +109,7 @@ export class JournalService {
         id: randomUUID(),
         entryNumber: `${prefix}${String(next).padStart(8, "0")}`,
         branchId: branch.id,
+        academicYearId: input.academicYearId,
         postingDate: new Date(input.postingDate),
         journalDate: new Date(input.postingDate),
         description: input.description,

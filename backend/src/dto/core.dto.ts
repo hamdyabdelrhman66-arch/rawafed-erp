@@ -29,4 +29,14 @@ export interface PaymentInput {
   referenceNumber?: string;
   notes?: string;
   lines?: Array<{ feeItem: string; amount: number }>;
+  additionalDiscount?: {
+    invoiceId?: string;
+    discountType: "FIXED" | "PERCENTAGE";
+    discountValue: number;
+    reason: string;
+    notes?: string;
+    effectiveDate: string;
+    approvalReference?: string;
+    idempotencyKey: string;
+  };
 }

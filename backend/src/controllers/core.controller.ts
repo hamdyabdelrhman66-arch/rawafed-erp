@@ -11,6 +11,7 @@ import { UploadsService } from "../services/uploads.service.js";
 import { UsersService } from "../services/users.service.js";
 import { ServiceError } from "../services/service.error.js";
 import { requestSecurityContext } from "../security/security-utils.js";
+import { StudentDiscountService } from "../services/student-discount.service.js";
 
 type CoreRequest = AuthRequest & { params: Record<string, string> };
 export const asyncController =
@@ -36,6 +37,7 @@ export class CoreController {
   private settings;
   private uploads;
   private finance;
+  private discounts;
   constructor(prisma: PrismaClient) {
     this.auth = new AuthService(prisma);
     this.users = new UsersService(prisma);
@@ -45,6 +47,7 @@ export class CoreController {
     this.settings = SettingsService.using(prisma);
     this.uploads = new UploadsService(prisma);
     this.finance = new FinanceService(prisma);
+    this.discounts = new StudentDiscountService(prisma);
   }
   login = asyncController(async (req, res) =>
     res.json(await this.auth.login(req.body.username, req.body.password, requestSecurityContext(req))),
@@ -225,6 +228,21 @@ export class CoreController {
     res
       .status(201)
       .json(await this.finance.createPayment(req.body, actor(req))),
+  );
+  studentDiscounts = asyncController(async (req, res) =>
+    res.json(await this.discounts.list(req.params.studentId, actor(req))),
+  );
+  createStudentDiscount = asyncController(async (req, res) =>
+    res.status(201).json(await this.discounts.create(req.params.studentId, req.body, actor(req))),
+  );
+  approveStudentDiscount = asyncController(async (req, res) =>
+    res.json(await this.discounts.approve(req.params.id, actor(req))),
+  );
+  rejectStudentDiscount = asyncController(async (req, res) =>
+    res.json(await this.discounts.reject(req.params.id, req.body.reason, actor(req))),
+  );
+  cancelStudentDiscount = asyncController(async (req, res) =>
+    res.json(await this.discounts.cancel(req.params.id, req.body.reason, actor(req))),
   );
   revenueMappings = asyncController(async (_req, res) =>
     res.json(await this.finance.revenueMappings()),

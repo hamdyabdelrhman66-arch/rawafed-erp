@@ -201,6 +201,39 @@ export function postgresCoreRoutes(
     validate(validators.payment),
     c.createPayment,
   );
+  r.get(
+    "/api/students/:studentId/discounts",
+    ...secured,
+    requirePermission(prisma, "student_discount.view"),
+    c.studentDiscounts,
+  );
+  r.post(
+    "/api/students/:studentId/discounts",
+    ...secured,
+    requirePermission(prisma, "student_discount.create"),
+    validate(validators.studentDiscount),
+    c.createStudentDiscount,
+  );
+  r.post(
+    "/api/student-discounts/:id/approve",
+    ...secured,
+    requirePermission(prisma, "student_discount.approve"),
+    c.approveStudentDiscount,
+  );
+  r.post(
+    "/api/student-discounts/:id/reject",
+    ...secured,
+    requirePermission(prisma, "student_discount.approve"),
+    validate(validators.discountDecision),
+    c.rejectStudentDiscount,
+  );
+  r.post(
+    "/api/student-discounts/:id/cancel",
+    ...secured,
+    requirePermission(prisma, "student_discount.cancel"),
+    validate(validators.discountDecision),
+    c.cancelStudentDiscount,
+  );
   r.get("/api/finance/revenue-mappings", ...secured, requireRole(["Finance"]), c.revenueMappings);
   r.put("/api/finance/revenue-mappings/:category", ...secured, requireRole(["Finance Manager"]), c.updateRevenueMapping);
   r.get("/api/finance/direct-costs", ...secured, requireRole(["Finance"]), c.directCosts);

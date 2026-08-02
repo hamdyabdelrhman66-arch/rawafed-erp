@@ -25,10 +25,12 @@ export class FinanceAccountsRepository {
             payments: {
               where: { payment: { status: "COMPLETED", deletedAt: null } },
             },
+            studentDiscounts: { where: { status: "APPROVED" } },
           },
           orderBy: { issuedAt: "asc" },
         },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -58,10 +60,12 @@ export class FinanceAccountsRepository {
             payments: {
               where: { payment: { status: "COMPLETED", deletedAt: null } },
             },
+            studentDiscounts: { where: { status: "APPROVED" } },
           },
           orderBy: { issuedAt: "asc" },
         },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
     });
   }
@@ -83,10 +87,12 @@ export class FinanceAccountsRepository {
           include: {
             lines: true,
             payments: { where: { payment: { status: "COMPLETED", deletedAt: null } } },
+            studentDiscounts: { where: { status: "APPROVED" } },
           },
           orderBy: { issuedAt: "asc" },
         },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
     });
   }
@@ -113,10 +119,12 @@ export class FinanceAccountsRepository {
             payments: {
               where: { payment: { status: "COMPLETED", deletedAt: null } },
             },
+            studentDiscounts: { where: { status: "APPROVED" } },
           },
           orderBy: { issuedAt: "asc" },
         },
         payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
     });
   }

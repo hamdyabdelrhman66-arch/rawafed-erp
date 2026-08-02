@@ -130,8 +130,29 @@ export const payment = z
       )
       .min(1)
       .optional(),
+    additionalDiscount: z.object({
+      invoiceId: z.string().uuid().optional(),
+      discountType: z.enum(["FIXED", "PERCENTAGE"]),
+      discountValue: z.coerce.number().positive().max(10000000),
+      reason: z.string().trim().min(1, "يجب توضيح سبب الخصم.").max(1000),
+      notes: z.string().max(2000).optional(),
+      effectiveDate: z.union([z.string().date(), z.string().datetime()]),
+      approvalReference: z.string().max(160).optional(),
+      idempotencyKey: z.string().uuid(),
+    }).strict().optional(),
   })
   .strict();
+export const studentDiscount = z.object({
+  invoiceId: z.string().uuid().optional(),
+  discountType: z.enum(["FIXED", "PERCENTAGE"]),
+  discountValue: z.coerce.number().positive().max(10000000),
+  reason: z.string().trim().min(1, "يجب توضيح سبب الخصم.").max(1000),
+  notes: z.string().max(2000).optional(),
+  effectiveDate: z.union([z.string().date(), z.string().datetime()]),
+  approvalReference: z.string().max(160).optional(),
+  idempotencyKey: z.string().uuid(),
+}).strict();
+export const discountDecision = z.object({ reason: z.string().trim().min(1).max(1000) }).strict();
 export const invoice = z.object({
   id: z.union([z.string().uuid(), z.number()]).optional(),
   accountId: z.union([z.string().uuid(), z.number()]).optional(),

@@ -19,6 +19,7 @@ import { nextInvoiceNumber } from "./invoice-number.service.js";
 import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
 import { classifyPaymentError } from "./payment-error.js";
 import { schoolProfileUsing } from "./school-settings.service.js";
+import { createStudentDiscountUsing, shapeStudentDiscount } from "./student-discount.service.js";
 
 const paidForAccount = (account: any) =>
   money(
@@ -35,8 +36,12 @@ const studentTaxIdentity = (student: any) => {
 };
 const accountShape = (a: any) => {
   const paid = paidForAccount(a);
-  const expected = money(a.expectedTotal);
-  const remaining = money(Math.max(expected - paid, 0));
+  const grossFees = money(a.expectedTotal);
+  const totalDiscounts = money((a.discounts || []).reduce(
+    (sum: number, discount: any) => sum + Number(discount.calculatedAmount), 0,
+  ));
+  const netFees = money(Math.max(grossFees - totalDiscounts, 0));
+  const remaining = money(Math.max(netFees - paid, 0));
   const allocatedByItem = (a.feeItems || []).map((item: any) =>
     money(
       (item.paymentAllocations || []).reduce(
@@ -100,8 +105,15 @@ const accountShape = (a: any) => {
     vat,
     totalVat: money(vat + governmentBorneVat),
     governmentBorneVat,
-    total: expected,
-    expectedTotal: expected,
+    grossFees,
+    previousDiscounts: totalDiscounts,
+    totalDiscounts,
+    netFees,
+    total: netFees,
+    expectedTotal: grossFees,
+    originalPlanAmount: money(plan?.totalAmount ? Number(plan.totalAmount) + totalDiscounts : grossFees),
+    discountAmount: totalDiscounts,
+    netPlanAmount: money(plan?.totalAmount || netFees),
     paid,
     remaining,
     status: remaining <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid",
@@ -121,6 +133,7 @@ const accountShape = (a: any) => {
     })),
     openInvoices: (a.invoices || []).map((invoice: any) => {
       const invoicePaid = money((invoice.payments || []).reduce((sum: number, allocation: any) => sum + Number(allocation.amount), 0));
+      const invoiceDiscount = money((invoice.studentDiscounts || []).reduce((sum: number, discount: any) => sum + Number(discount.calculatedAmount), 0));
       return {
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
@@ -128,11 +141,15 @@ const accountShape = (a: any) => {
         issuedAt: invoice.issuedAt.toISOString(),
         dueAt: invoice.dueAt?.toISOString() || null,
         total: money(invoice.total),
+        grossTotal: money(invoice.total),
+        discounts: invoiceDiscount,
+        netTotal: money(Math.max(Number(invoice.total) - invoiceDiscount, 0)),
         paid: invoicePaid,
-        remaining: money(Math.max(Number(invoice.total) - invoicePaid, 0)),
+        remaining: money(Math.max(Number(invoice.total) - invoiceDiscount - invoicePaid, 0)),
         status: invoice.status,
       };
     }),
+    hasOutstandingWithoutInvoice: remaining > 0 && !(a.invoices || []).length,
     feeItems,
     canonicalInvoiceId: a.invoices?.[0]?.id,
     createdAt: a.createdAt.toISOString(),
@@ -144,6 +161,13 @@ const invoiceShape = (i: any) => {
     i.payments.reduce((n: number, p: any) => n + Number(p.amount), 0),
   );
   const total = money(i.total);
+  const additionalDiscount = money((i.studentDiscounts || []).filter((row: any) => row.status === "APPROVED").reduce(
+    (sum: number, row: any) => sum + Number(row.calculatedAmount), 0,
+  ));
+  const additionalBaseDiscount = money((i.studentDiscounts || []).filter((row: any) => row.status === "APPROVED").reduce((sum: number, row: any) => sum + Number(row.baseAmount), 0));
+  const additionalVatDiscount = money((i.studentDiscounts || []).filter((row: any) => row.status === "APPROVED").reduce((sum: number, row: any) => sum + Number(row.vatAmount), 0));
+  const additionalGovernmentVatDiscount = money((i.studentDiscounts || []).filter((row: any) => row.status === "APPROVED").reduce((sum: number, row: any) => sum + Number(row.governmentBorneVat), 0));
+  const netTotal = money(Math.max(total - additionalDiscount, 0));
   return {
     id: i.id,
     accountId: i.accountId,
@@ -158,18 +182,21 @@ const invoiceShape = (i: any) => {
     category: i.serviceCategory || "LEGACY_COMBINED",
     categoryLabel: categoryLabel(i.serviceCategory || "LEGACY_COMBINED"),
     subtotal: money(i.subtotal),
-    discount: money(i.discount),
+    discount: money(Number(i.discount || 0) + additionalBaseDiscount),
+    additionalDiscount,
+    totalDiscounts: money(Number(i.discount || 0) + additionalDiscount),
     amountBeforeVat: money(i.subtotal),
-    vat: money(i.vatAmount),
-    governmentBorneVat: money(i.governmentBorneVat),
-    parentPayable: money(i.parentPayable ?? i.total),
+    vat: money(Math.max(Number(i.vatAmount) - additionalVatDiscount, 0)),
+    governmentBorneVat: money(Math.max(Number(i.governmentBorneVat) - additionalGovernmentVatDiscount, 0)),
+    parentPayable: netTotal,
     taxTreatment: i.taxTreatment || "STANDARD",
     taxReason: i.taxReason || null,
     total,
-    totalInvoice: total,
+    netTotal,
+    totalInvoice: netTotal,
     vatExempt: isSaudiNationalId(i.account.student.nationalId),
     paid,
-    remaining: money(Math.max(total - paid, 0)),
+    remaining: money(Math.max(netTotal - paid, 0)),
     paymentMethod: "",
     accountingAccountId: i.lines[0]?.revenueAccountId || null,
     accountingAccount: i.lines[0]?.revenueAccount ? `${i.lines[0].revenueAccount.code} - ${i.lines[0].revenueAccount.name}` : "",
@@ -177,7 +204,11 @@ const invoiceShape = (i: any) => {
     branchId: i.branchId || null,
     vatStatus: i.taxTreatment || (Number(i.vatAmount) > 0 ? "STANDARD_15" : "EXEMPT"),
     legacyCombined: Boolean(i.legacyCombined),
-    status: i.status === "VOID" ? "Void" : paid >= total ? "Paid" : paid > 0 ? "Partially Paid" : "Pending",
+    status: i.status === "VOID" ? "Void" : paid >= netTotal ? "Paid" : paid > 0 || additionalDiscount > 0 ? "Partially Paid" : "Pending",
+    studentDiscounts: (i.studentDiscounts || []).map((row: any) => ({
+      id: row.id, status: row.status, amount: money(row.calculatedAmount), reason: row.reason,
+      creditNoteNumber: row.creditNoteNumber, effectiveDate: row.effectiveDate?.toISOString?.().slice(0, 10),
+    })),
     issuedAt: i.issuedAt.toISOString(),
     dueAt: i.dueAt?.toISOString(),
     createdAt: i.createdAt.toISOString(),
@@ -365,10 +396,16 @@ export class FinanceService {
     const profile = (student.profile || {}) as Record<string, any>;
     const paid = money(invoice.payments.reduce((sum: number, row: any) => sum + Number(row.amount), 0));
     const subtotal = money(invoice.subtotal);
-    const discount = money(invoice.discount);
+    const approvedDiscounts = invoice.studentDiscounts.filter((row: any) => row.status === "APPROVED");
+    const additionalBaseDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.baseAmount), 0));
+    const additionalVatDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.vatAmount), 0));
+    const additionalGovernmentVatDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.governmentBorneVat), 0));
+    const additionalDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
+    const discount = money(Number(invoice.discount) + additionalBaseDiscount);
     const taxableSubtotal = money(Math.max(subtotal - discount, 0));
-    const vatAmount = money(invoice.vatAmount);
-    const total = money(invoice.total);
+    const vatAmount = money(Math.max(Number(invoice.vatAmount) - additionalVatDiscount, 0));
+    const grossTotal = money(invoice.total);
+    const total = money(Math.max(grossTotal - additionalDiscount, 0));
     const primaryJournal = invoice.journalEntries.find((row: any) => row.sourceType === "invoice" || row.invoiceId === invoice.id)
       || invoice.journalEntries[0]
       || null;
@@ -442,9 +479,11 @@ export class FinanceService {
         taxableSubtotal,
         vatRate: taxableSubtotal > 0 ? Math.round((vatAmount / taxableSubtotal) * 10000) / 100 : 0,
         vatAmount,
-        totalVat: money(vatAmount + Number(invoice.governmentBorneVat || 0)),
-        governmentBorneVat: money(invoice.governmentBorneVat),
-        parentPayable: money(invoice.parentPayable ?? invoice.total),
+        totalVat: money(vatAmount + Math.max(Number(invoice.governmentBorneVat || 0) - additionalGovernmentVatDiscount, 0)),
+        governmentBorneVat: money(Math.max(Number(invoice.governmentBorneVat || 0) - additionalGovernmentVatDiscount, 0)),
+        grossTotal,
+        additionalDiscount,
+        parentPayable: total,
         taxTreatment: invoice.taxTreatment || "STANDARD",
         taxReason: invoice.taxReason || null,
         total,
@@ -463,6 +502,10 @@ export class FinanceService {
         referenceNumber: allocation.payment.referenceNumber,
         status: allocation.payment.status,
         amount: money(allocation.amount),
+      })),
+      discounts: approvedDiscounts.map((row: any) => ({
+        id: row.id, amount: money(row.calculatedAmount), baseAmount: money(row.baseAmount), vatAmount: money(row.vatAmount),
+        reason: row.reason, creditNoteNumber: row.creditNoteNumber, effectiveDate: row.effectiveDate.toISOString().slice(0, 10),
       })),
       journal: primaryJournal ? {
         id: primaryJournal.id,
@@ -652,6 +695,16 @@ export class FinanceService {
       const customer = await tx.accountingCustomer.findUnique({ where: { studentId: account.studentId } });
       if (!customer) throw new ServiceError("Student receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
 
+      let discount: any = null;
+      if (input.additionalDiscount) {
+        transactionStep = "STUDENT_DISCOUNT";
+        discount = await createStudentDiscountUsing(tx, account.id, {
+          ...input.additionalDiscount,
+          invoiceId: input.additionalDiscount.invoiceId || input.invoiceId,
+          source: "PAYMENT_PAGE",
+        }, actor);
+        if (discount.status === "APPROVED") account.discounts.push(discount);
+      }
       const amount = money(input.amount);
       const shaped = accountShape(account);
       if (amount <= 0) throw new ServiceError("Payment amount must be greater than zero.", 422);
@@ -784,7 +837,8 @@ export class FinanceService {
         const previousPaid = money(invoice.payments.reduce((sum: number, allocation: any) => sum + Number(allocation.amount), 0));
         const existing = affected.get(invoice.id);
         const allocated = money((existing?.allocated || 0) + selectedAmount);
-        if (allocated > money(Number(invoice.total) - previousPaid))
+        const invoiceDiscounts = money((invoice.studentDiscounts || []).reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
+        if (allocated > money(Number(invoice.total) - invoiceDiscounts - previousPaid))
           throw new ServiceError(`Payment exceeds the ${categoryLabel(category)} invoice balance.`, 422, "INVOICE_OVERPAYMENT");
         affected.set(invoice.id, { invoice, previousPaid, allocated, receivableAccountId });
       }
@@ -808,6 +862,7 @@ export class FinanceService {
         invoiceAllocations,
         feeAllocations,
       });
+      if (discount) await tx.studentDiscount.update({ where: { id: discount.id }, data: { paymentId: payment.id } });
       transactionStep = "INSTALLMENT_UPDATE";
       await allocateInstallmentPayment(tx, customer.id, amount);
       transactionStep = "STUDENT_BALANCE_UPDATE";
@@ -851,6 +906,7 @@ export class FinanceService {
       }));
       return {
         payment: paymentShape(payment),
+        discount: discount ? shapeStudentDiscount(discount) : null,
         account: accountShape({ ...account, payments: [...account.payments, payment] }),
         invoice: invoiceResults[0],
         invoices: invoiceResults,
@@ -998,11 +1054,25 @@ export class FinanceService {
             "Invoice does not belong to finance account.",
             422,
           );
+        let discount: any = null;
+        if (input.additionalDiscount) {
+          transactionStep = "STUDENT_DISCOUNT";
+          discount = await createStudentDiscountUsing(tx, account.id, {
+            ...input.additionalDiscount,
+            invoiceId: input.additionalDiscount.invoiceId || invoice.id,
+            source: "PAYMENT_PAGE",
+          }, actor);
+          if (discount.status === "APPROVED") {
+            account.discounts.push(discount);
+            invoice.studentDiscounts = [...(invoice.studentDiscounts || []), discount];
+          }
+        }
         const already = money(
           (await new FinancePaymentsRepository(tx).paidForInvoice(invoice.id))
             ._sum.amount,
         );
-        const remaining = money(Number(invoice.total) - already);
+        const approvedInvoiceDiscounts = money((invoice.studentDiscounts || []).filter((row: any) => row.status === "APPROVED").reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
+        const remaining = money(Number(invoice.total) - approvedInvoiceDiscounts - already);
         const amount = money(input.amount);
         if (amount <= 0)
           throw new ServiceError(
@@ -1082,6 +1152,7 @@ export class FinanceService {
           invoiceId: invoice.id,
           feeAllocations,
         });
+        if (discount) await tx.studentDiscount.update({ where: { id: discount.id }, data: { paymentId: payment.id } });
         transactionStep = "INSTALLMENT_UPDATE";
         await allocateInstallmentPayment(tx, customer.id, amount);
         transactionStep = "STUDENT_BALANCE_UPDATE";
@@ -1140,6 +1211,7 @@ export class FinanceService {
         });
         return {
           payment: paymentShape(payment),
+          discount: discount ? shapeStudentDiscount(discount) : null,
           account: accountShape({
             ...account,
             payments: [...account.payments, payment],
