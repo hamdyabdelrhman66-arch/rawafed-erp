@@ -98,6 +98,17 @@ export class InvoiceDetailView implements OnInit {
     const red = [187, 47, 43] as const;
     const muted = [96, 103, 122] as const;
     const money = (value: number) => `${Number(value || 0).toFixed(2)} ${detail.totals.currency}`;
+    const isNoVat = Number(detail.totals.vatRate || 0) === 0;
+
+const parentVat = isNoVat
+  ? 0
+  : Number(detail.totals.vatAmount || 0);
+
+const lineParentVat = (row: any): number =>
+  isNoVat ? 0 : Number(row.vatAmount || 0);
+
+const lineParentTotal = (row: any): number =>
+  Number(row.netAmount || 0) + lineParentVat(row);
     const infoCell = (x: number, y: number, width: number, label: string, value: unknown) => {
       pdf.setDrawColor(215, 222, 234); pdf.rect(x, y, width, 16);
       pdf.setFontSize(6.5); pdf.setTextColor(...muted); pdf.text(tx(label), rtl ? x + width - 4 : x + 4, y + 5, { align: rtl ? 'right' : 'left' });
@@ -136,19 +147,7 @@ export class InvoiceDetailView implements OnInit {
     infoCell(135, 90, 60, this.i18n.t('common.phone'), detail.student.guardianPhone || '-');
 
     let y = 115;
-    const columns = rtl ? [195, 123, 103, 76, 48, 15] : [15, 87, 107, 134, 162, 195];
-    const alignments: Array<'left' | 'right' | 'center'> = rtl ? ['right', 'right', 'right', 'right', 'right', 'left'] : ['left', 'left', 'left', 'left', 'left', 'right'];
-    const headers = [this.i18n.t('common.description'), this.i18n.t('invoice.quantity'), this.i18n.t('invoice.unit_price'), this.i18n.t('invoice.subtotal'), this.i18n.t('invoice.vat'), this.i18n.t('common.total')];
-    pdf.setFillColor(...navy); pdf.rect(15, y - 7, 180, 10, 'F');
-    pdf.setTextColor(255, 255, 255); pdf.setFontSize(7);
-    headers.forEach((header, index) => pdf.text(tx(header), columns[index], y, { align: alignments[index] }));
-    y += 10;
-    for (const row of detail.lines) {
-      pdf.setTextColor(15, 23, 42); pdf.setFontSize(detail.lines.length > 7 ? 6.3 : 7.2);
-      const values = [tx(row.description), String(row.quantity), row.unitPrice.toFixed(2), row.netAmount.toFixed(2), (row.vatAmount + row.governmentBorneVat).toFixed(2), row.totalAmount.toFixed(2)];
-      values.forEach((value, index) => pdf.text(value, columns[index], y, { align: alignments[index], maxWidth: index === 0 ? 67 : 27 }));
-      pdf.setDrawColor(226, 232, 240); pdf.line(15, y + 3, 195, y + 3); y += detail.lines.length > 7 ? 7 : 9;
-    }
+
     const summaryY = Math.max(164, y + 8);
     const qr = await this.invoiceQr(detail);
     pdf.setDrawColor(223, 189, 104); pdf.roundedRect(15, summaryY, 58, 58, 2, 2);
@@ -156,8 +155,11 @@ export class InvoiceDetailView implements OnInit {
     const totals: Array<[string, number, 'normal' | 'grand' | 'remaining']> = [
       [this.i18n.t('invoice.subtotal'), detail.totals.subtotal, 'normal'],
       ...(detail.totals.discount ? [[this.i18n.t('invoice.discount'), -detail.totals.discount, 'normal'] as [string, number, 'normal']] : []),
-      [`${this.i18n.t('invoice.vat')} (${detail.totals.vatRate}%)`, detail.totals.totalVat, 'normal'],
-      [this.i18n.t('common.total'), detail.totals.parentPayable, 'grand'],
+[
+  `${this.i18n.t('invoice.vat')} (${isNoVat ? 0 : Number(detail.totals.vatRate || 0)}%)`,
+  parentVat,
+  'normal'
+],      [this.i18n.t('common.total'), detail.totals.parentPayable, 'grand'],
       [this.i18n.t('customer.amount_paid'), detail.totals.paid, 'normal'],
       [this.i18n.t('customer.remaining'), detail.totals.remaining, 'remaining'],
     ];
@@ -183,9 +185,9 @@ export class InvoiceDetailView implements OnInit {
       sellerName: detail.school.nameAr || detail.school.nameEn || this.zatcaInvoice.sellerName,
       taxNumber: detail.school.vatNumber || this.zatcaInvoice.taxNumber,
       date: detail.invoice.issuedAt,
-      total: Number(detail.totals.total ?? detail.totals.parentPayable ?? 0),
-      vat: Number(detail.totals.totalVat ?? detail.totals.vatAmount ?? 0),
-    });
+total: Number(detail.totals.parentPayable ?? detail.totals.total ?? 0),vat: Number(detail.totals.vatRate || 0) === 0
+  ? 0
+  : Number(detail.totals.vatAmount || 0),    });
     return QRCode.toDataURL(zatcaPayload, { margin: 1, width: 420 });
   }
 }
