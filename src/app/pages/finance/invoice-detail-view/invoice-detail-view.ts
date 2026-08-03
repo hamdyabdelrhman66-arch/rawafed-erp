@@ -89,11 +89,12 @@ export class InvoiceDetailView implements OnInit {
       pdf.addFont('Cairo.ttf', 'Cairo', 'normal');
       pdf.setFont('Cairo');
     }
-    const rtl = this.i18n.language() === 'ar';
-    const tx = (value: unknown) => {
-      const text = String(value ?? '-');
-      return rtl && (pdf as any).processArabic ? (pdf as any).processArabic(text) : text;
-    };
+   const rtl = this.i18n.language() === 'ar';
+
+const tx = (value: unknown): string =>
+  String(value ?? '-');
+
+pdf.setR2L(rtl);
     const navy = [32, 29, 93] as const;
     const red = [187, 47, 43] as const;
     const muted = [96, 103, 122] as const;
