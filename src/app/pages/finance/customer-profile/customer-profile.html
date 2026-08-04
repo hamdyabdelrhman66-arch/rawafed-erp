@@ -1,7 +1,7 @@
 <section class="profile-page" *ngIf="customer" [attr.dir]="i18n.direction()">
   <header class="page-header">
     <div>
-      <a routerLink="/finance/customers">{{ 'customer.back' | t }}</a>
+      <a class="profile-back" routerLink="/finance/customers"><span aria-hidden="true">→</span> {{ 'customer.back' | t }}</a>
       <span class="reference-text">{{ customer.customerCode }}</span>
       <h1>{{ i18n.language() === 'ar' ? (customer.nameAr || customer.nameEn) : customer.nameEn }}</h1>
       <p>{{ customer.registrationNumber }} · {{ customer.grade || '-' }} · {{ customer.parentLink || '-' }}</p>
@@ -14,13 +14,15 @@
 
   <section class="summary-grid">
     <article><span>{{ 'coa.current_balance' | t }}</span><strong>{{ money(customer.summary?.currentBalance) }}</strong></article>
-    <article><span>{{ 'customer.expected_total' | t }}</span><strong>{{ money(customer.summary?.invoiceTotal) }}</strong></article>
+    <article><span>{{ 'customer.expected_total' | t }}</span><strong>{{ money(customer.summary?.grossFees) }}</strong><small>{{ i18n.language() === 'ar' ? 'إجمالي الرسوم الأصلية' : 'Original gross fees' }}</small></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'إجمالي الخصومات' : 'Total discounts' }}</span><strong>{{ money(customer.summary?.totalDiscounts) }}</strong><small>{{ i18n.language() === 'ar' ? 'خصومات معتمدة فقط' : 'Approved only' }}</small></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'صافي الرسوم' : 'Net fees' }}</span><strong>{{ money(customer.summary?.netFees) }}</strong></article>
     <article><span>{{ 'customer.amount_paid' | t }}</span><strong>{{ money(customer.summary?.paymentTotal) }}</strong></article>
     <article><span>{{ 'customer.remaining' | t }}</span><strong>{{ money(customer.summary?.outstanding) }}</strong></article>
     <article><span>{{ 'customer.overdue' | t }}</span><strong>{{ money(customer.summary?.overdue) }}</strong></article>
     <article><span>{{ 'customer.invoice_count' | t }}</span><strong>{{ customer.summary?.invoicesCount || 0 }}</strong></article>
     <article><span>{{ 'customer.payment_count' | t }}</span><strong>{{ customer.summary?.paymentsCount || 0 }}</strong></article>
-    <article><span>{{ 'customer.next_due' | t }}</span><strong>{{ customer.summary?.nextDueDate || '-' }}</strong></article>
+    <article><span>{{ 'customer.next_due' | t }}</span><strong>{{ customer.summary?.nextDueDate || (i18n.language() === 'ar' ? 'غير محدد' : 'Not set') }}</strong></article>
   </section>
 
   <nav class="tabs" [attr.aria-label]="'customer.tabs' | t">
@@ -35,8 +37,8 @@
   <section class="panel" *ngIf="tab === 'overview'">
     <h2>{{ 'customer.accounting_profile' | t }}</h2>
     <div class="info-grid">
-      <p><span>{{ 'coa.arabic_name' | t }}</span>{{ customer.nameAr || '-' }}</p>
-      <p><span>{{ 'coa.english_name' | t }}</span>{{ customer.nameEn || '-' }}</p>
+      <p><span>{{ 'coa.arabic_name' | t }}</span>{{ customer.nameAr || (i18n.language() === 'ar' ? 'غير مسجل' : 'Not registered') }}</p>
+      <p><span>{{ 'coa.english_name' | t }}</span>{{ customer.nameEn || (i18n.language() === 'ar' ? 'غير مسجل' : 'Not registered') }}</p>
       <p><span>{{ 'customer.registration' | t }}</span><bdi>{{ customer.registrationNumber || '-' }}</bdi></p>
       <p><span>{{ 'customer.grade' | t }}</span>{{ customer.grade || '-' }}</p>
       <p><span>{{ 'customer.guardian' | t }}</span>{{ customer.parentLink || '-' }}</p>

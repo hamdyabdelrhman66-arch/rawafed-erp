@@ -1,43 +1,39 @@
-<section class="customers-page">
+<section class="customers-page" [attr.dir]="i18n.direction()">
   <header class="page-header">
     <div>
-      <span>Accounts Receivable</span>
-      <h1>Customers AR</h1>
-      <p>Every approved student is synced as an accounting customer with a dedicated receivable account.</p>
+      <span>{{ l('Accounts Receivable', 'المدينون') }}</span>
+      <h1>{{ l('Customers / Students', 'العملاء / الطلاب') }}</h1>
+      <p>{{ l('Student receivable accounts, balances, discounts, invoices and payments.', 'حسابات الطلاب والأرصدة والخصومات والفواتير والمدفوعات.') }}</p>
     </div>
   </header>
 
   <section class="summary-grid">
-    <article><span>Customers</span><strong>{{ customers.length }}</strong></article>
-    <article><span>Outstanding</span><strong>{{ money(totals.outstanding) }}</strong></article>
-    <article><span>Credit</span><strong>{{ money(totals.credit) }}</strong></article>
-    <article><span>Invoices</span><strong>{{ money(totals.invoices) }}</strong></article>
-    <article><span>Payments</span><strong>{{ money(totals.payments) }}</strong></article>
+    <article><span>{{ l('Students', 'الطلاب') }}</span><strong>{{ customers.length }}</strong></article>
+    <article><span>{{ l('Outstanding', 'المتبقي') }}</span><strong>{{ money(totals.outstanding) }}</strong></article>
+    <article><span>{{ l('Credit', 'الرصيد الدائن') }}</span><strong>{{ money(totals.credit) }}</strong></article>
+    <article><span>{{ l('Invoices', 'الفواتير') }}</span><strong>{{ money(totals.invoices) }}</strong></article>
+    <article><span>{{ l('Payments', 'المدفوعات') }}</span><strong>{{ money(totals.payments) }}</strong></article>
   </section>
 
   <section class="table-card">
     <div class="table-title">
       <div>
-        <h2>Customer Directory</h2>
-        <p>{{ filteredCustomers.length }} records</p>
+        <h2>{{ l('Student Accounts', 'حسابات الطلاب') }}</h2>
+        <p>{{ filteredCustomers.length }} {{ l('records', 'سجل') }}</p>
       </div>
-      <input type="search" placeholder="Search student, parent, ID, phone, invoice..." [(ngModel)]="searchText" />
+      <div class="filter-bar">
+        <input type="search" [placeholder]="l('Search name, registration, ID or phone...', 'ابحث بالاسم أو التسجيل أو الهوية أو الجوال...')" [(ngModel)]="searchText" />
+        <select [(ngModel)]="gradeFilter"><option value="">{{ l('All grades', 'كل الصفوف') }}</option><option *ngFor="let grade of grades" [value]="grade">{{ grade }}</option></select>
+        <select [(ngModel)]="balanceFilter"><option value="all">{{ l('All balances', 'كل الأرصدة') }}</option><option value="outstanding">{{ l('Outstanding', 'عليه رصيد') }}</option><option value="settled">{{ l('Settled', 'مسدد') }}</option></select>
+        <button type="button" (click)="resetFilters()">{{ l('Reset', 'مسح الفلاتر') }}</button>
+      </div>
     </div>
 
     <div class="table-scroll">
       <table>
         <thead>
           <tr>
-            <th>Code</th>
-            <th>Student / Parent</th>
-            <th>Registration</th>
-            <th>Contact</th>
-            <th>AR Account</th>
-            <th>Outstanding</th>
-            <th>Credit</th>
-            <th>Invoices</th>
-            <th>Payments</th>
-            <th>Action</th>
+            <th>{{ l('Code', 'الكود') }}</th><th>{{ l('Student / Parent', 'الطالب / ولي الأمر') }}</th><th>{{ l('Registration', 'رقم التسجيل') }}</th><th>{{ l('Contact', 'التواصل') }}</th><th>{{ l('Gross fees', 'إجمالي الرسوم') }}</th><th>{{ l('Discounts', 'الخصومات') }}</th><th>{{ l('Net fees', 'صافي الرسوم') }}</th><th>{{ l('Paid', 'المدفوع') }}</th><th>{{ l('Outstanding', 'المتبقي') }}</th><th>{{ l('Actions', 'الإجراءات') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -55,15 +51,12 @@
               {{ customer.phone || '-' }}
               <small>{{ customer.email || customer.nationalId || '-' }}</small>
             </td>
-            <td>{{ customer.receivableCode || '-' }}</td>
-            <td>{{ money(customer.summary?.outstanding) }}</td>
-            <td>{{ money(customer.summary?.credit) }}</td>
-            <td>{{ customer.summary?.invoicesCount || 0 }}</td>
-            <td>{{ customer.summary?.paymentsCount || 0 }}</td>
-            <td><a class="button-link" [routerLink]="['/finance/customers', customer.id]">Open</a></td>
+            <td>{{ money(customer.summary?.grossFees) }}</td><td>{{ money(customer.summary?.totalDiscounts) }}</td><td>{{ money(customer.summary?.netFees) }}</td><td>{{ money(customer.summary?.paymentTotal) }}</td><td>{{ money(customer.summary?.outstanding) }}</td>
+            <td class="row-actions"><a class="button-link" [routerLink]="['/finance/customers', customer.id]">{{ l('Open account', 'فتح الحساب') }}</a><a [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, source: 'student-profile', customerId: customer.id }">{{ l('Record payment', 'تسجيل دفعة') }}</a></td>
           </tr>
-          <tr *ngIf="!filteredCustomers.length">
-            <td colspan="10" class="empty-cell">No AR customers found.</td>
+          <tr *ngIf="loading"><td colspan="10" class="empty-cell">{{ l('Loading student accounts...', 'جاري تحميل حسابات الطلاب...') }}</td></tr>
+          <tr *ngIf="!loading && !filteredCustomers.length">
+            <td colspan="10" class="empty-cell">{{ l('No matching student accounts.', 'لا توجد حسابات طلاب مطابقة.') }}</td>
           </tr>
         </tbody>
       </table>

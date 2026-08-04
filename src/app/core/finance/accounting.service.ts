@@ -67,7 +67,8 @@ export interface InvoiceDetail {
   invoice: any;
   student: any;
   lines: any[];
-  totals: { subtotal: number; discount: number; taxableSubtotal: number; vatRate: number; vatAmount: number; totalVat: number; governmentBorneVat: number; parentPayable: number; taxTreatment: string; taxReason?: string; total: number; paid: number; remaining: number; currency: string; vatStatus: string };
+  totals: { subtotal: number; discount: number; additionalDiscount?: number; grossTotal?: number; taxableSubtotal: number; vatRate: number; vatAmount: number; totalVat: number; governmentBorneVat: number; parentPayable: number; taxTreatment: string; taxReason?: string; total: number; paid: number; remaining: number; currency: string; vatStatus: string };
+  discounts?: Array<{ id: string; amount: number; baseAmount: number; vatAmount: number; reason: string; creditNoteNumber?: string; effectiveDate: string }>;
   categoryDetails: Record<string, unknown>;
   allocations: any[];
   journal: any | null;

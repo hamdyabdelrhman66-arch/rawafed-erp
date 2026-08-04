@@ -1,14 +1,12 @@
 <header class="page-header">
   <div>
-    <button class="back-link" type="button" (click)="goBack()">‹ {{ l('Back', 'رجوع') }}</button>
+    <button class="back-link" type="button" (click)="goBack()" [disabled]="saving" [attr.aria-label]="l('Back', 'رجوع')">
+      <span aria-hidden="true">→</span><span>{{ l('Back', 'رجوع') }}</span>
+    </button>
     <span>{{ l('Payments & Receipts', 'المدفوعات والإيصالات') }}</span>
     <h1>{{ l('Add Student Payment', 'إضافة دفعة طالب') }}</h1>
     <p>{{ l('Select a student, review the grade fees, then record one or more paid items in the same receipt.', 'اختر طالبًا وراجع رسوم الصف، ثم سجّل بندًا واحدًا أو أكثر في الإيصال نفسه.') }}</p>
   </div>
-
-  <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving || loadingStudent || !selectedAccount">
-    {{ saving ? l('Saving...', 'جاري الحفظ...') : l('Save Payment', 'حفظ الدفعة') }}
-  </button>
 </header>
 
 <div class="context-state" *ngIf="loadingAccounts || loadingStudent">
@@ -59,6 +57,37 @@
   </div>
 </section>
 
+<section class="info-card discount-card" *ngIf="selectedAccount && !loadingStudent">
+  <div class="section-title discount-heading">
+    <div>
+      <h2>{{ l('Additional Student Discount', 'خصم إضافي للطالب') }}</h2>
+      <p>{{ l('A discount is recorded separately and never counted as cash received.', 'يُسجّل الخصم بصورة مستقلة ولا يُحتسب كدفعة نقدية.') }}</p>
+    </div>
+    <label class="discount-toggle">
+      <input type="checkbox" [(ngModel)]="additionalDiscountEnabled" />
+      <span>{{ l('Apply additional discount', 'تطبيق خصم إضافي') }}</span>
+    </label>
+  </div>
+  <div class="info-grid" *ngIf="additionalDiscountEnabled">
+    <div class="form-group"><label for="discountType">{{ l('Discount type', 'نوع الخصم') }}</label><select id="discountType" [(ngModel)]="discountType"><option value="FIXED">{{ l('Fixed amount', 'مبلغ ثابت') }}</option><option value="PERCENTAGE">{{ l('Percentage', 'نسبة مئوية') }}</option></select></div>
+    <div class="form-group"><label for="discountValue">{{ l('Discount value', 'قيمة الخصم') }}</label><input id="discountValue" type="number" min="0.01" [max]="discountType === 'PERCENTAGE' ? 100 : outstanding" [(ngModel)]="discountValue" /></div>
+    <div class="form-group wide"><label for="discountReason">{{ l('Discount reason', 'سبب الخصم') }} *</label><input id="discountReason" [(ngModel)]="discountReason" [placeholder]="l('Required', 'مطلوب')" /></div>
+    <div class="form-group"><label for="discountDate">{{ l('Effective date', 'تاريخ السريان') }}</label><input id="discountDate" type="date" [(ngModel)]="discountEffectiveDate" /></div>
+    <div class="form-group"><label for="approvalReference">{{ l('Approval reference', 'مرجع الموافقة') }}</label><input id="approvalReference" [(ngModel)]="approvalReference" [placeholder]="l('Optional', 'اختياري')" /></div>
+    <div class="form-group wide"><label for="discountNotes">{{ l('Discount notes', 'ملاحظات الخصم') }}</label><textarea id="discountNotes" rows="3" [(ngModel)]="discountNotes"></textarea></div>
+  </div>
+  <div class="discount-summary" *ngIf="additionalDiscountEnabled">
+    <div><span>{{ l('Gross fees', 'المصروفات الأساسية') }}</span><strong>{{ grossFees | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Previous discounts', 'الخصومات السابقة') }}</span><strong>{{ previousDiscounts | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Additional discount', 'الخصم الإضافي') }}</span><strong>{{ calculatedAdditionalDiscount | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Total discounts', 'إجمالي الخصومات') }}</span><strong>{{ totalDiscounts | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Net fees', 'صافي المبلغ المستحق') }}</span><strong>{{ netFeesAfterDiscount | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Previously paid', 'المبلغ المدفوع سابقًا') }}</span><strong>{{ selectedAccount.paid | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Current payment', 'مبلغ الدفعة الحالية') }}</span><strong>{{ totalPaymentAmount | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div class="emphasis"><span>{{ l('Balance after payment', 'الرصيد بعد تسجيل الدفعة') }}</span><strong>{{ outstandingAfterPayment | number:'1.2-2' }} {{ currency() }}</strong></div>
+  </div>
+</section>
+
 <section class="info-card account-context" *ngIf="selectedAccount && !loadingStudent">
   <div>
     <h2>{{ l('Payment Plan & Installments', 'خطة الدفع والأقساط') }}</h2>
@@ -69,7 +98,8 @@
   <div>
     <h2>{{ l('Open Invoices', 'الفواتير المفتوحة') }}</h2>
     <p *ngFor="let invoice of selectedAccount.openInvoices"><bdi>{{ invoice.invoiceNumber }}</bdi> · {{ invoice.remaining | number }} {{ currency() }}</p>
-    <p *ngIf="!selectedAccount.openInvoices?.length">{{ l('No open invoices.', 'لا توجد فواتير مفتوحة.') }}</p>
+    <p *ngIf="!selectedAccount.openInvoices?.length && selectedAccount.hasOutstandingWithoutInvoice" class="invoice-warning">{{ l('An outstanding balance exists, but no invoice has been issued yet.', 'يوجد رصيد مستحق ولكن لم يتم إصدار فاتورة بعد.') }}</p>
+    <p *ngIf="!selectedAccount.openInvoices?.length && !selectedAccount.hasOutstandingWithoutInvoice">{{ l('No open invoices.', 'لا توجد فواتير مفتوحة.') }}</p>
   </div>
   <div class="preload-note" *ngIf="selectedInvoice || selectedInstallment">
     {{ selectedInvoice ? l('Invoice allocation preloaded', 'تم تحميل توزيع الفاتورة') : l('Installment allocation preloaded', 'تم تحميل القسط المحدد') }}
@@ -188,6 +218,11 @@
     <h2>{{ outstandingAfterPayment | number }} {{ currency() }}</h2>
   </article>
 </section>
+
+<div class="financial-action-bar" *ngIf="selectedAccount && !loadingStudent">
+  <button class="secondary-action" type="button" (click)="cancel()" [disabled]="saving">{{ l('Cancel', 'إلغاء') }}</button>
+  <button class="save-btn" type="button" (click)="savePayment()" [disabled]="saving || loadingStudent || !selectedAccount || totalPaymentAmount <= 0">{{ saving ? l('Saving payment...', 'جارٍ حفظ الدفعة...') : l('Save Payment', 'حفظ الدفعة') }}</button>
+</div>
 
 <section class="info-card" *ngIf="selectedAccount && !loadingStudent">
   <h2>{{ l('Previous Payments', 'الدفعات السابقة') }}</h2>

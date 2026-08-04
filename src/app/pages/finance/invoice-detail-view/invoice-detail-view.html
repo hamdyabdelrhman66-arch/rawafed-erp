@@ -1,63 +1,296 @@
 <section class="invoice-page" [attr.dir]="i18n.direction()">
-  <div class="state-card" *ngIf="loading">{{ 'common.loading' | t }}</div>
-  <div class="state-card error" *ngIf="!loading && error"><h1>{{ 'invoice.unavailable' | t }}</h1><p>{{ error }}</p><a routerLink="/finance/invoices">{{ 'invoice.back_to_list' | t }}</a></div>
+  <div class="state-card" *ngIf="loading">
+    {{ 'common.loading' | t }}
+  </div>
+
+  <div class="state-card error" *ngIf="!loading && error">
+    <h1>{{ 'invoice.unavailable' | t }}</h1>
+    <p>{{ error }}</p>
+    <a routerLink="/finance/invoices">
+      {{ 'invoice.back_to_list' | t }}
+    </a>
+  </div>
 
   <ng-container *ngIf="detail as data">
+    <!-- Screen actions only. This header is excluded from PDF and printing. -->
     <header class="screen-toolbar no-print">
-      <div><a routerLink="/finance/invoices">‹ {{ 'invoice.back_to_list' | t }}</a><span>/</span><bdi>{{ data.invoice.invoiceNumber }}</bdi></div>
-      <div class="toolbar-actions"><a class="primary" [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: data.student.id, invoiceId: data.invoice.id }">{{ 'finance_accounts.record_payment' | t }}</a><button type="button" (click)="print()" [disabled]="busy">{{ 'common.print' | t }}</button><button class="primary" type="button" (click)="downloadPdf()" [disabled]="busy">{{ 'invoice.download_pdf' | t }}</button></div>
+      <div class="toolbar-path">
+        <a routerLink="/finance/invoices">
+          ‹ {{ 'invoice.back_to_list' | t }}
+        </a>
+        <span>/</span>
+        <bdi>{{ data.invoice.invoiceNumber }}</bdi>
+      </div>
+
+      <div class="toolbar-actions">
+        <a
+          class="primary"
+          [routerLink]="['/finance/add-payment']"
+          [queryParams]="{
+            studentId: data.student.id,
+            invoiceId: data.invoice.id
+          }"
+        >
+          {{ 'finance_accounts.record_payment' | t }}
+        </a>
+
+        <button type="button" (click)="print()" [disabled]="busy">
+          {{ 'common.print' | t }}
+        </button>
+
+        <button
+          class="primary"
+          type="button"
+          (click)="downloadPdf()"
+          [disabled]="busy"
+        >
+          {{ 'invoice.download_pdf' | t }}
+        </button>
+      </div>
     </header>
 
-    <article class="invoice-document">
+    <!--
+      This exact element is used for BOTH:
+      1. Download PDF
+      2. Browser printing
+      Do not place toolbar, sidebar or screen-only buttons inside it.
+    -->
+    <article id="invoice-print-content" class="invoice-document">
       <div class="brand-edge brand-edge-top" aria-hidden="true"></div>
 
       <header class="invoice-header">
         <div class="document-title">
-          <span>{{ 'invoice.tax_invoice' | t }}</span>
-          <strong><bdi>{{ data.invoice.invoiceNumber }}</bdi></strong>
-          <em class="status" [attr.data-status]="data.invoice.status">{{ i18n.status(data.invoice.status) }}</em>
+          <span>{{ invoiceTitle() }}</span>
+
+          <strong>
+            <bdi>{{ data.invoice.invoiceNumber }}</bdi>
+          </strong>
+
+          <em
+            class="status"
+            [attr.data-status]="data.invoice.status"
+          >
+            {{ i18n.status(data.invoice.status) }}
+          </em>
         </div>
+
         <div class="school">
           <span class="school-kicker">RAWAFED INTERNATIONAL SCHOOL</span>
-          <h1>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</h1>
-          <p>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</p>
-          <p class="school-contact"><bdi>{{ data.school.phone || '' }}</bdi><span *ngIf="data.school.phone && data.school.email"> · </span><bdi>{{ data.school.email || '' }}</bdi></p>
-          <p *ngIf="data.school.vatNumber">{{ 'invoice.vat_number' | t }}: <bdi>{{ data.school.vatNumber }}</bdi></p>
+
+          <h1>
+            {{
+              i18n.language() === 'ar'
+                ? data.school.nameAr
+                : data.school.nameEn
+            }}
+          </h1>
+
+          <p>
+            {{
+              i18n.language() === 'ar'
+                ? data.school.addressAr
+                : data.school.addressEn
+            }}
+          </p>
+
+          <p class="school-contact">
+            <bdi>{{ data.school.phone || '' }}</bdi>
+            <span *ngIf="data.school.phone && data.school.email"> · </span>
+            <bdi>{{ data.school.email || '' }}</bdi>
+          </p>
+
+          <p *ngIf="data.school.vatNumber">
+            {{ 'invoice.vat_number' | t }}:
+            <bdi>{{ data.school.vatNumber }}</bdi>
+          </p>
         </div>
-        <div class="brand-logo"><img [src]="data.school.logoUrl" [alt]="data.school.nameEn" /></div>
+
+        <div class="brand-logo">
+          <img
+            [src]="data.school.logoUrl"
+            [alt]="data.school.nameEn"
+            crossorigin="anonymous"
+          />
+        </div>
       </header>
 
       <section class="meta-grid">
-        <div><span>{{ 'common.date' | t }}</span><strong>{{ date(data.invoice.issuedAt) }}</strong></div>
-        <div><span>{{ 'invoice.due_date' | t }}</span><strong>{{ date(data.invoice.dueAt) }}</strong></div>
-        <div><span>{{ 'invoice.category' | t }}</span><strong>{{ data.invoice.categoryLabel }}</strong></div>
-      </section>
+        <div>
+          <span>{{ 'common.date' | t }}</span>
+          <strong>{{ date(data.invoice.issuedAt) }}</strong>
+        </div>
 
-      <section class="student-card">
-        <div><span>{{ 'common.student' | t }}</span><strong>{{ i18n.language() === 'ar' ? (data.student.nameAr || data.student.nameEn) : data.student.nameEn }}</strong></div>
-        <div><span>{{ 'customer.registration' | t }}</span><strong><bdi>{{ data.student.registrationNumber || '-' }}</bdi></strong></div>
-        <div><span>{{ 'customer.grade' | t }}</span><strong>{{ data.student.grade || '-' }}</strong></div>
-        <div><span>{{ 'customer.national_id' | t }}</span><strong><bdi>{{ data.student.nationalId || '-' }}</bdi></strong></div>
-        <div><span>{{ 'customer.guardian' | t }}</span><strong>{{ data.student.guardianName || '-' }}</strong></div>
-        <div><span>{{ 'common.phone' | t }}</span><strong><bdi>{{ data.student.guardianPhone || '-' }}</bdi></strong></div>
-      </section>
+        <div>
+          <span>{{ 'invoice.due_date' | t }}</span>
+          <strong>{{ date(data.invoice.dueAt) }}</strong>
+        </div>
 
-      <div class="table-scroll"><table class="line-table"><thead><tr><th>{{ 'common.description' | t }}</th><th>{{ 'invoice.quantity' | t }}</th><th>{{ 'invoice.unit_price' | t }}</th><th>{{ 'invoice.subtotal' | t }}</th><th>{{ 'invoice.vat' | t }}</th><th>{{ 'common.total' | t }}</th></tr></thead>
-        <tbody><tr *ngFor="let line of data.lines"><td><strong>{{ line.description }}</strong></td><td>{{ line.quantity }}</td><td>{{ money(line.unitPrice) }}</td><td>{{ money(line.netAmount) }}</td><td>{{ money(line.vatAmount + line.governmentBorneVat) }} <small>({{ line.vatRate }}%)</small></td><td>{{ money(line.totalAmount) }}</td></tr></tbody></table></div>
-
-      <section class="invoice-summary">
-        <div class="qr-panel"><img *ngIf="qrImage" [src]="qrImage" [alt]="'invoice.qr' | t" /><small>{{ i18n.language() === 'ar' ? 'امسح للتحقق من بيانات الفاتورة' : 'Scan to verify invoice details' }}</small></div>
-        <div class="totals">
-          <p><span>{{ 'invoice.subtotal' | t }}</span><strong>{{ money(data.totals.subtotal) }}</strong></p>
-          <p *ngIf="data.totals.discount"><span>{{ 'invoice.discount' | t }}</span><strong>- {{ money(data.totals.discount) }}</strong></p>
-          <p><span>{{ 'invoice.vat' | t }} ({{ data.totals.vatRate }}%)</span><strong>{{ money(data.totals.totalVat) }}</strong></p>
-          <p class="grand"><span>{{ 'common.total' | t }}</span><strong>{{ money(data.totals.parentPayable) }}</strong></p>
-          <p><span>{{ 'customer.amount_paid' | t }}</span><strong>{{ money(data.totals.paid) }}</strong></p>
-          <p class="remaining"><span>{{ 'customer.remaining' | t }}</span><strong>{{ money(data.totals.remaining) }}</strong></p>
+        <div>
+          <span>{{ 'invoice.category' | t }}</span>
+          <strong>{{ data.invoice.categoryLabel }}</strong>
         </div>
       </section>
 
-      <footer class="invoice-footer"><strong>{{ i18n.language() === 'ar' ? data.school.nameAr : data.school.nameEn }}</strong><span>{{ i18n.language() === 'ar' ? data.school.addressAr : data.school.addressEn }}</span><span><bdi>{{ data.school.phone || '' }}</bdi><i *ngIf="data.school.phone && data.school.email"> · </i><bdi>{{ data.school.email || '' }}</bdi></span></footer>
+      <section class="student-card">
+        <div>
+          <span>{{ 'common.student' | t }}</span>
+          <strong>
+            {{
+              i18n.language() === 'ar'
+                ? (data.student.nameAr || data.student.nameEn)
+                : data.student.nameEn
+            }}
+          </strong>
+        </div>
+
+        <div>
+          <span>{{ 'customer.registration' | t }}</span>
+          <strong>
+            <bdi>{{ data.student.registrationNumber || '-' }}</bdi>
+          </strong>
+        </div>
+
+        <div>
+          <span>{{ 'customer.grade' | t }}</span>
+          <strong>{{ data.student.grade || '-' }}</strong>
+        </div>
+
+        <div>
+          <span>{{ 'customer.national_id' | t }}</span>
+          <strong>
+            <bdi>{{ data.student.nationalId || '-' }}</bdi>
+          </strong>
+        </div>
+
+        <div>
+          <span>{{ 'customer.guardian' | t }}</span>
+          <strong>{{ data.student.guardianName || '-' }}</strong>
+        </div>
+
+        <div>
+          <span>{{ 'common.phone' | t }}</span>
+          <strong>
+            <bdi>{{ data.student.guardianPhone || '-' }}</bdi>
+          </strong>
+        </div>
+      </section>
+
+      <div class="table-scroll">
+        <table class="line-table">
+          <thead>
+            <tr>
+              <th>{{ 'common.description' | t }}</th>
+              <th>{{ 'invoice.quantity' | t }}</th>
+              <th>{{ 'invoice.unit_price' | t }}</th>
+              <th>{{ 'invoice.subtotal' | t }}</th>
+              <th>{{ 'invoice.vat' | t }}</th>
+              <th>{{ 'common.total' | t }}</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let line of data.lines">
+              <td>
+                <strong>{{ line.description }}</strong>
+              </td>
+              <td>{{ line.quantity }}</td>
+              <td>{{ money(line.unitPrice) }}</td>
+              <td>{{ money(line.netAmount) }}</td>
+              <td>
+                {{ money(lineVat(line)) }}
+                <small>({{ isNoVat() ? 0 : line.vatRate }}%)</small>
+              </td>
+              <td>
+                {{ money(lineTotal(line)) }}
+              </td>
+            </tr>
+
+            <tr *ngIf="!data.lines.length">
+              <td class="empty-cell" colspan="6">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <section class="invoice-summary">
+        <div class="qr-panel">
+          <img
+            *ngIf="qrImage"
+            [src]="qrImage"
+            [alt]="'invoice.qr' | t"
+          />
+
+          <small>
+            {{
+              i18n.language() === 'ar'
+                ? 'امسح للتحقق من بيانات الفاتورة'
+                : 'Scan to verify invoice details'
+            }}
+          </small>
+        </div>
+
+        <div class="totals">
+          <p>
+            <span>{{ 'invoice.subtotal' | t }}</span>
+            <strong>{{ money(data.totals.subtotal) }}</strong>
+          </p>
+
+          <p *ngIf="data.totals.discount">
+            <span>{{ 'invoice.discount' | t }}</span>
+            <strong>- {{ money(data.totals.discount) }}</strong>
+          </p>
+
+          <p>
+            <span>
+              {{ 'invoice.vat' | t }}
+              ({{ displayedVatRate() }}%)
+            </span>
+            <strong>
+              {{ money(displayedInvoiceVat()) }}
+            </strong>
+          </p>
+
+          <p class="grand">
+            <span>{{ 'common.total' | t }}</span>
+            <strong>{{ money(data.totals.parentPayable) }}</strong>
+          </p>
+
+          <p>
+            <span>{{ 'customer.amount_paid' | t }}</span>
+            <strong>{{ money(data.totals.paid) }}</strong>
+          </p>
+
+          <p class="remaining">
+            <span>{{ 'customer.remaining' | t }}</span>
+            <strong>{{ money(data.totals.remaining) }}</strong>
+          </p>
+        </div>
+      </section>
+
+      <footer class="invoice-footer">
+        <strong>
+          {{
+            i18n.language() === 'ar'
+              ? data.school.nameAr
+              : data.school.nameEn
+          }}
+        </strong>
+
+        <span>
+          {{
+            i18n.language() === 'ar'
+              ? data.school.addressAr
+              : data.school.addressEn
+          }}
+        </span>
+
+        <span>
+          <bdi>{{ data.school.phone || '' }}</bdi>
+          <i *ngIf="data.school.phone && data.school.email"> · </i>
+          <bdi>{{ data.school.email || '' }}</bdi>
+        </span>
+      </footer>
+
       <div class="brand-edge brand-edge-bottom" aria-hidden="true"></div>
     </article>
   </ng-container>

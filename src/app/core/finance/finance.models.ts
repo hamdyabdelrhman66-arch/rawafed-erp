@@ -22,6 +22,9 @@ export interface FinancePackage {
   sessionsPerWeek: number;
   expectedEndDate: string;
   total: number;
+  grossFees?: number;
+  totalDiscounts?: number;
+  netFees?: number;
   paid: number;
   remaining: number;
   usedSessions: number;
@@ -36,6 +39,10 @@ export interface FinancePackage {
   overdueInstallments?: number;
   nextInstallment?: number;
   nextDueDate?: string;
+  originalPlanAmount?: number;
+  discountAmount?: number;
+  netPlanAmount?: number;
+  hasOutstandingWithoutInvoice?: boolean;
   notificationStatus?: "new" | "seen";
   discountPercent?: number;
   registrationId?: string;
@@ -97,6 +104,8 @@ export interface FinanceInvoice {
   service: string;
   amount: number;
   discount?: number;
+  additionalDiscount?: number;
+  grossTotal?: number;
   vat?: number;
   total?: number;
   date: string;
@@ -131,6 +140,7 @@ export interface FinanceInvoice {
   costCenterId?: string;
   branchId?: string;
   legacyCombined?: boolean;
+  studentDiscounts?: Array<{ id: string; status: string; amount: number; reason: string; creditNoteNumber?: string; effectiveDate?: string }>;
 }
 
 export interface FinanceExpense {

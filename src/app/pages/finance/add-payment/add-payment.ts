@@ -47,6 +47,14 @@ export class AddPayment implements OnInit {
   contextError = "";
   selectedInvoice: any = null;
   selectedInstallment: any = null;
+  additionalDiscountEnabled = false;
+  discountType: "FIXED" | "PERCENTAGE" = "FIXED";
+  discountValue: number | null = null;
+  discountReason = "";
+  discountNotes = "";
+  discountEffectiveDate = this.paymentDate;
+  approvalReference = "";
+  private discountIdempotencyKey = "";
   private pendingReceiptNumber = "";
   readonly accountLabel = (account: any) =>
     account
@@ -115,8 +123,21 @@ export class AddPayment implements OnInit {
   }
 
   get outstandingAfterPayment(): number {
-    return Math.max(this.outstanding - this.totalPaymentAmount, 0);
+    return Math.max(this.outstandingAfterDiscount - this.totalPaymentAmount, 0);
   }
+
+  get grossFees(): number { return Number(this.selectedAccount?.grossFees ?? this.selectedAccount?.total ?? 0); }
+  get previousDiscounts(): number { return Number(this.selectedAccount?.totalDiscounts || 0); }
+  get calculatedAdditionalDiscount(): number {
+    if (!this.additionalDiscountEnabled || !this.discountValue || this.discountValue <= 0) return 0;
+    const amount = this.discountType === "PERCENTAGE"
+      ? this.grossFees * Math.min(this.discountValue, 100) / 100
+      : this.discountValue;
+    return this.money(Math.min(amount, Math.max(this.grossFees - this.previousDiscounts - Number(this.selectedAccount?.paid || 0), 0)));
+  }
+  get totalDiscounts(): number { return this.money(this.previousDiscounts + this.calculatedAdditionalDiscount); }
+  get netFeesAfterDiscount(): number { return this.money(Math.max(this.grossFees - this.totalDiscounts, 0)); }
+  get outstandingAfterDiscount(): number { return this.money(Math.max(this.netFeesAfterDiscount - Number(this.selectedAccount?.paid || 0), 0)); }
 
   get totalPaymentAmount(): number {
     return this.paymentLines.reduce(
@@ -129,6 +150,7 @@ export class AddPayment implements OnInit {
     this.pendingReceiptNumber = "";
     this.contextError = "";
     this.selectedAccount = account;
+    this.resetDiscount();
     this.paymentLines = this.buildPaymentLines();
     this.loadPreviousPayments();
   }
@@ -154,8 +176,18 @@ export class AddPayment implements OnInit {
       void this.router.navigate(['/finance/customers', customerId], { queryParams: { tab } });
       return;
     }
+    if (source === 'student-profile') {
+      void this.router.navigate(['/finance/customers'], { queryParams: { studentId: this.selectedAccount?.studentId || this.route.snapshot.queryParamMap.get('studentId') } });
+      return;
+    }
+    if (source === 'payments') {
+      void this.router.navigate(['/finance/payments'], { queryParams: { studentId: this.selectedAccount?.studentId || null } });
+      return;
+    }
     void this.router.navigate(['/finance/payments']);
   }
+
+  cancel(): void { this.goBack(); }
 
   payHalf(): void {
     const allocation = allocateHalf(this.paymentLines);
@@ -194,7 +226,18 @@ export class AddPayment implements OnInit {
     }
 
     const amount = this.totalPaymentAmount;
-    if (amount > this.outstanding) {
+    if (this.additionalDiscountEnabled) {
+      if (!this.discountValue || this.discountValue <= 0) {
+        this.feedback.validation(this.l("Discount value is required.", "يجب إدخال قيمة الخصم.")); return;
+      }
+      if (this.discountType === "PERCENTAGE" && this.discountValue > 100) {
+        this.feedback.validation(this.l("Percentage cannot exceed 100%.", "لا يمكن أن تتجاوز نسبة الخصم 100%.")); return;
+      }
+      if (!this.discountReason.trim()) {
+        this.feedback.validation(this.l("Discount reason is required.", "يجب توضيح سبب الخصم.")); return;
+      }
+    }
+    if (amount > this.outstandingAfterDiscount) {
       this.feedback.validation(
         this.l("Payment amount cannot be more than the remaining balance.", "لا يمكن أن يزيد مبلغ الدفع عن الرصيد المتبقي."),
       );
@@ -229,6 +272,16 @@ export class AddPayment implements OnInit {
           feeItem: line.feeItem,
           amount: line.amount,
         })),
+        ...(this.additionalDiscountEnabled ? { additionalDiscount: {
+          ...(this.selectedInvoice?.id ? { invoiceId: this.selectedInvoice.id } : {}),
+          discountType: this.discountType,
+          discountValue: Number(this.discountValue),
+          reason: this.discountReason.trim(),
+          notes: this.discountNotes || undefined,
+          effectiveDate: this.discountEffectiveDate || this.paymentDate,
+          approvalReference: this.approvalReference || undefined,
+          idempotencyKey: this.discountIdempotencyKey || (this.discountIdempotencyKey = crypto.randomUUID()),
+        }} : {}),
       });
       const refreshed = await firstValueFrom(this.accountService.getPackages());
       this.accounts = refreshed;
@@ -239,11 +292,15 @@ export class AddPayment implements OnInit {
         ) || this.selectedAccount;
       this.paymentLines = this.buildPaymentLines();
       this.loadPreviousPayments();
+      const discountPending = result?.discount?.status === "PENDING_APPROVAL";
       this.feedback.success(
         this.l(`Payment ${receiptNumber} recorded successfully.`, `تم تسجيل الدفعة ${receiptNumber} بنجاح.`),
-        this.l("Receipt and student balance were updated from PostgreSQL.", "تم تحديث الإيصال ورصيد الطالب من PostgreSQL."),
+        discountPending
+          ? this.l("The discount request is pending approval and has not reduced the balance yet.", "طلب الخصم قيد الاعتماد ولم يُخفض الرصيد حتى الآن.")
+          : this.l("Receipt, approved discount, and student balance were updated from PostgreSQL.", "تم تحديث الإيصال والخصم المعتمد ورصيد الطالب من PostgreSQL."),
       );
       this.pendingReceiptNumber = "";
+      this.resetDiscount();
       const invoices = await firstValueFrom(this.invoicesService.getInvoices());
       const invoiceId = result?.payment?.invoiceId || result?.payment?.invoiceIds?.[0] || this.selectedInvoice?.id;
       const invoice = invoices.find((item: any) => (item.backendId || item.id) === invoiceId);
@@ -340,7 +397,19 @@ export class AddPayment implements OnInit {
     this.paymentLines = [];
     this.previousPayments = [];
     this.pendingReceiptNumber = "";
+    this.resetDiscount();
     if (clearError) this.contextError = "";
+  }
+
+  private resetDiscount(): void {
+    this.additionalDiscountEnabled = false;
+    this.discountType = "FIXED";
+    this.discountValue = null;
+    this.discountReason = "";
+    this.discountNotes = "";
+    this.discountEffectiveDate = this.paymentDate;
+    this.approvalReference = "";
+    this.discountIdempotencyKey = "";
   }
 
   private isUuid(value: string): boolean {

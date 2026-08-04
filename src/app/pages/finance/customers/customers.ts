@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
+import { I18nService } from '../../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-customers',
@@ -14,23 +15,33 @@ import { AccountingService } from '../../../core/finance/accounting.service';
 export class Customers implements OnInit {
   customers: any[] = [];
   searchText = '';
+  gradeFilter = '';
+  balanceFilter = 'all';
+  loading = true;
 
-  constructor(private readonly accounting: AccountingService) {}
+  constructor(private readonly accounting: AccountingService, public readonly i18n: I18nService) {}
 
   async ngOnInit(): Promise<void> {
-    this.customers = await this.accounting.getCustomers();
+    try { this.customers = await this.accounting.getCustomers(); }
+    finally { this.loading = false; }
   }
 
   get filteredCustomers(): any[] {
     const query = this.searchText.trim().toLowerCase();
     return this.customers.filter((customer) =>
-      !query ||
+      (!query ||
       [customer.customerCode, customer.nameAr, customer.nameEn, customer.registrationNumber, customer.phone, customer.email, customer.nationalId]
         .join(' ')
         .toLowerCase()
-        .includes(query)
+        .includes(query)) &&
+      (!this.gradeFilter || customer.grade === this.gradeFilter) &&
+      (this.balanceFilter === 'all' || (this.balanceFilter === 'outstanding' ? Number(customer.summary?.outstanding || 0) > 0 : Number(customer.summary?.outstanding || 0) <= 0))
     );
   }
+
+  get grades(): string[] { return [...new Set(this.customers.map(row => row.grade).filter(Boolean))].sort() as string[]; }
+  resetFilters(): void { this.searchText = ''; this.gradeFilter = ''; this.balanceFilter = 'all'; }
+  l(en: string, ar: string): string { return this.i18n.label(en, ar); }
 
   get totals(): any {
     return this.customers.reduce((sum, customer) => ({
@@ -42,6 +53,6 @@ export class Customers implements OnInit {
   }
 
   money(value: unknown): string {
-    return `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} SAR`;
+    return this.i18n.money(Number(value || 0));
   }
 }
