@@ -78,4 +78,43 @@ describe("categorized payment accounting", () => {
     }, { timeout: 90_000 })).rejects.toBeInstanceOf(RollbackCategorizedPayment);
     expect(observed).toEqual({ invoices: 2, allocations: 2, paid: 1, partial: 1, balanced: true });
   }, 90_000);
+
+  it("links an approved additional discount to an invoice created by the same payment", async () => {
+    const observed = { invoiceId: null as string | null, amount: 0, creditNote: null as string | null, remaining: 0 };
+    await expect(prisma.$transaction(async (tx) => {
+      const suffix = randomUUID().slice(0, 8);
+      const branch = await tx.branch.findFirstOrThrow({ where: { active: true, deletedAt: null } });
+      const receivable = await tx.chartOfAccount.create({ data: { code: `DMR-${suffix}`, name: "Discount Receivable", type: "ASSET", isReceivableAccount: true } });
+      const revenue = await tx.chartOfAccount.create({ data: { code: `DMT-${suffix}`, name: "Discount Tuition Revenue", type: "REVENUE", normalBalance: "CREDIT" } });
+      await tx.revenueCategoryMapping.update({ where: { category: "TUITION" }, data: { revenueAccountId: revenue.id, receivableAccountId: receivable.id, active: true } });
+      const role = await tx.role.upsert({ where: { name: `Discount Admin ${suffix}` }, update: {}, create: { name: `Discount Admin ${suffix}` } });
+      const user = await tx.user.create({ data: { username: `discount-${suffix}`, email: `discount-${suffix}@example.test`, passwordHash: "test", displayName: "Discount Admin", roleId: role.id } });
+      const registration = await tx.registration.create({ data: { registrationNumber: `DMP-${suffix}`, branchId: branch.id, status: "approved", studentName: "Discount Payment Student", grade: "Grade 1", data: {} } });
+      const nationalId = `1${Date.now().toString().slice(-9)}`;
+      const student = await tx.student.create({ data: {
+        registrationId: registration.id, registrationNumber: registration.registrationNumber, branchId: branch.id,
+        englishName: "Discount Payment Student", grade: "Grade 1", nationalId,
+        profile: { student: { identityType: "NATIONAL_ID", nationalId, nationality: "Saudi" } },
+      } });
+      const account = await tx.financeAccount.create({ data: { registrationId: registration.id, studentId: student.id, expectedTotal: 14000, feeItems: { create: { name: "Tuition", serviceCategory: "TUITION", subtotal: 14000, vatAmount: 0, amount: 14000 } } } });
+      await tx.accountingCustomer.create({ data: { customerCode: `DMC-${suffix}`, studentId: student.id, registrationId: registration.id, registrationNumber: registration.registrationNumber, nameEn: student.englishName, receivableAccountId: receivable.id } });
+      const nestedClient = new Proxy(tx as unknown as PrismaClient, { get(target, property, receiver) { if (property === "$transaction") return async (operation: (client: Prisma.TransactionClient) => unknown) => operation(tx); return Reflect.get(target, property, receiver); } });
+      const result = await new FinanceService(nestedClient).createPayment({
+        accountId: account.id, receiptNumber: `REC-DMP-${suffix}`, amount: 2000, method: "Cash",
+        lines: [{ feeItem: "Tuition", amount: 2000 }],
+        additionalDiscount: { discountType: "FIXED", discountValue: 445, reason: "Approved sibling discount", effectiveDate: "2026-08-08", idempotencyKey: randomUUID() },
+      }, { id: user.id, role: "Super Admin", displayName: user.displayName });
+      const stored = await tx.studentDiscount.findUniqueOrThrow({ where: { id: result.discount.id } });
+      const invoice = await tx.financeInvoice.findUniqueOrThrow({ where: { id: stored.invoiceId! }, include: { payments: true } });
+      observed.invoiceId = stored.invoiceId;
+      observed.amount = Number(stored.calculatedAmount);
+      observed.creditNote = stored.creditNoteNumber;
+      observed.remaining = Number(invoice.total) - Number(stored.calculatedAmount) - invoice.payments.reduce((sum, row) => sum + Number(row.amount), 0);
+      throw new RollbackCategorizedPayment();
+    }, { timeout: 90_000 })).rejects.toBeInstanceOf(RollbackCategorizedPayment);
+    expect(observed.invoiceId).toBeTruthy();
+    expect(observed.amount).toBe(445);
+    expect(observed.creditNote).toMatch(/^CN-2026-/);
+    expect(observed.remaining).toBe(11555);
+  }, 90_000);
 });

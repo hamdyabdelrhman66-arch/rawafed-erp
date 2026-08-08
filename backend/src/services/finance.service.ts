@@ -396,7 +396,7 @@ export class FinanceService {
     const profile = (student.profile || {}) as Record<string, any>;
     const paid = money(invoice.payments.reduce((sum: number, row: any) => sum + Number(row.amount), 0));
     const subtotal = money(invoice.subtotal);
-    const approvedDiscounts = invoice.studentDiscounts.filter((row: any) => row.status === "APPROVED");
+    const approvedDiscounts = (invoice.studentDiscounts || []).filter((row: any) => row.status === "APPROVED");
     const additionalBaseDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.baseAmount), 0));
     const additionalVatDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.vatAmount), 0));
     const additionalGovernmentVatDiscount = money(approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.governmentBorneVat), 0));
@@ -696,19 +696,9 @@ export class FinanceService {
       if (!customer) throw new ServiceError("Student receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
 
       let discount: any = null;
-      if (input.additionalDiscount) {
-        transactionStep = "STUDENT_DISCOUNT";
-        discount = await createStudentDiscountUsing(tx, account.id, {
-          ...input.additionalDiscount,
-          invoiceId: input.additionalDiscount.invoiceId || input.invoiceId,
-          source: "PAYMENT_PAGE",
-        }, actor);
-        if (discount.status === "APPROVED") account.discounts.push(discount);
-      }
       const amount = money(input.amount);
-      const shaped = accountShape(account);
       if (amount <= 0) throw new ServiceError("Payment amount must be greater than zero.", 422);
-      if (amount > shaped.remaining) throw new ServiceError("Payment exceeds the outstanding student balance.", 422);
+      const accountBeforeDiscount = accountShape(account);
       const submitted = input.lines?.length ? input.lines : [{ feeItem: input.paymentItem || "School Fees", amount }];
       const names = new Set<string>();
       let submittedTotal = 0;
@@ -717,7 +707,7 @@ export class FinanceService {
       for (const line of submitted) {
         const name = String(line.feeItem || "").trim();
         const lineAmount = money(line.amount);
-        const current = shaped.feeItems.find((item: any) => item.name === name);
+        const current = accountBeforeDiscount.feeItems.find((item: any) => item.name === name);
         const feeItem = account.feeItems.find((item: any) => item.name === name);
         if (!name || names.has(name) || !current || !feeItem || lineAmount <= 0 || lineAmount > money(current.remaining))
           throw new ServiceError(`Payment exceeds the outstanding amount for ${name || "fee item"}.`, 422, "FEE_ITEM_OVERPAYMENT");
@@ -837,13 +827,39 @@ export class FinanceService {
         const previousPaid = money(invoice.payments.reduce((sum: number, allocation: any) => sum + Number(allocation.amount), 0));
         const existing = affected.get(invoice.id);
         const allocated = money((existing?.allocated || 0) + selectedAmount);
-        const invoiceDiscounts = money((invoice.studentDiscounts || []).reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
-        if (allocated > money(Number(invoice.total) - invoiceDiscounts - previousPaid))
-          throw new ServiceError(`Payment exceeds the ${categoryLabel(category)} invoice balance.`, 422, "INVOICE_OVERPAYMENT");
         affected.set(invoice.id, { invoice, previousPaid, allocated, receivableAccountId });
       }
-      for (const value of affected.values())
+
+      // Categorized payments can create their invoice in this transaction. The
+      // discount must therefore be created only after the invoice exists; doing
+      // it earlier left approved discounts at account level with invoiceId=null,
+      // so the balance changed but the printed invoice could not show it.
+      if (input.additionalDiscount) {
+        const requestedInvoiceId = input.additionalDiscount.invoiceId || input.invoiceId;
+        const target = (requestedInvoiceId
+          ? [...affected.values()].find((value) => value.invoice.id === requestedInvoiceId)
+          : [...affected.values()][0])?.invoice;
+        if (!target) throw new ServiceError("تعذر ربط الخصم بالفاتورة المحددة.", 422, "DISCOUNT_INVOICE_REQUIRED");
+        transactionStep = "STUDENT_DISCOUNT";
+        discount = await createStudentDiscountUsing(tx, account.id, {
+          ...input.additionalDiscount,
+          invoiceId: target.id,
+          source: "PAYMENT_PAGE",
+        }, actor);
+        if (discount.status === "APPROVED") {
+          account.discounts.push(discount);
+          target.studentDiscounts = [...(target.studentDiscounts || []), discount];
+        }
+      }
+
+      const shaped = accountShape(account);
+      if (amount > shaped.remaining) throw new ServiceError("Payment exceeds the outstanding student balance.", 422);
+      for (const value of affected.values()) {
+        const invoiceDiscounts = money((value.invoice.studentDiscounts || []).reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
+        if (value.allocated > money(Number(value.invoice.total) - invoiceDiscounts - value.previousPaid))
+          throw new ServiceError(`Payment exceeds the ${categoryLabel(value.invoice.serviceCategory)} invoice balance.`, 422, "INVOICE_OVERPAYMENT");
         invoiceAllocations.push({ invoiceId: value.invoice.id, amount: value.allocated });
+      }
 
       const receiptNumber = input.receiptNumber || `REC-${Date.now()}-${randomUUID().slice(0, 8)}`;
       if (await new FinancePaymentsRepository(tx).findByReceipt(receiptNumber))
@@ -868,7 +884,9 @@ export class FinanceService {
       transactionStep = "STUDENT_BALANCE_UPDATE";
       for (const value of affected.values()) {
         const paidAfter = money(value.previousPaid + value.allocated);
-        await invoiceRepo.updateStatus(value.invoice.id, paidAfter >= money(value.invoice.total) ? "PAID" : "PARTIALLY_PAID");
+        const invoiceDiscounts = money((value.invoice.studentDiscounts || []).reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
+        const netInvoiceTotal = money(Math.max(Number(value.invoice.total) - invoiceDiscounts, 0));
+        await invoiceRepo.updateStatus(value.invoice.id, paidAfter >= netInvoiceTotal ? "PAID" : "PARTIALLY_PAID");
       }
 
       const cashKey = /bank|transfer|card|online/i.test(input.method || "") ? "bank-main" : "cash-main";
