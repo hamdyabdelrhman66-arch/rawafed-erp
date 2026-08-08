@@ -967,6 +967,18 @@ input.invalid {
   padding: 0 10px;
 }
 
+.entry-actions .danger-action {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #b4232c;
+}
+
+.entry-actions .danger-action:hover,
+.entry-actions .danger-action:focus-visible {
+  border-color: #dc2626;
+  background: #fee2e2;
+}
+
 .ledger-summary {
   display: flex;
   gap: 16px;

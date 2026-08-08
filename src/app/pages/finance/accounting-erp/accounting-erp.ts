@@ -847,14 +847,20 @@ export class AccountingErp implements OnInit {
 
   async deleteJournal(entry: JournalEntry): Promise<void> {
     if (entry.sourceType && entry.sourceType !== "manual_journal") {
-      this.error = "Only manual journal entries can be deleted from here.";
+      this.error = this.i18n.label(
+        "Only manual draft journals can be deleted from here.",
+        "يمكن حذف مسودات القيود اليدوية فقط من هنا.",
+      );
       this.feedback.warning(this.error);
       return;
     }
     const confirmed = await this.feedback.confirm({
-      title: "Delete Journal Entry?",
-      message: `Journal ${entry.entryNumber} will be deleted. This action cannot be undone.`,
-      confirmText: "Delete Journal",
+      title: this.i18n.label("Permanently delete draft?", "حذف المسودة نهائيًا؟"),
+      message: this.i18n.label(
+        `Draft ${entry.entryNumber} and all of its lines will be permanently removed. This cannot be undone.`,
+        `سيتم حذف المسودة ${entry.entryNumber} وجميع سطورها نهائيًا، ولا يمكن التراجع عن ذلك.`,
+      ),
+      confirmText: this.i18n.label("Permanently Delete", "حذف نهائي"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -865,11 +871,17 @@ export class AccountingErp implements OnInit {
       await this.load();
       this.setActiveTab("journal");
       this.feedback.success(
-        `Journal ${entry.entryNumber} deleted successfully.`,
+        this.i18n.label(
+          `Draft ${entry.entryNumber} was permanently deleted.`,
+          `تم حذف المسودة ${entry.entryNumber} نهائيًا.`,
+        ),
       );
     } catch (error) {
       this.error = safeErrorMessage(error);
-      this.feedback.error("Journal entry could not be deleted.", this.error);
+      this.feedback.error(
+        this.i18n.label("Journal draft could not be deleted.", "تعذر حذف مسودة القيد."),
+        this.error,
+      );
     }
   }
 

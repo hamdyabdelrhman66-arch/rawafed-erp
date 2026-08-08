@@ -310,12 +310,33 @@ export class JournalService {
         throw new ServiceError("Manual journal entry not found.", 404);
       if (current.reversedFromId)
         throw new ServiceError("Reversal entries cannot be deleted.", 422);
-      if (current.status !== "DRAFT") throw new ServiceError("Only draft journals can be cancelled.", 409, "POSTED_JOURNAL_IMMUTABLE");
-      await tx.journalEntry.update({
-        where: { id },
-        data: { status: "CANCELLED" },
+      if (current.status !== "DRAFT")
+        throw new ServiceError(
+          "Only an unposted manual draft can be permanently deleted. Use reversal for posted journals.",
+          409,
+          "POSTED_JOURNAL_IMMUTABLE",
+        );
+      const canDeleteAny = ["Super Admin", "Finance Manager", "Chief Accountant"].includes(String(actor.role || ""));
+      if (actor.id && current.createdById && current.createdById !== actor.id && !canDeleteAny)
+        throw new ServiceError("You can only delete manual drafts that you created.", 403, "PERMISSION_DENIED");
+      await tx.journalEntry.delete({ where: { id } });
+      await new AuditRepository(tx).create({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "permanently delete manual journal draft",
+        entityType: "journal_entry_tombstone",
+        entityId: id,
+        riskLevel: "MEDIUM",
+        oldValues: {
+          entryNumber: current.entryNumber,
+          postingDate: current.postingDate,
+          description: current.description,
+          referenceNumber: current.referenceNumber,
+          status: current.status,
+        },
+        newValues: { deleted: true },
+        changedFields: ["deleted"],
       });
-      await new AuditRepository(tx).create({ actorId: actor.id, actorRole: actor.role, action: "cancel draft journal", entityType: "journal_entry", entityId: id, riskLevel: "MEDIUM", oldValues: { status: current.status }, newValues: { status: "CANCELLED" }, changedFields: ["status"] });
     });
   }
   async list(skip = 0, take = 100) {

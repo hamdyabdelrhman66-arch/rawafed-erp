@@ -146,8 +146,7 @@ describe("frontend/backend operational contracts", () => {
             updated.status === "DRAFT";
           await journals.deleteManual(manual.id);
           observed.manualDeleted =
-            (await tx.journalEntry.findUnique({ where: { id: manual.id } }))
-              ?.status === "CANCELLED";
+            (await tx.journalEntry.findUnique({ where: { id: manual.id } })) === null;
 
           throw new RollbackOperationalFixture();
         },

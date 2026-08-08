@@ -359,6 +359,7 @@
             <td>{{ entry.status | statusLabel }}</td>
             <td class="entry-actions">
               <button type="button" *ngIf="entry.status.toUpperCase() === 'DRAFT'" (click)="editJournal(entry)">{{ i18n.label('Edit Draft','تعديل المسودة') }}</button>
+              <button type="button" class="danger-action" *ngIf="entry.status.toUpperCase() === 'DRAFT' && !entry.automatic && (!entry.sourceType || entry.sourceType === 'manual_journal')" (click)="deleteJournal(entry)">{{ i18n.label('Delete Draft Permanently','حذف المسودة نهائيًا') }}</button>
               <button type="button" *ngIf="entry.status.toUpperCase() === 'DRAFT'" (click)="journalAction(entry, 'submit')">{{ i18n.label('Submit','إرسال') }}</button>
               <button type="button" *ngIf="entry.status.toUpperCase() === 'SUBMITTED'" (click)="journalAction(entry, 'approve')">{{ i18n.label('Approve','اعتماد') }}</button>
               <button type="button" *ngIf="['DRAFT','SUBMITTED','APPROVED'].includes(entry.status.toUpperCase())" (click)="journalAction(entry, 'post')">{{ i18n.label('Post','ترحيل') }}</button>
