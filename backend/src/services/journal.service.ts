@@ -186,6 +186,57 @@ export class JournalService {
     throw lastError;
   }
 
+  async createManualAndTransition(
+    input: Posting,
+    action: "submit" | "post",
+    actor: Actor = {},
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await JournalService.postUsing(
+        tx,
+        {
+          ...input,
+          sourceType: "manual_journal",
+          sourceId: input.sourceId || randomUUID(),
+          automatic: false,
+          status: "DRAFT",
+        },
+        actor,
+      );
+      const nextStatus = action === "post" ? "POSTED" : "SUBMITTED";
+      if (action === "post") {
+        await ensureOpenPeriod(tx, entry.branchId, new Date(entry.postingDate), actor.role);
+      }
+      await tx.journalEntry.update({
+        where: { id: entry.id },
+        data: {
+          status: nextStatus,
+          submittedAt: action === "submit" ? new Date() : null,
+          postedAt: action === "post" ? new Date() : null,
+          postedById: action === "post" ? actor.id : null,
+        },
+      });
+      await new AuditRepository(tx).create({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: action === "post" ? "create and post manual journal" : "create and submit manual journal",
+        entityType: "journal_entry",
+        entityId: entry.id,
+        riskLevel: action === "post" ? "HIGH" : "MEDIUM",
+        oldValues: { status: "DRAFT" },
+        newValues: { status: nextStatus },
+        changedFields: ["status"],
+      });
+      const result = await new JournalsRepository(tx).find(entry.id);
+      if (!result) throw new ServiceError("Journal entry not found after creation.", 500, "JOURNAL_POSTING_FAILED");
+      return shape(result);
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
+  }
+
   async updateManual(id: string, input: Posting, actor: Actor = {}) {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.journalEntry.findFirst({

@@ -316,6 +316,19 @@ export class AccountingService {
     return this.api.post<JournalEntry>('/accounting/journal-entries', payload);
   }
 
+  createAndTransitionJournal(
+    payload: {
+      referenceNumber?: string;
+      postingDate: string;
+      description: string;
+      status: 'DRAFT';
+      lines: Array<{ accountId: string; description?: string; debit?: number; credit?: number }>;
+    },
+    action: 'submit' | 'post',
+  ): Promise<JournalEntry> {
+    return this.api.post<JournalEntry>(`/accounting/journal-entries/${action}`, payload);
+  }
+
   updateJournalEntry(id: string, payload: {
     referenceNumber?: string;
     postingDate: string;

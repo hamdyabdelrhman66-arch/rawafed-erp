@@ -54,6 +54,18 @@ button.primary,
   color: #fff;
 }
 
+.submit-journal {
+  border-color: #0b5ed7;
+  background: #eff6ff;
+  color: #07336b;
+}
+
+.post-journal {
+  border-color: #15803d;
+  background: #15803d;
+  color: #fff;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: .58;
@@ -130,6 +142,34 @@ button:disabled {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #f8fafc;
+}
+
+.journal-kpis .journal-kpi {
+  min-height: 92px;
+  padding: 14px;
+  display: block;
+  text-align: start;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.journal-kpis .journal-kpi:hover,
+.journal-kpis .journal-kpi:focus-visible {
+  border-color: #0b5ed7;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(11, 94, 215, .12);
+}
+
+.journal-kpis .journal-kpi small {
+  display: block;
+  margin-top: 3px;
+  color: #0b5ed7;
+  font-size: 11px;
+}
+
+#journal-list {
+  scroll-margin-top: 18px;
 }
 
 .workflow-strip span,

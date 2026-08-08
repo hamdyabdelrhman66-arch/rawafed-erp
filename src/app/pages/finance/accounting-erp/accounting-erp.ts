@@ -16,6 +16,7 @@ import {
   FeedbackService,
   safeErrorMessage,
 } from "../../../core/feedback/feedback.service";
+import { AuthService } from "../../../core/auth/auth.service";
 
 type AccountingTab = "overview" | "accounts" | "journal" | "ledger" | "trial" | "mappings";
 type AccountFormMode = "details" | "create" | "edit";
@@ -125,6 +126,7 @@ export class AccountingErp implements OnInit {
     private readonly router: Router,
     public readonly i18n: I18nService,
     private readonly feedback: FeedbackService,
+    private readonly auth: AuthService,
   ) {}
 
   ngOnInit(): void {
@@ -683,7 +685,22 @@ export class AccountingErp implements OnInit {
     this.draftEntry.lines.splice(index, 1);
   }
 
-  async saveJournal(): Promise<void> {
+  get canPostJournalDirectly(): boolean {
+    return this.auth.canAccess(["Finance Manager", "Chief Accountant"]);
+  }
+
+  get canSubmitJournalDirectly(): boolean {
+    return this.auth.canAccess(["Finance", "Accountant", "Finance Manager", "Chief Accountant"]);
+  }
+
+  showJournals(status = ""): void {
+    this.journalStatus = status;
+    window.setTimeout(() => {
+      document.getElementById("journal-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  async saveJournal(action: "draft" | "submit" | "post" = "draft"): Promise<void> {
     this.error = "";
     this.journalValidationError = this.validateJournalDraft();
     if (this.journalValidationError) {
@@ -711,14 +728,19 @@ export class AccountingErp implements OnInit {
           this.editingJournalId,
           payload,
         );
-      else await this.accounting.createJournalEntry(payload);
+      else if (action === "draft") await this.accounting.createJournalEntry(payload);
+      else await this.accounting.createAndTransitionJournal(payload, action);
       this.resetJournalForm();
       await this.load();
       this.setActiveTab("journal");
       this.feedback.success(
         isEdit
           ? "Journal entry updated successfully."
-          : this.i18n.label("Journal draft saved successfully.", "تم حفظ مسودة القيد بنجاح."),
+          : action === "post"
+            ? this.i18n.label("Journal saved and posted successfully.", "تم حفظ القيد وترحيله بنجاح.")
+            : action === "submit"
+              ? this.i18n.label("Journal saved and submitted for review.", "تم حفظ القيد وإرساله للمراجعة.")
+              : this.i18n.label("Journal draft saved successfully.", "تم حفظ مسودة القيد بنجاح."),
       );
     } catch (error) {
       this.error = safeErrorMessage(error);

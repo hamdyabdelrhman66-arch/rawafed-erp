@@ -250,15 +250,15 @@
 
   <section class="erp-panel journal-layout" *ngIf="activeTab === 'journal'">
     <div class="workflow-strip journal-kpis">
-      <article><span>{{ i18n.label('Draft', 'مسودة') }}</span><strong>{{ journalSummary.draft || 0 }}</strong></article>
-      <article><span>{{ i18n.label('Submitted', 'مُرسل') }}</span><strong>{{ journalSummary.submitted || 0 }}</strong></article>
-      <article><span>{{ i18n.label('Approved', 'معتمد') }}</span><strong>{{ journalSummary.approved || 0 }}</strong></article>
-      <article><span>{{ i18n.label('Posted', 'مُرحّل') }}</span><strong>{{ journalSummary.posted || 0 }}</strong></article>
-      <article><span>{{ i18n.label('Reversed', 'معكوس') }}</span><strong>{{ journalSummary.reversed || 0 }}</strong></article>
-      <article><span>{{ i18n.label('Automatic', 'تلقائي') }}</span><strong>{{ journalSummary.automatic || 0 }}</strong></article>
-      <article><span>{{ i18n.label('Manual', 'يدوي') }}</span><strong>{{ journalSummary.manual || 0 }}</strong></article>
+      <button type="button" class="journal-kpi" (click)="showJournals('DRAFT')"><span>{{ i18n.label('Draft', 'مسودة') }}</span><strong>{{ journalSummary.draft || 0 }}</strong><small>{{ i18n.label('Open drafts', 'عرض المسودات') }}</small></button>
+      <button type="button" class="journal-kpi" (click)="showJournals('SUBMITTED')"><span>{{ i18n.label('Submitted', 'مُرسل') }}</span><strong>{{ journalSummary.submitted || 0 }}</strong></button>
+      <button type="button" class="journal-kpi" (click)="showJournals('APPROVED')"><span>{{ i18n.label('Approved', 'معتمد') }}</span><strong>{{ journalSummary.approved || 0 }}</strong></button>
+      <button type="button" class="journal-kpi" (click)="showJournals('POSTED')"><span>{{ i18n.label('Posted', 'مُرحّل') }}</span><strong>{{ journalSummary.posted || 0 }}</strong></button>
+      <button type="button" class="journal-kpi" (click)="showJournals('REVERSED')"><span>{{ i18n.label('Reversed', 'معكوس') }}</span><strong>{{ journalSummary.reversed || 0 }}</strong></button>
+      <button type="button" class="journal-kpi" (click)="showJournals()"><span>{{ i18n.label('Automatic', 'تلقائي') }}</span><strong>{{ journalSummary.automatic || 0 }}</strong></button>
+      <button type="button" class="journal-kpi" (click)="showJournals()"><span>{{ i18n.label('Manual', 'يدوي') }}</span><strong>{{ journalSummary.manual || 0 }}</strong></button>
     </div>
-    <form class="journal-form" (ngSubmit)="saveJournal()" novalidate>
+    <form class="journal-form" (ngSubmit)="saveJournal('draft')" novalidate>
       <h2>{{ i18n.label(editingJournalId ? 'Edit Draft Journal' : 'Create Manual Journal Draft', editingJournalId ? 'تعديل مسودة القيد' : 'إنشاء مسودة قيد يدوي') }}</h2>
       <p class="journal-validation" *ngIf="journalValidationError" role="alert">{{ journalValidationError }}</p>
       <div class="form-grid">
@@ -317,10 +317,16 @@
         <button type="submit" class="primary" [disabled]="savingJournal">
           {{ savingJournal ? i18n.label('Saving...', 'جارٍ الحفظ...') : i18n.label('Save Draft', 'حفظ المسودة') }}
         </button>
+        <button type="button" class="submit-journal" *ngIf="!editingJournalId && canSubmitJournalDirectly && !canPostJournalDirectly" (click)="saveJournal('submit')" [disabled]="savingJournal">
+          {{ savingJournal ? i18n.label('Saving...', 'جارٍ الحفظ...') : i18n.label('Save & Submit', 'حفظ وإرسال للمراجعة') }}
+        </button>
+        <button type="button" class="post-journal" *ngIf="!editingJournalId && canPostJournalDirectly" (click)="saveJournal('post')" [disabled]="savingJournal">
+          {{ savingJournal ? i18n.label('Posting...', 'جارٍ الترحيل...') : i18n.label('Save & Post', 'حفظ وترحيل') }}
+        </button>
       </footer>
     </form>
 
-    <div class="filter-row journal-filters">
+    <div class="filter-row journal-filters" id="journal-list">
       <label><span>{{ i18n.label('Search', 'بحث') }}</span><input [(ngModel)]="journalSearch" [placeholder]="i18n.label('Number, reference or source', 'الرقم أو المرجع أو المصدر')"></label>
       <label><span>{{ 'common.status' | t }}</span><select [(ngModel)]="journalStatus"><option value="">{{ i18n.label('All statuses','كل الحالات') }}</option><option>DRAFT</option><option>SUBMITTED</option><option>APPROVED</option><option>POSTED</option><option>REVERSED</option><option>CANCELLED</option></select></label>
     </div>

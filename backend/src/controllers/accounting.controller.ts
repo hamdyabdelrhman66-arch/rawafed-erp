@@ -110,6 +110,12 @@ export class AccountingController {
   createJournal = asyncController(async (req, res) =>
     res.status(201).json(await this.journalService.post(req.body, actor(req))),
   );
+  createAndSubmitJournal = asyncController(async (req, res) =>
+    res.status(201).json(await this.journalService.createManualAndTransition(req.body, "submit", actor(req))),
+  );
+  createAndPostJournal = asyncController(async (req, res) =>
+    res.status(201).json(await this.journalService.createManualAndTransition(req.body, "post", actor(req))),
+  );
   updateJournal = asyncController(async (req, res) =>
     res.json(
       await this.journalService.updateManual(

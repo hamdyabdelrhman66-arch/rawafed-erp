@@ -82,6 +82,22 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
   r.get("/api/accounting/journal-entries/summary", ...secured, requirePermission(prisma, "journals.view"), c.journalSummary);
   r.get("/api/accounting/journal-entries/:id", ...secured, requirePermission(prisma, "journals.view"), c.journalDetails);
   r.post("/api/accounting/journal-entries", ...secured, requirePermission(prisma, "journals.create.manual"), validate(validators.journalEntry), c.createJournal);
+  r.post(
+    "/api/accounting/journal-entries/submit",
+    ...secured,
+    requirePermission(prisma, "journals.create.manual"),
+    requirePermission(prisma, "journals.submit"),
+    validate(validators.journalEntry),
+    c.createAndSubmitJournal,
+  );
+  r.post(
+    "/api/accounting/journal-entries/post",
+    ...secured,
+    requirePermission(prisma, "journals.create.manual"),
+    requirePermission(prisma, "journals.post"),
+    validate(validators.journalEntry),
+    c.createAndPostJournal,
+  );
   r.patch(
     "/api/accounting/journal-entries/:id",
     ...secured,
