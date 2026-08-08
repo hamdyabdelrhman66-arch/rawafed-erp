@@ -842,10 +842,10 @@ export class AccountingErp implements OnInit {
   }
 
   async deleteJournal(entry: JournalEntry): Promise<void> {
-    if (entry.sourceType && entry.sourceType !== "manual_journal") {
+    if (!this.canPermanentlyDeleteJournal(entry)) {
       this.error = this.i18n.label(
-        "Only manual draft journals can be deleted from here.",
-        "يمكن حذف مسودات القيود اليدوية فقط من هنا.",
+        "Permanent deletion is available for manual journals, student invoices, and student payments only.",
+        "الحذف النهائي متاح للقيود اليدوية وفواتير الطلاب ومدفوعاتهم فقط.",
       );
       this.feedback.warning(this.error);
       return;
@@ -853,8 +853,8 @@ export class AccountingErp implements OnInit {
     const confirmed = await this.feedback.confirm({
       title: this.i18n.label("Permanently delete journal?", "حذف القيد نهائيًا؟"),
       message: this.i18n.label(
-        `Journal ${entry.entryNumber}, all lines, and its financial effect will be permanently removed. This cannot be undone.`,
-        `سيتم حذف القيد ${entry.entryNumber} وجميع سطوره وأثره المالي نهائيًا، ولا يمكن التراجع عن ذلك.`,
+        `Journal ${entry.entryNumber}, related invoices, payments, receipts, allocations, and financial effect will be permanently removed. This cannot be undone.`,
+        `سيتم حذف القيد ${entry.entryNumber} والفواتير والمدفوعات والسندات والتخصيصات والأثر المالي المرتبط به نهائيًا، ولا يمكن التراجع عن ذلك.`,
       ),
       confirmText: this.i18n.label("Permanently Delete", "حذف نهائي"),
       tone: "danger",
@@ -875,10 +875,15 @@ export class AccountingErp implements OnInit {
     } catch (error) {
       this.error = safeErrorMessage(error);
       this.feedback.error(
-        this.i18n.label("Journal draft could not be deleted.", "تعذر حذف مسودة القيد."),
+        this.i18n.label("Journal and related financial documents could not be deleted.", "تعذر حذف القيد والمستندات المالية المرتبطة."),
         this.error,
       );
     }
+  }
+
+  canPermanentlyDeleteJournal(entry: JournalEntry): boolean {
+    const sourceType = entry.sourceType || (entry.automatic ? "" : "manual_journal");
+    return ["manual_journal", "finance_invoice", "finance_payment"].includes(sourceType);
   }
 
   resetJournalForm(): void {

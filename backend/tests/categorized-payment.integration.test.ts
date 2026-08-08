@@ -3,12 +3,13 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { prisma } from "../src/prisma/client.js";
 import { FinanceService } from "../src/services/finance.service.js";
+import { JournalService } from "../src/services/journal.service.js";
 
 class RollbackCategorizedPayment extends Error {}
 
 describe("categorized payment accounting", () => {
   it("creates separate invoices and one consolidated payment", async () => {
-    const observed = { invoices: 0, allocations: 0, paid: 0, partial: 0, balanced: false };
+    const observed = { invoices: 0, allocations: 0, paid: 0, partial: 0, balanced: false, deletedInvoices: -1, deletedPayments: -1, deletedJournals: -1 };
     await expect(prisma.$transaction(async (tx) => {
       const suffix = randomUUID().slice(0, 8);
       const branch = await tx.branch.findFirstOrThrow({ where: { active: true, deletedAt: null } });
@@ -74,9 +75,14 @@ describe("categorized payment accounting", () => {
       observed.balanced = journals.length === 3 && journals.every((journal) =>
         journal.lines.reduce((sum, line) => sum + Number(line.debit), 0) ===
         journal.lines.reduce((sum, line) => sum + Number(line.credit), 0));
+      const paymentJournal = journals.find((journal) => journal.paymentId === payment.id)!;
+      await new JournalService(nestedClient).deleteManual(paymentJournal.id, {});
+      observed.deletedInvoices = await tx.financeInvoice.count({ where: { id: { in: invoices.map((row) => row.id) } } });
+      observed.deletedPayments = await tx.financePayment.count({ where: { id: payment.id } });
+      observed.deletedJournals = await tx.journalEntry.count({ where: { id: { in: journals.map((row) => row.id) } } });
       throw new RollbackCategorizedPayment();
     }, { timeout: 90_000 })).rejects.toBeInstanceOf(RollbackCategorizedPayment);
-    expect(observed).toEqual({ invoices: 2, allocations: 2, paid: 1, partial: 1, balanced: true });
+    expect(observed).toEqual({ invoices: 2, allocations: 2, paid: 1, partial: 1, balanced: true, deletedInvoices: 0, deletedPayments: 0, deletedJournals: 0 });
   }, 90_000);
 
   it("links an approved additional discount to an invoice created by the same payment", async () => {

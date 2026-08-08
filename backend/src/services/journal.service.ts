@@ -5,6 +5,7 @@ import { JournalsRepository } from "../repositories/journals.repository.js";
 import type { DatabaseClient } from "../repositories/repository.types.js";
 import { ServiceError } from "./service.error.js";
 import { AuditRepository } from "../repositories/audit.repository.js";
+import { reconcileInstallmentPayments } from "./installment-allocation.service.js";
 
 export interface PostingLine {
   accountId: string;
@@ -307,29 +308,139 @@ export class JournalService {
         where: { id, deletedAt: null },
         include: { lines: true, reversal: true, corrections: true },
       });
-      if (!current || current.sourceType !== "manual_journal" || current.automatic)
-        throw new ServiceError("Manual journal entry not found.", 404);
-      if (current.reversedFromId || current.reversal || current.corrections.length)
+      if (!current) throw new ServiceError("Journal entry not found.", 404);
+      const allowedSourceTypes = new Set(["manual_journal", "finance_invoice", "finance_payment"]);
+      if (!allowedSourceTypes.has(String(current.sourceType || "")))
         throw new ServiceError(
-          "A journal connected to a reversal or correction cannot be permanently deleted.",
+          "Permanent deletion is limited to manual journals, student invoices, and student payments.",
           409,
-          "JOURNAL_HAS_LINKED_HISTORY",
+          "JOURNAL_SOURCE_DELETE_NOT_SUPPORTED",
         );
-      if (current.invoiceId || current.paymentId || current.expenseId)
-        throw new ServiceError("Delete the linked operational transaction instead of this journal.", 409, "JOURNAL_HAS_OPERATIONAL_SOURCE");
       const canDeleteAny = ["Super Admin", "Finance Manager", "Chief Accountant"].includes(String(actor.role || ""));
-      if (actor.id && current.createdById && current.createdById !== actor.id && !canDeleteAny)
+      if (current.sourceType === "manual_journal" && actor.id && current.createdById && current.createdById !== actor.id && !canDeleteAny)
         throw new ServiceError("You can only delete manual journals that you created.", 403, "PERMISSION_DENIED");
       const debit = current.lines.reduce((sum, line) => sum + Number(line.debit), 0);
       const credit = current.lines.reduce((sum, line) => sum + Number(line.credit), 0);
-      await tx.journalEntry.delete({ where: { id } });
+
+      const invoiceIds = new Set<string>();
+      const paymentIds = new Set<string>();
+      if (current.invoiceId) invoiceIds.add(current.invoiceId);
+      if (current.paymentId) paymentIds.add(current.paymentId);
+      if (current.sourceType === "finance_invoice" && current.sourceId) invoiceIds.add(current.sourceId);
+      if (current.sourceType === "finance_payment" && current.sourceId) paymentIds.add(current.sourceId);
+
+      // Delete the complete invoice/payment allocation component. This avoids
+      // leaving an allocated receipt without its invoice, or a paid invoice
+      // without the receipt and journal that created its balance.
+      let expanded = true;
+      while (expanded && (invoiceIds.size || paymentIds.size)) {
+        expanded = false;
+        const allocations = await tx.paymentAllocation.findMany({
+          where: {
+            OR: [
+              ...(invoiceIds.size ? [{ invoiceId: { in: [...invoiceIds] } }] : []),
+              ...(paymentIds.size ? [{ paymentId: { in: [...paymentIds] } }] : []),
+            ],
+          },
+          select: { invoiceId: true, paymentId: true },
+        });
+        for (const allocation of allocations) {
+          if (!invoiceIds.has(allocation.invoiceId)) {
+            invoiceIds.add(allocation.invoiceId);
+            expanded = true;
+          }
+          if (!paymentIds.has(allocation.paymentId)) {
+            paymentIds.add(allocation.paymentId);
+            expanded = true;
+          }
+        }
+      }
+
+      const [invoices, payments, discounts] = await Promise.all([
+        invoiceIds.size
+          ? tx.financeInvoice.findMany({ where: { id: { in: [...invoiceIds] } }, select: { id: true, invoiceNumber: true, accountId: true } })
+          : Promise.resolve([]),
+        paymentIds.size
+          ? tx.financePayment.findMany({ where: { id: { in: [...paymentIds] } }, select: { id: true, receiptNumber: true, accountId: true } })
+          : Promise.resolve([]),
+        invoiceIds.size || paymentIds.size
+          ? tx.studentDiscount.findMany({
+              where: {
+                OR: [
+                  ...(invoiceIds.size ? [{ invoiceId: { in: [...invoiceIds] } }] : []),
+                  ...(paymentIds.size ? [{ paymentId: { in: [...paymentIds] } }] : []),
+                ],
+              },
+              select: { id: true, journalEntryId: true, reversalJournalId: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const accountIds = [...new Set([...invoices, ...payments].map((row) => row.accountId))];
+      const customers = accountIds.length
+        ? await tx.accountingCustomer.findMany({
+            where: { student: { financeAccount: { id: { in: accountIds } } } },
+            select: { id: true },
+          })
+        : [];
+
+      const journalIds = new Set<string>([
+        current.id,
+        ...discounts.flatMap((row) => [row.journalEntryId, row.reversalJournalId].filter((value): value is string => Boolean(value))),
+      ]);
+      if (invoiceIds.size || paymentIds.size) {
+        const related = await tx.journalEntry.findMany({
+          where: {
+            OR: [
+              ...(invoiceIds.size ? [{ invoiceId: { in: [...invoiceIds] } }] : []),
+              ...(paymentIds.size ? [{ paymentId: { in: [...paymentIds] } }] : []),
+            ],
+          },
+          select: { id: true, reversedFromId: true, correctedFromId: true },
+        });
+        for (const row of related) {
+          journalIds.add(row.id);
+          if (row.reversedFromId) journalIds.add(row.reversedFromId);
+          if (row.correctedFromId) journalIds.add(row.correctedFromId);
+        }
+      }
+      expanded = true;
+      while (expanded) {
+        expanded = false;
+        const linked = await tx.journalEntry.findMany({
+          where: { OR: [{ reversedFromId: { in: [...journalIds] } }, { correctedFromId: { in: [...journalIds] } }] },
+          select: { id: true, reversedFromId: true, correctedFromId: true },
+        });
+        for (const row of linked) {
+          for (const linkedId of [row.id, row.reversedFromId, row.correctedFromId]) {
+            if (linkedId && !journalIds.has(linkedId)) {
+              journalIds.add(linkedId);
+              expanded = true;
+            }
+          }
+        }
+      }
+
+      if (discounts.length) await tx.studentDiscount.deleteMany({ where: { id: { in: discounts.map((row) => row.id) } } });
+      const aggregateIds = [...invoiceIds, ...paymentIds];
+      if (aggregateIds.length) await tx.accountingOutbox.deleteMany({ where: { aggregateId: { in: aggregateIds } } });
+      if (invoiceIds.size) await tx.directCostEvent.deleteMany({ where: { invoiceId: { in: [...invoiceIds] } } });
+      await tx.journalEntry.updateMany({
+        where: { id: { in: [...journalIds] } },
+        data: { reversedFromId: null, correctedFromId: null },
+      });
+      await tx.journalEntry.deleteMany({ where: { id: { in: [...journalIds] } } });
+      if (paymentIds.size) await tx.financePayment.deleteMany({ where: { id: { in: [...paymentIds] } } });
+      if (invoiceIds.size) await tx.financeInvoice.deleteMany({ where: { id: { in: [...invoiceIds] } } });
+      for (const customer of customers) await reconcileInstallmentPayments(tx, customer.id);
+
       await new AuditRepository(tx).create({
         actorId: actor.id,
         actorRole: actor.role,
-        action: "permanently delete manual journal",
+        action: "permanently delete journal and related financial documents",
         entityType: "journal_entry_tombstone",
         entityId: id,
-        riskLevel: "MEDIUM",
+        riskLevel: "HIGH",
         oldValues: {
           entryNumber: current.entryNumber,
           postingDate: current.postingDate,
@@ -339,9 +450,16 @@ export class JournalService {
           debit,
           credit,
           lineCount: current.lines.length,
+          invoices: invoices.map((row) => ({ id: row.id, invoiceNumber: row.invoiceNumber })),
+          payments: payments.map((row) => ({ id: row.id, receiptNumber: row.receiptNumber })),
         },
-        newValues: { deleted: true },
-        changedFields: ["deleted"],
+        newValues: {
+          deleted: true,
+          deletedJournalCount: journalIds.size,
+          deletedInvoiceCount: invoiceIds.size,
+          deletedPaymentCount: paymentIds.size,
+        },
+        changedFields: ["journal", "invoice", "payment", "ledger_effect"],
       });
     });
   }
