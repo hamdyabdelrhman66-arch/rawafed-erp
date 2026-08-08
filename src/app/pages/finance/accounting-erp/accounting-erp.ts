@@ -79,6 +79,8 @@ export class AccountingErp implements OnInit {
   journalSearch = "";
   journalStatus = "";
   editingJournalId = "";
+  savingJournal = false;
+  journalValidationError = "";
   selectedAccount: AccountingAccount | null = null;
   accountModalMode: AccountFormMode = "details";
   accountFormOpen = false;
@@ -683,9 +685,13 @@ export class AccountingErp implements OnInit {
 
   async saveJournal(): Promise<void> {
     this.error = "";
-    if (Math.abs(this.debitTotal - this.creditTotal) > 0.01) {
-      this.error = "Debit and credit totals must be equal.";
-      this.feedback.validation(this.error);
+    this.journalValidationError = this.validateJournalDraft();
+    if (this.journalValidationError) {
+      this.error = this.journalValidationError;
+      this.feedback.validation(
+        this.journalValidationError,
+        this.i18n.label("Please review the journal entry", "يرجى مراجعة القيد اليدوي"),
+      );
       return;
     }
     const payload = {
@@ -697,6 +703,7 @@ export class AccountingErp implements OnInit {
         credit: Number(line.credit || 0),
       })),
     };
+    this.savingJournal = true;
     try {
       const isEdit = Boolean(this.editingJournalId);
       if (this.editingJournalId)
@@ -715,8 +722,52 @@ export class AccountingErp implements OnInit {
       );
     } catch (error) {
       this.error = safeErrorMessage(error);
-      this.feedback.error("Journal entry could not be saved.", this.error);
+      this.feedback.error(
+        this.i18n.label("Journal entry could not be saved.", "تعذر حفظ القيد اليدوي."),
+        this.error,
+      );
+    } finally {
+      this.savingJournal = false;
     }
+  }
+
+  private validateJournalDraft(): string {
+    if (!this.draftEntry.postingDate) {
+      return this.i18n.label("Posting date is required.", "يجب إدخال تاريخ الترحيل.");
+    }
+    if (!this.draftEntry.description.trim()) {
+      return this.i18n.label(
+        "The general journal description is required, even when line descriptions are entered.",
+        "يجب إدخال الوصف العام للقيد، حتى عند كتابة وصف لكل سطر.",
+      );
+    }
+    if (this.draftEntry.lines.length < 2) {
+      return this.i18n.label("At least two journal lines are required.", "يجب إدخال سطرين على الأقل للقيد.");
+    }
+    for (let index = 0; index < this.draftEntry.lines.length; index += 1) {
+      const line = this.draftEntry.lines[index];
+      if (!line.accountId) {
+        return this.i18n.label(
+          `Select an account for line ${index + 1}.`,
+          `يجب اختيار الحساب في السطر رقم ${index + 1}.`,
+        );
+      }
+      const debit = Number(line.debit || 0);
+      const credit = Number(line.credit || 0);
+      if (debit < 0 || credit < 0 || (debit > 0) === (credit > 0)) {
+        return this.i18n.label(
+          `Line ${index + 1} must contain either a debit or a credit amount.`,
+          `يجب أن يحتوي السطر رقم ${index + 1} على مبلغ مدين أو دائن فقط.`,
+        );
+      }
+    }
+    if (Math.abs(this.debitTotal - this.creditTotal) > 0.01) {
+      return this.i18n.label(
+        "Debit and credit totals must be equal.",
+        "يجب أن يتساوى إجمالي المدين مع إجمالي الدائن.",
+      );
+    }
+    return "";
   }
 
   editJournal(entry: JournalEntry): void {
@@ -802,6 +853,8 @@ export class AccountingErp implements OnInit {
 
   resetJournalForm(): void {
     this.editingJournalId = "";
+    this.journalValidationError = "";
+    this.error = "";
     this.draftEntry.description = "";
     this.draftEntry.referenceNumber = "";
     this.draftEntry.status = "DRAFT";

@@ -54,6 +54,11 @@ button.primary,
   color: #fff;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
 .error-banner {
   margin: 0;
   padding: 12px 14px;
@@ -788,14 +793,29 @@ td.negative {
   display: grid;
   gap: 8px;
   margin-top: 16px;
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: 2px;
 }
 
 .line-head,
 .line-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1.35fr) 120px 120px minmax(180px, 1fr) 90px;
+  grid-template-columns:
+    minmax(200px, 1.6fr)
+    minmax(86px, .42fr)
+    minmax(86px, .42fr)
+    minmax(140px, 1fr)
+    minmax(72px, auto);
   gap: 8px;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.line-row > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .line-head {
@@ -807,7 +827,92 @@ td.negative {
 
 .journal-footer {
   margin-top: 14px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  padding-inline: 2px;
+}
+
+.journal-form {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+
+.journal-form label small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.journal-validation {
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-weight: 800;
+}
+
+.journal-source-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-inline-start: 4px solid #0b5ed7;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+input.invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .12);
+}
+
+.remove-line {
+  white-space: nowrap;
+}
+
+@container (max-width: 900px) {
+  .line-head {
+    display: none;
+  }
+
+  .line-row {
+    grid-template-columns: minmax(0, 1fr) minmax(90px, .5fr) minmax(90px, .5fr);
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+  }
+
+  .line-row app-searchable-select,
+  .line-row input[type="text"] {
+    grid-column: 1 / -1;
+  }
+
+  .line-row .remove-line {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@container (max-width: 560px) {
+  .line-row {
+    grid-template-columns: 1fr;
+  }
+
+  .line-row > * {
+    grid-column: 1 !important;
+  }
+
+  .journal-footer > * {
+    flex: 1 1 100%;
+  }
 }
 
 .entry-actions {
