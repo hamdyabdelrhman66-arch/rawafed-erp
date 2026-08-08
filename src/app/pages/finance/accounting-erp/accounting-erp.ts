@@ -686,10 +686,6 @@ export class AccountingErp implements OnInit {
   }
 
   get canPostJournalDirectly(): boolean {
-    return this.auth.canAccess(["Finance Manager", "Chief Accountant"]);
-  }
-
-  get canSubmitJournalDirectly(): boolean {
     return this.auth.canAccess(["Finance", "Accountant", "Finance Manager", "Chief Accountant"]);
   }
 
@@ -855,10 +851,10 @@ export class AccountingErp implements OnInit {
       return;
     }
     const confirmed = await this.feedback.confirm({
-      title: this.i18n.label("Permanently delete draft?", "حذف المسودة نهائيًا؟"),
+      title: this.i18n.label("Permanently delete journal?", "حذف القيد نهائيًا؟"),
       message: this.i18n.label(
-        `Draft ${entry.entryNumber} and all of its lines will be permanently removed. This cannot be undone.`,
-        `سيتم حذف المسودة ${entry.entryNumber} وجميع سطورها نهائيًا، ولا يمكن التراجع عن ذلك.`,
+        `Journal ${entry.entryNumber}, all lines, and its financial effect will be permanently removed. This cannot be undone.`,
+        `سيتم حذف القيد ${entry.entryNumber} وجميع سطوره وأثره المالي نهائيًا، ولا يمكن التراجع عن ذلك.`,
       ),
       confirmText: this.i18n.label("Permanently Delete", "حذف نهائي"),
       tone: "danger",
@@ -872,8 +868,8 @@ export class AccountingErp implements OnInit {
       this.setActiveTab("journal");
       this.feedback.success(
         this.i18n.label(
-          `Draft ${entry.entryNumber} was permanently deleted.`,
-          `تم حذف المسودة ${entry.entryNumber} نهائيًا.`,
+          `Journal ${entry.entryNumber} was permanently deleted.`,
+          `تم حذف القيد ${entry.entryNumber} نهائيًا.`,
         ),
       );
     } catch (error) {

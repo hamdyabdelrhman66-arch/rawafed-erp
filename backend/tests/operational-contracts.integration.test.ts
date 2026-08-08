@@ -148,6 +148,24 @@ describe("frontend/backend operational contracts", () => {
           observed.manualDeleted =
             (await tx.journalEntry.findUnique({ where: { id: manual.id } })) === null;
 
+          const postedManual = await journals.createManualAndTransition(
+            {
+              postingDate: "2026-07-14",
+              description: "Posted manual deletion test",
+              sourceType: "manual_journal",
+              sourceId: `manual-posted-${suffix}`,
+              lines: [
+                { accountId: cashbox.accountId, debit: 35 },
+                { accountId: bank.accountId, credit: 35 },
+              ],
+            },
+            "post",
+            {},
+          );
+          await journals.deleteManual(postedManual.id);
+          observed.manualPostedDeleted =
+            (await tx.journalEntry.findUnique({ where: { id: postedManual.id } })) === null;
+
           throw new RollbackOperationalFixture();
         },
         { timeout: 120_000 },
@@ -163,6 +181,7 @@ describe("frontend/backend operational contracts", () => {
       manualCreated: true,
       manualUpdated: true,
       manualDeleted: true,
+      manualPostedDeleted: true,
     });
   }, 120_000);
 });

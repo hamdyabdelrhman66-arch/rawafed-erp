@@ -108,7 +108,7 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
   r.delete(
     "/api/accounting/journal-entries/:id",
     ...secured,
-    requirePermission(prisma, "journals.cancel.draft"),
+    requirePermission(prisma, "journals.delete.permanent"),
     c.deleteJournal,
   );
   r.post(

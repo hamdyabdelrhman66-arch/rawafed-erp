@@ -305,25 +305,28 @@ export class JournalService {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.journalEntry.findFirst({
         where: { id, deletedAt: null },
+        include: { lines: true, reversal: true, corrections: true },
       });
-      if (!current || current.sourceType !== "manual_journal")
+      if (!current || current.sourceType !== "manual_journal" || current.automatic)
         throw new ServiceError("Manual journal entry not found.", 404);
-      if (current.reversedFromId)
-        throw new ServiceError("Reversal entries cannot be deleted.", 422);
-      if (current.status !== "DRAFT")
+      if (current.reversedFromId || current.reversal || current.corrections.length)
         throw new ServiceError(
-          "Only an unposted manual draft can be permanently deleted. Use reversal for posted journals.",
+          "A journal connected to a reversal or correction cannot be permanently deleted.",
           409,
-          "POSTED_JOURNAL_IMMUTABLE",
+          "JOURNAL_HAS_LINKED_HISTORY",
         );
+      if (current.invoiceId || current.paymentId || current.expenseId)
+        throw new ServiceError("Delete the linked operational transaction instead of this journal.", 409, "JOURNAL_HAS_OPERATIONAL_SOURCE");
       const canDeleteAny = ["Super Admin", "Finance Manager", "Chief Accountant"].includes(String(actor.role || ""));
       if (actor.id && current.createdById && current.createdById !== actor.id && !canDeleteAny)
-        throw new ServiceError("You can only delete manual drafts that you created.", 403, "PERMISSION_DENIED");
+        throw new ServiceError("You can only delete manual journals that you created.", 403, "PERMISSION_DENIED");
+      const debit = current.lines.reduce((sum, line) => sum + Number(line.debit), 0);
+      const credit = current.lines.reduce((sum, line) => sum + Number(line.credit), 0);
       await tx.journalEntry.delete({ where: { id } });
       await new AuditRepository(tx).create({
         actorId: actor.id,
         actorRole: actor.role,
-        action: "permanently delete manual journal draft",
+        action: "permanently delete manual journal",
         entityType: "journal_entry_tombstone",
         entityId: id,
         riskLevel: "MEDIUM",
@@ -333,6 +336,9 @@ export class JournalService {
           description: current.description,
           referenceNumber: current.referenceNumber,
           status: current.status,
+          debit,
+          credit,
+          lineCount: current.lines.length,
         },
         newValues: { deleted: true },
         changedFields: ["deleted"],

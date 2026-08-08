@@ -55,6 +55,7 @@ export interface JournalEntry {
   automatic?: boolean;
   sourceModule?: string;
   sourceTransactionNumber?: string;
+  reversedFromId?: string;
   postedBy?: any;
   reversal?: { id: string; entryNumber: string };
   correctedFrom?: { id: string; entryNumber: string };
