@@ -88,6 +88,47 @@ textarea {
   max-width: 100%;
 }
 
+/*
+ * Chrome/macOS can position a wide native select popup outside the viewport
+ * when the document itself is RTL. Keep the native popup geometry LTR while
+ * preserving Arabic alignment for the selected value and every option. This
+ * is shared by all ERP modules so Arabic dropdowns behave consistently.
+ */
+select {
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m5 7.5 5 5 5-5' stroke='%23475569' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 16px !important;
+  padding-inline-end: 38px !important;
+}
+
+html[dir='rtl'] select {
+  direction: ltr;
+  text-align: right;
+  text-align-last: right;
+  background-position: left 12px center !important;
+  padding-inline: 38px 12px !important;
+}
+
+html[dir='rtl'] select option,
+html[dir='rtl'] select optgroup {
+  direction: rtl;
+  text-align: right;
+}
+
+html[dir='rtl'] .mat-mdc-option,
+html[dir='rtl'] .mat-mdc-select-value-text {
+  direction: rtl;
+  text-align: right;
+}
+
+.cdk-overlay-pane:has(.mat-mdc-select-panel) {
+  max-width: calc(100vw - 24px) !important;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

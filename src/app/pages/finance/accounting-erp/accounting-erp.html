@@ -502,9 +502,17 @@
   <section class="erp-panel" *ngIf="activeTab === 'ledger'">
     <label class="account-picker">
       <span>{{ 'common.account' | t }}</span>
-      <select [(ngModel)]="selectedAccountId" (change)="loadLedger()">
-        <option *ngFor="let account of accounts" [value]="account.id">{{ account.code }} - {{ account | accountName }}</option>
-      </select>
+      <app-searchable-select
+        [options]="accounts"
+        valueKey="id"
+        [(value)]="selectedAccountId"
+        (valueChange)="loadLedger()"
+        [nullable]="false"
+        [labelWith]="accountOptionLabel"
+        [placeholder]="'accounting.select_account' | t"
+        [searchPlaceholder]="'accounting.code_or_name' | t"
+        [emptyText]="'accounting.no_accounts' | t">
+      </app-searchable-select>
     </label>
 
     <div class="ledger-summary" *ngIf="ledger">

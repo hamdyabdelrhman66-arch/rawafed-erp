@@ -13,6 +13,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 input, select, textarea { min-height: 42px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fff; min-width: 0; }
 textarea { padding-top: 10px; }
 .filters input { min-width: 340px; flex: 1; }
+.filters select, .filters .compact-filter-select { width: min(220px, 100%); flex: 0 1 220px; }
 .tree-card { padding: 0; overflow: hidden; }
 .tree-header, .tree-row { display: grid; grid-template-columns: minmax(340px, 2.4fr) .7fr .9fr .9fr .8fr .8fr .6fr .9fr .7fr; align-items: stretch; }
 .tree-header { background: #eaf2ff; color: #07336b; font-size: 12px; font-weight: 900; text-transform: uppercase; }
@@ -68,5 +69,6 @@ label { display: flex; flex-direction: column; gap: 7px; color: #07336b; font-we
   .filters input { min-width: 0; width: 100%; }
   .toolbar, .filters { align-items: stretch; }
   .toolbar button, .filters button, .filters select { flex: 1 1 160px; }
+  .filters select, .filters .compact-filter-select { width: 100%; }
   .metrics{grid-template-columns:repeat(2,1fr)}.info-grid,.movement-grid,.link-grid{grid-template-columns:1fr 1fr}.chart-grid{grid-template-columns:1fr}.account-drawer{width:100vw}.drawer-actions{padding:8px}.audit-row{grid-template-columns:1fr}.hover-actions{display:none!important}
 }

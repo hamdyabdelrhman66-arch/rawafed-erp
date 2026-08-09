@@ -22,14 +22,27 @@
     </div>
     <div class="filters">
       <input type="search" [placeholder]="l('Search by code, Arabic, English, type...', 'بحث بالكود أو الاسم العربي أو الإنجليزي أو النوع...')" [(ngModel)]="searchText" />
-      <select [(ngModel)]="typeFilter">
-        <option value="">{{ l('All types', 'كل الأنواع') }}</option>
-        <option *ngFor="let type of accountTypes" [value]="type.value">{{ accountTypeLabel(type.value) }}</option>
-      </select>
-      <select [(ngModel)]="statusFilter">
-        <option value="">{{ l('All statuses', 'كل الحالات') }}</option>
-        <option *ngFor="let status of statuses" [value]="status">{{ statusLabel(status) }}</option>
-      </select>
+      <app-searchable-select
+        class="compact-filter-select"
+        [options]="accountTypes"
+        valueKey="value"
+        [value]="typeFilter"
+        (valueChange)="typeFilter = $event || ''"
+        [labelWith]="accountTypeOptionLabel"
+        [placeholder]="l('All types', 'كل الأنواع')"
+        [searchPlaceholder]="l('Search account types', 'بحث في أنواع الحسابات')"
+        [emptyText]="l('No account types', 'لا توجد أنواع حسابات')">
+      </app-searchable-select>
+      <app-searchable-select
+        class="compact-filter-select"
+        [options]="statuses"
+        [value]="statusFilter"
+        (valueChange)="statusFilter = $event || ''"
+        [labelWith]="accountStatusOptionLabel"
+        [placeholder]="l('All statuses', 'كل الحالات')"
+        [searchPlaceholder]="l('Search statuses', 'بحث في الحالات')"
+        [emptyText]="l('No statuses', 'لا توجد حالات')">
+      </app-searchable-select>
       <button type="button" (click)="expandAll()">{{ l('Expand All', 'توسيع الكل') }}</button>
       <button type="button" (click)="collapseAll()">{{ l('Collapse All', 'طي الكل') }}</button>
     </div>

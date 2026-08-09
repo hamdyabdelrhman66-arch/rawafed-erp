@@ -6,6 +6,7 @@ import { AccountingAccount, AccountingService } from '../../../core/finance/acco
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
+import { SearchableSelectComponent } from '../../../shared/components/searchable-select/searchable-select.component';
 
 interface AccountRow extends AccountingAccount {
   level: number;
@@ -15,7 +16,7 @@ interface AccountRow extends AccountingAccount {
 @Component({
   selector: 'app-chart-of-accounts',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SearchableSelectComponent],
   templateUrl: './chart-of-accounts.html',
   styleUrls: ['./chart-of-accounts.css', '../../../shared/finance/finance-ui.scss']
 })
@@ -42,6 +43,8 @@ export class ChartOfAccounts implements OnInit {
     { value: 'expense', label: 'Expense' }
   ];
   statuses = ['active', 'inactive', 'archived'];
+  readonly accountTypeOptionLabel = (type: { value: string }) => this.accountTypeLabel(type.value);
+  readonly accountStatusOptionLabel = (status: string) => this.statusLabel(status);
 
   constructor(
     private readonly accounting: AccountingService,

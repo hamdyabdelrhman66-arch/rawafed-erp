@@ -67,8 +67,12 @@ import { FormsModule } from '@angular/forms';
       inset-inline: 0;
       top: calc(100% + 6px);
       z-index: 120;
+      width: 100%;
+      max-width: min(100%, calc(100vw - 32px));
+      box-sizing: border-box;
       max-height: 320px;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       border: 1px solid #cbd5e1;
       border-radius: 12px;
       background: #fff;
@@ -96,6 +100,8 @@ import { FormsModule } from '@angular/forms';
       font: inherit;
       font-weight: 750;
       cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .search-select-option:hover,
     .search-select-option.selected {
@@ -107,6 +113,13 @@ import { FormsModule } from '@angular/forms';
       margin: 8px;
       color: #64748b;
       font-weight: 750;
+    }
+    :host-context([dir='rtl']) .search-select-trigger,
+    :host-context([dir='rtl']) .search-select-panel,
+    :host-context([dir='rtl']) .search-select-panel input,
+    :host-context([dir='rtl']) .search-select-option {
+      direction: rtl;
+      text-align: right;
     }
   `]
 })
