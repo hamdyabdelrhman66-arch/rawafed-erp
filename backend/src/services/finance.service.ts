@@ -663,7 +663,10 @@ export class FinanceService {
           sourceId: row.id,
           invoiceId: row.id,
           lines: [
-            { accountId: mapping.receivable?.id || customer.receivableAccountId, debit: total },
+            // Revenue mappings select the control policy, but the journal must
+            // hit the customer's posting account so the student sub-ledger,
+            // statements and receivable aging all reconcile to the invoice.
+            { accountId: customer.receivableAccountId, debit: total },
             ...(governmentBorneVat ? [{ accountId: governmentVatAccount!.id, debit: governmentBorneVat }] : []),
             { accountId: mapping.revenue.id, credit: taxableAmount },
             ...(totalVat ? [{ accountId: vatAccount!.id, credit: totalVat }] : []),
@@ -735,7 +738,11 @@ export class FinanceService {
         const category = revenueCategory(categoryKey);
         transactionStep = "ACCOUNT_MAPPING";
         const mapping = await mappingFor(tx, category);
-        const receivableAccountId = mapping.receivable?.id || customer.receivableAccountId;
+        // Always post the invoice and its settlement to the same customer
+        // sub-ledger account. Posting categorized invoices directly to the
+        // mapped AR control account made revenue correct while leaving the
+        // customer's ledger at zero.
+        const receivableAccountId = customer.receivableAccountId;
         let invoice = openInvoices.find((row: any) => row.serviceCategory === category);
         if (!invoice) {
           const categoryItems = account.feeItems.filter(
