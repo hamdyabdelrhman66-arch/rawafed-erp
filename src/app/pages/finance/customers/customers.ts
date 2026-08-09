@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
+import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector: 'app-customers',
@@ -18,12 +19,98 @@ export class Customers implements OnInit {
   gradeFilter = '';
   balanceFilter = 'all';
   loading = true;
+  modalOpen = false;
+  saving = false;
+  formError = '';
+  readonly feeCategories = [
+    { value: 'TUITION', en: 'Tuition', ar: 'رسوم تعليم' },
+    { value: 'REGISTRATION', en: 'Registration', ar: 'رسوم تسجيل' },
+    { value: 'BOOKS', en: 'Books', ar: 'كتب' },
+    { value: 'UNIFORM', en: 'Uniform', ar: 'زي مدرسي' },
+    { value: 'TRANSPORTATION', en: 'Transportation', ar: 'نقل' },
+    { value: 'ACTIVITIES', en: 'Activities', ar: 'أنشطة' },
+    { value: 'OTHER_SERVICES', en: 'Other services', ar: 'خدمات أخرى' },
+  ];
+  manualForm = this.emptyManualForm();
 
-  constructor(private readonly accounting: AccountingService, public readonly i18n: I18nService) {}
+  constructor(
+    private readonly accounting: AccountingService,
+    public readonly i18n: I18nService,
+    private readonly feedback: FeedbackService,
+  ) {}
 
   async ngOnInit(): Promise<void> {
-    try { this.customers = await this.accounting.getCustomers(); }
+    try { await this.loadCustomers(); }
     finally { this.loading = false; }
+  }
+
+  private async loadCustomers(): Promise<void> {
+    this.customers = await this.accounting.getCustomers();
+  }
+
+  private emptyManualForm(): any {
+    return {
+      customerType: 'CHILD', nameAr: '', nameEn: '', identityType: 'NATIONAL_ID', nationalId: '', nationality: 'سعودي',
+      phone: '', email: '', grade: '', guardianName: '', guardianPhone: '', position: '', department: '', notes: '',
+      fees: [{ name: 'Tuition', category: 'TUITION', amount: null }],
+    };
+  }
+
+  openManualCustomer(): void {
+    this.manualForm = this.emptyManualForm();
+    this.formError = '';
+    this.modalOpen = true;
+  }
+
+  closeManualCustomer(): void {
+    if (this.saving) return;
+    this.modalOpen = false;
+  }
+
+  addFee(): void {
+    this.manualForm.fees.push({ name: '', category: 'OTHER_SERVICES', amount: null });
+  }
+
+  removeFee(index: number): void {
+    if (this.manualForm.fees.length <= 1) return;
+    this.manualForm.fees.splice(index, 1);
+  }
+
+  get manualFeesTotal(): number {
+    return this.manualForm.fees.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
+  }
+
+  async saveManualCustomer(): Promise<void> {
+    this.formError = '';
+    if (!this.manualForm.nameAr.trim() || !this.manualForm.nameEn.trim() || !this.manualForm.phone.trim() || !/^\d{10}$/.test(this.manualForm.nationalId)) {
+      this.formError = this.l('Complete the required identity and contact fields.', 'أكمل بيانات الاسم والهوية والجوال المطلوبة.');
+      return;
+    }
+    if (this.manualForm.customerType === 'CHILD' && !this.manualForm.grade.trim()) {
+      this.formError = this.l('Grade is required for a child.', 'يجب إدخال الصف للطفل.');
+      return;
+    }
+    if (this.manualForm.customerType === 'WORKER' && !this.manualForm.position.trim()) {
+      this.formError = this.l('Position is required for a worker.', 'يجب إدخال المسمى الوظيفي للعامل.');
+      return;
+    }
+    if (!this.manualForm.fees.length || this.manualForm.fees.some((row: any) => !row.name.trim() || Number(row.amount || 0) <= 0)) {
+      this.formError = this.l('Enter a valid name and amount for every fee item.', 'أدخل اسمًا ومبلغًا صحيحًا لكل بند مصروفات.');
+      return;
+    }
+    this.saving = true;
+    try {
+      const customer = await this.accounting.createManualCustomer(this.manualForm);
+      await this.loadCustomers();
+      this.searchText = customer.registrationNumber;
+      this.modalOpen = false;
+      this.feedback.success(this.l('Customer and financial account created successfully.', 'تم إنشاء العميل وحسابه المالي بنجاح.'));
+    } catch (error) {
+      this.formError = safeErrorMessage(error);
+      this.feedback.error(this.l('Customer could not be created.', 'تعذر إنشاء العميل.'), this.formError);
+    } finally {
+      this.saving = false;
+    }
   }
 
   get filteredCustomers(): any[] {

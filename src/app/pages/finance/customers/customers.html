@@ -3,12 +3,13 @@
     <div>
       <span>{{ l('Accounts Receivable', 'المدينون') }}</span>
       <h1>{{ l('Customers / Students', 'العملاء / الطلاب') }}</h1>
-      <p>{{ l('Student receivable accounts, balances, discounts, invoices and payments.', 'حسابات الطلاب والأرصدة والخصومات والفواتير والمدفوعات.') }}</p>
+      <p>{{ l('Customer receivable accounts, balances, fees, invoices and payments.', 'حسابات العملاء والأرصدة والمصروفات والفواتير والمدفوعات.') }}</p>
     </div>
+    <button type="button" class="create-customer" (click)="openManualCustomer()">+ {{ l('Add child or worker', 'إضافة طفل أو عامل') }}</button>
   </header>
 
   <section class="summary-grid">
-    <article><span>{{ l('Students', 'الطلاب') }}</span><strong>{{ customers.length }}</strong></article>
+    <article><span>{{ l('Customers', 'العملاء') }}</span><strong>{{ customers.length }}</strong></article>
     <article><span>{{ l('Outstanding', 'المتبقي') }}</span><strong>{{ money(totals.outstanding) }}</strong></article>
     <article><span>{{ l('Credit', 'الرصيد الدائن') }}</span><strong>{{ money(totals.credit) }}</strong></article>
     <article><span>{{ l('Invoices', 'الفواتير') }}</span><strong>{{ money(totals.invoices) }}</strong></article>
@@ -18,7 +19,7 @@
   <section class="table-card">
     <div class="table-title">
       <div>
-        <h2>{{ l('Student Accounts', 'حسابات الطلاب') }}</h2>
+        <h2>{{ l('Customer Accounts', 'حسابات العملاء') }}</h2>
         <p>{{ filteredCustomers.length }} {{ l('records', 'سجل') }}</p>
       </div>
       <div class="filter-bar">
@@ -33,7 +34,7 @@
       <table>
         <thead>
           <tr>
-            <th>{{ l('Code', 'الكود') }}</th><th>{{ l('Student / Parent', 'الطالب / ولي الأمر') }}</th><th>{{ l('Registration', 'رقم التسجيل') }}</th><th>{{ l('Contact', 'التواصل') }}</th><th>{{ l('Gross fees', 'إجمالي الرسوم') }}</th><th>{{ l('Discounts', 'الخصومات') }}</th><th>{{ l('Net fees', 'صافي الرسوم') }}</th><th>{{ l('Paid', 'المدفوع') }}</th><th>{{ l('Outstanding', 'المتبقي') }}</th><th>{{ l('Actions', 'الإجراءات') }}</th>
+            <th>{{ l('Code', 'الكود') }}</th><th>{{ l('Customer / Guardian', 'العميل / ولي الأمر') }}</th><th>{{ l('Registration', 'رقم التسجيل') }}</th><th>{{ l('Contact', 'التواصل') }}</th><th>{{ l('Gross fees', 'إجمالي الرسوم') }}</th><th>{{ l('Discounts', 'الخصومات') }}</th><th>{{ l('Net fees', 'صافي الرسوم') }}</th><th>{{ l('Paid', 'المدفوع') }}</th><th>{{ l('Outstanding', 'المتبقي') }}</th><th>{{ l('Actions', 'الإجراءات') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -42,6 +43,7 @@
             <td>
               <strong>{{ customer.nameEn }}</strong>
               <small>{{ customer.nameAr || customer.parentLink }}</small>
+              <small class="type-badge">{{ customer.customerType === 'WORKER' ? l('Worker', 'عامل') : l('Child / Student', 'طفل / طالب') }}</small>
             </td>
             <td>
               {{ customer.registrationNumber || '-' }}
@@ -54,12 +56,65 @@
             <td>{{ money(customer.summary?.grossFees) }}</td><td>{{ money(customer.summary?.totalDiscounts) }}</td><td>{{ money(customer.summary?.netFees) }}</td><td>{{ money(customer.summary?.paymentTotal) }}</td><td>{{ money(customer.summary?.outstanding) }}</td>
             <td class="row-actions"><a class="button-link" [routerLink]="['/finance/customers', customer.id]">{{ l('Open account', 'فتح الحساب') }}</a><a [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, source: 'student-profile', customerId: customer.id }">{{ l('Record payment', 'تسجيل دفعة') }}</a></td>
           </tr>
-          <tr *ngIf="loading"><td colspan="10" class="empty-cell">{{ l('Loading student accounts...', 'جاري تحميل حسابات الطلاب...') }}</td></tr>
+          <tr *ngIf="loading"><td colspan="10" class="empty-cell">{{ l('Loading customer accounts...', 'جاري تحميل حسابات العملاء...') }}</td></tr>
           <tr *ngIf="!loading && !filteredCustomers.length">
-            <td colspan="10" class="empty-cell">{{ l('No matching student accounts.', 'لا توجد حسابات طلاب مطابقة.') }}</td>
+            <td colspan="10" class="empty-cell">{{ l('No matching customer accounts.', 'لا توجد حسابات عملاء مطابقة.') }}</td>
           </tr>
         </tbody>
       </table>
     </div>
   </section>
+
+  <div class="customer-modal-backdrop" *ngIf="modalOpen" (click)="closeManualCustomer()">
+    <section class="customer-modal" role="dialog" aria-modal="true" [attr.aria-label]="l('Add financial customer', 'إضافة عميل مالي')" (click)="$event.stopPropagation()">
+      <header>
+        <div><span>{{ l('Accounts Receivable', 'المدينون') }}</span><h2>{{ l('Add child or worker', 'إضافة طفل أو عامل') }}</h2><p>{{ l('The system will create the profile, receivable account and manual fees together.', 'سينشئ النظام الملف وحساب المدين والمصروفات اليدوية معًا.') }}</p></div>
+        <button type="button" class="modal-close" (click)="closeManualCustomer()" [disabled]="saving" aria-label="Close">×</button>
+      </header>
+
+      <form (ngSubmit)="saveManualCustomer()">
+        <div class="form-section">
+          <h3>{{ l('Customer type and identity', 'نوع العميل والهوية') }}</h3>
+          <div class="form-grid">
+            <label><span>{{ l('Customer type', 'نوع العميل') }} *</span><select name="customerType" [(ngModel)]="manualForm.customerType"><option value="CHILD">{{ l('Child / Student', 'طفل / طالب') }}</option><option value="WORKER">{{ l('Worker', 'عامل') }}</option></select></label>
+            <label><span>{{ l('Arabic name', 'الاسم بالعربية') }} *</span><input name="nameAr" [(ngModel)]="manualForm.nameAr" /></label>
+            <label><span>{{ l('English name', 'الاسم بالإنجليزية') }} *</span><input name="nameEn" [(ngModel)]="manualForm.nameEn" dir="ltr" /></label>
+            <label><span>{{ l('Identity type', 'نوع الهوية') }} *</span><select name="identityType" [(ngModel)]="manualForm.identityType"><option value="NATIONAL_ID">{{ l('National ID', 'هوية وطنية') }}</option><option value="IQAMA">{{ l('Iqama', 'إقامة') }}</option></select></label>
+            <label><span>{{ l('National ID / Iqama', 'الهوية / الإقامة') }} *</span><input name="nationalId" [(ngModel)]="manualForm.nationalId" inputmode="numeric" maxlength="10" dir="ltr" /></label>
+            <label><span>{{ l('Nationality', 'الجنسية') }} *</span><input name="nationality" [(ngModel)]="manualForm.nationality" /></label>
+            <label><span>{{ l('Mobile', 'الجوال') }} *</span><input name="phone" [(ngModel)]="manualForm.phone" inputmode="tel" dir="ltr" /></label>
+            <label><span>{{ l('Email', 'البريد الإلكتروني') }}</span><input type="email" name="email" [(ngModel)]="manualForm.email" dir="ltr" /></label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>{{ manualForm.customerType === 'WORKER' ? l('Worker details', 'بيانات العامل') : l('Student details', 'بيانات الطفل / الطالب') }}</h3>
+          <div class="form-grid" *ngIf="manualForm.customerType === 'CHILD'">
+            <label><span>{{ l('Grade', 'الصف') }} *</span><input name="grade" [(ngModel)]="manualForm.grade" /></label>
+            <label><span>{{ l('Guardian name', 'اسم ولي الأمر') }}</span><input name="guardianName" [(ngModel)]="manualForm.guardianName" /></label>
+            <label><span>{{ l('Guardian phone', 'جوال ولي الأمر') }}</span><input name="guardianPhone" [(ngModel)]="manualForm.guardianPhone" dir="ltr" /></label>
+          </div>
+          <div class="form-grid" *ngIf="manualForm.customerType === 'WORKER'">
+            <label><span>{{ l('Position', 'المسمى الوظيفي') }} *</span><input name="position" [(ngModel)]="manualForm.position" /></label>
+            <label><span>{{ l('Department', 'القسم') }}</span><input name="department" [(ngModel)]="manualForm.department" /></label>
+          </div>
+        </div>
+
+        <div class="form-section fees-section">
+          <div class="section-title"><div><h3>{{ l('Manual fees', 'المصروفات اليدوية') }}</h3><p>{{ l('VAT is calculated by the backend from identity and category rules.', 'تُحتسب الضريبة من الـbackend وفق الهوية وفئة البند.') }}</p></div><button type="button" (click)="addFee()">+ {{ l('Add fee item', 'إضافة بند') }}</button></div>
+          <div class="fee-row" *ngFor="let fee of manualForm.fees; index as index">
+            <label><span>{{ l('Fee name', 'اسم البند') }}</span><input [name]="'feeName' + index" [(ngModel)]="fee.name" /></label>
+            <label><span>{{ l('Category', 'الفئة') }}</span><select [name]="'feeCategory' + index" [(ngModel)]="fee.category"><option *ngFor="let category of feeCategories" [value]="category.value">{{ l(category.en, category.ar) }}</option></select></label>
+            <label><span>{{ l('Amount before VAT', 'المبلغ قبل الضريبة') }}</span><input type="number" min="0.01" step="0.01" [name]="'feeAmount' + index" [(ngModel)]="fee.amount" /></label>
+            <button type="button" class="remove-fee" (click)="removeFee(index)" [disabled]="manualForm.fees.length === 1">{{ l('Remove', 'حذف') }}</button>
+          </div>
+          <div class="fees-total"><span>{{ l('Entered fees before VAT', 'المصروفات المدخلة قبل الضريبة') }}</span><strong>{{ money(manualFeesTotal) }}</strong></div>
+        </div>
+
+        <label class="notes-field"><span>{{ l('Notes', 'ملاحظات') }}</span><textarea name="notes" rows="3" [(ngModel)]="manualForm.notes"></textarea></label>
+        <p class="form-error" *ngIf="formError">{{ formError }}</p>
+        <footer><button type="button" class="cancel-action" (click)="closeManualCustomer()" [disabled]="saving">{{ l('Cancel', 'إلغاء') }}</button><button type="submit" class="save-action" [disabled]="saving">{{ saving ? l('Saving...', 'جارٍ الحفظ...') : l('Save and create account', 'حفظ وإنشاء الحساب') }}</button></footer>
+      </form>
+    </section>
+  </div>
 </section>

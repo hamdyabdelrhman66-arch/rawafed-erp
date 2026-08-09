@@ -194,6 +194,10 @@ export class AccountingService {
     return this.api.get<any[]>('/accounting/customers');
   }
 
+  createManualCustomer(payload: any): Promise<any> {
+    return this.api.post<any>('/accounting/customers/manual', payload);
+  }
+
   getCustomer(id: string): Promise<any> {
     return this.api.get<any>(`/accounting/customers/${id}`);
   }

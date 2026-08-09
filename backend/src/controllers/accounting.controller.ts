@@ -210,6 +210,9 @@ export class AccountingController {
   customers = asyncController(async (_req, res) =>
     res.json(await this.receivables.list()),
   );
+  createManualCustomer = asyncController(async (req, res) =>
+    res.status(201).json(await this.receivables.createManualCustomer(req.body, actor(req))),
+  );
   customer = asyncController(async (req, res) =>
     res.json(await this.receivables.get(req.params.id)),
   );

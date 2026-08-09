@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { Actor } from "../dto/core.dto.js";
 import { AccountingPaymentsRepository } from "../repositories/accounting-expenses.repository.js";
 import { CustomersRepository } from "../repositories/parties.repository.js";
@@ -9,6 +9,7 @@ import { JournalService } from "./journal.service.js";
 import { ServiceError } from "./service.error.js";
 import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
 import { AuditRepository } from "../repositories/audit.repository.js";
+import { calculateFeePreview } from "./student-vat.js";
 
 export class ReceivablesService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -21,6 +22,142 @@ export class ReceivablesService {
     const row = (await this.customerRows(id))[0];
     if (!row) throw new ServiceError("Customer not found.", 404);
     return this.shapeCustomer(row);
+  }
+  async createManualCustomer(input: any, actor: Actor) {
+    const created = await this.prisma.$transaction(async (tx) => {
+      const academicYear = await tx.academicYear.findFirst({
+        where: { active: true, deletedAt: null, branch: { active: true, deletedAt: null } },
+        include: { branch: true },
+        orderBy: { startsAt: "desc" },
+      });
+      const branch = academicYear?.branch || await tx.branch.findFirst({
+        where: { active: true, deletedAt: null },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!branch) throw new ServiceError("No active branch is configured. / لا يوجد فرع نشط مُعد في النظام.", 422, "BRANCH_NOT_CONFIGURED");
+      const duplicateIdentity = await tx.student.findUnique({ where: { nationalId: input.nationalId }, select: { id: true } });
+      if (duplicateIdentity) throw new ServiceError("The identity number is already registered. / رقم الهوية مسجل بالفعل.", 409, "DUPLICATE_IDENTITY");
+
+      const policies = await tx.revenueCategoryMapping.findMany({ where: { active: true } });
+      const preview = calculateFeePreview(
+        { identityType: input.identityType, identityNumber: input.nationalId, nationality: input.nationality },
+        input.fees.map((fee: any) => ({ name: fee.name, category: fee.category, amount: fee.amount })),
+        policies,
+      );
+      if (!preview.lines.length || preview.parentPayableTotal <= 0)
+        throw new ServiceError("At least one valid fee is required. / يجب إدخال بند مصروفات واحد صحيح على الأقل.", 422, "FEES_REQUIRED");
+
+      const parent = await tx.chartOfAccount.findUnique({ where: { systemKey: "accounts-receivable" } });
+      if (!parent) throw new ServiceError("Accounts receivable control account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
+      const suffix = randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase();
+      const year = new Date().getUTCFullYear();
+      const typePrefix = input.customerType === "WORKER" ? "WRK" : "CHD";
+      const registrationNumber = `${typePrefix}-${year}-${suffix}`;
+      const profile = {
+        source: "MANUAL_FINANCE_CUSTOMER",
+        customerType: input.customerType,
+        student: {
+          identityType: input.identityType,
+          nationalId: input.nationalId,
+          nationality: input.nationality,
+          manualCustomerType: input.customerType,
+        },
+        worker: input.customerType === "WORKER" ? { position: input.position, department: input.department } : undefined,
+        guardian: input.customerType === "CHILD" ? { name: input.guardianName, phone: input.guardianPhone } : undefined,
+        financial: {
+          paymentPlan: "FULL",
+          fees: preview.lines.map((line) => ({ name: line.name, category: line.category, subtotal: line.subtotal, vat: line.chargedVat, total: line.parentPayable })),
+        },
+        notes: input.notes || undefined,
+      };
+      const registration = await tx.registration.create({
+        data: {
+          registrationNumber,
+          branchId: branch.id,
+          academicYearId: academicYear?.id,
+          status: "approved",
+          studentName: input.nameEn,
+          grade: input.customerType === "WORKER" ? input.position : input.grade,
+          submittedAt: new Date(),
+          data: profile as Prisma.InputJsonValue,
+        },
+      });
+      const student = await tx.student.create({
+        data: {
+          registrationId: registration.id,
+          registrationNumber,
+          branchId: branch.id,
+          englishName: input.nameEn,
+          arabicName: input.nameAr,
+          grade: input.customerType === "WORKER" ? (input.position || "Worker") : input.grade,
+          nationalId: input.nationalId,
+          parentName: input.customerType === "CHILD" ? input.guardianName : undefined,
+          parentPhone: input.customerType === "CHILD" ? input.guardianPhone : input.phone,
+          parentEmail: input.email || undefined,
+          profile: profile as Prisma.InputJsonValue,
+        },
+      });
+      const receivable = await tx.chartOfAccount.create({
+        data: {
+          code: `${parent.code}-M${suffix}`,
+          name: `AR - ${input.nameEn}`,
+          nameAr: `ذمم - ${input.nameAr}`,
+          type: "ASSET",
+          parentId: parent.id,
+          isReceivableAccount: true,
+          allowPosting: true,
+          allowManualJournal: true,
+        },
+      });
+      await tx.financeAccount.create({
+        data: {
+          registrationId: registration.id,
+          studentId: student.id,
+          expectedTotal: preview.parentPayableTotal,
+          feeItems: {
+            create: preview.lines.map((line) => ({
+              name: line.name,
+              serviceCategory: line.category,
+              subtotal: line.subtotal,
+              vatAmount: line.chargedVat,
+              vatRate: line.vatRate,
+              governmentBorneVat: line.governmentBorneAmount,
+              taxTreatment: line.treatment,
+              taxReason: line.reasonCode,
+              amount: line.parentPayable,
+            })),
+          },
+        },
+      });
+      const customer = await tx.accountingCustomer.create({
+        data: {
+          customerCode: `CUS-${typePrefix}-${suffix}`,
+          studentId: student.id,
+          registrationId: registration.id,
+          registrationNumber,
+          parentLink: input.customerType === "CHILD" ? input.guardianName : input.position,
+          nameAr: input.nameAr,
+          nameEn: input.nameEn,
+          phone: input.phone,
+          email: input.email || undefined,
+          nationalId: input.nationalId,
+          receivableAccountId: receivable.id,
+          notes: input.notes,
+        },
+      });
+      await new AuditRepository(tx).create({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "create manual finance customer",
+        entityType: "accounting_customer",
+        entityId: customer.id,
+        riskLevel: "MEDIUM",
+        newValues: { customerType: input.customerType, registrationNumber, grossFees: preview.parentPayableTotal },
+        changedFields: ["customer", "student", "financeAccount", "feeItems", "receivableAccount"],
+      });
+      return customer.id;
+    });
+    return this.get(created);
   }
   async statement(id: string, from?: string, to?: string) {
     const customer = await new CustomersRepository(this.prisma).find(id);
@@ -230,6 +367,8 @@ export class ReceivablesService {
     const paidInstallments = installmentStates.filter((row: any) => row.computedStatus === "paid").length;
     const overdueInstallments = installmentStates.filter((row: any) => row.computedStatus.includes("overdue")).length;
     const nextInstallment = installmentStates.find((row: any) => row.computedStatus !== "paid");
+    const storedProfile = (customer.student?.profile || {}) as Record<string, any>;
+    const customerType = storedProfile.customerType || storedProfile.student?.manualCustomerType || "CHILD";
     return {
       id: customer.id,
       customerCode: customer.customerCode,
@@ -241,6 +380,9 @@ export class ReceivablesService {
       nameAr: customer.nameAr,
       nameEn: customer.nameEn,
       grade: customer.student?.grade,
+      customerType,
+      position: storedProfile.worker?.position || null,
+      department: storedProfile.worker?.department || null,
       phone: customer.phone,
       email: customer.email,
       nationalId: customer.nationalId,

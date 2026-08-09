@@ -147,6 +147,13 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
     c.reconcile,
   );
   r.get("/api/accounting/customers", ...secured, read, c.customers);
+  r.post(
+    "/api/accounting/customers/manual",
+    ...secured,
+    write,
+    validate(validators.manualCustomer),
+    c.createManualCustomer,
+  );
   r.get("/api/accounting/customers/:id", ...secured, read, c.customer);
   r.get(
     "/api/accounting/customers/:id/statement",
