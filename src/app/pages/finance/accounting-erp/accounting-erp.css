@@ -1104,19 +1104,16 @@ td.negative {
 }
 
 .line-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  align-items: end;
+  display: block;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  padding: 14px;
   box-sizing: border-box;
-  overflow: hidden;
   border: 1px solid #dbe4f0;
   border-radius: 12px;
-  background: #f8fafc;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+  overflow: hidden;
 }
 
 .line-row > * {
@@ -1148,9 +1145,51 @@ td.negative {
   box-sizing: border-box;
 }
 
-.line-row .account-field,
-.line-row .description-field {
-  grid-column: 1 / -1;
+.line-row-header {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f4f7fb;
+}
+
+.line-row-header div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.line-row-header strong {
+  min-width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #dceaff;
+  color: #07336b;
+  font-size: 12px;
+}
+
+.line-fields-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 1.8fr)
+    minmax(110px, .58fr)
+    minmax(110px, .58fr)
+    minmax(220px, 1.35fr);
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 .journal-footer {
@@ -1218,23 +1257,37 @@ input.invalid {
 }
 
 .remove-line {
-  grid-column: 1 / -1;
-  justify-self: start;
+  min-height: 32px;
+  padding-inline: 12px;
+  border-color: #fecaca;
+  background: #fff;
+  color: #b4232c;
   white-space: nowrap;
 }
 
+.remove-line:not(:disabled):hover,
+.remove-line:not(:disabled):focus-visible {
+  border-color: #ef4444;
+  background: #fff1f2;
+}
+
 @container (max-width: 900px) {
-  .line-row {
-    padding: 12px;
+  .line-fields-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .line-fields-grid .account-field,
+  .line-fields-grid .description-field {
+    grid-column: 1 / -1;
   }
 }
 
 @container (max-width: 560px) {
-  .line-row {
+  .line-fields-grid {
     grid-template-columns: 1fr;
   }
 
-  .line-row > * {
+  .line-fields-grid > * {
     grid-column: 1 !important;
   }
 
@@ -1296,10 +1349,6 @@ input.invalid {
   .trial-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
-  }
-
-  .line-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .accounts-toolbar,
