@@ -11,6 +11,7 @@
     "backend:backup": "npm --prefix backend run backup",
     "test:report-exports": "npx --prefix backend tsx scripts/report-export-behavior.ts",
     "build": "ng build",
+    "start:railway": "node scripts/railway-frontend-server.mjs",
     "watch": "ng build --watch --configuration development"
   },
   "dependencies": {

@@ -1,0 +1,1 @@
+window.RAWAFED_API_BASE_URL = window.RAWAFED_API_BASE_URL || '';
