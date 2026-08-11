@@ -85,6 +85,9 @@ export class CoreController {
   publicRegistration = asyncController(async (req, res) =>
     res.status(201).json(await this.registrations.create(req.body)),
   );
+  publicRegistrationDraft = asyncController(async (req, res) =>
+    res.status(200).json(await this.registrations.saveDraft(req.body)),
+  );
   publicRegistrationFeePreview = asyncController(async (req, res) =>
     res.json(await this.registrations.feePreview(req.body)),
   );

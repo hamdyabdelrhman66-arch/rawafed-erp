@@ -13,7 +13,8 @@ import {
 } from "../models/admission.models";
 
 const REGISTRATIONS_KEY = "rawafed.registrations";
-const DRAFT_KEY = "rawafed.currentDraft";
+const LEGACY_DRAFT_KEY = "rawafed.currentDraft";
+const DRAFT_CONTEXT_KEY = "rawafed.registrationDraftContext";
 const SETTINGS_KEY = "rawafed.settings";
 const NOTIFICATIONS_KEY = "rawafed.notifications";
 
@@ -120,18 +121,61 @@ export class StorageService {
   }
 
   saveDraft(registration: AdmissionRegistration): void {
-    localStorage.setItem(
-      DRAFT_KEY,
-      JSON.stringify({ ...registration, updatedAt: new Date().toISOString() }),
-    );
+    if (registration.status !== "draft") {
+      this.clearDraft();
+      return;
+    }
+    const draft = { ...registration, updatedAt: new Date().toISOString() };
+    const draftKey = this.draftKey();
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch (error) {
+      // Uploaded files are persisted by the backend. If browser storage is
+      // full, retain every form field plus file references instead of letting
+      // one quota error terminate the autosave subscription.
+      const compactDraft: AdmissionRegistration = {
+        ...draft,
+        contractPdf: undefined,
+        registrationInfoPdf: undefined,
+        documents: draft.documents.map((document) => ({
+          ...document,
+          dataUrl: '',
+        })),
+      };
+      try {
+        localStorage.setItem(draftKey, JSON.stringify(compactDraft));
+      } catch (compactError) {
+        console.error('Registration draft autosave failed', compactError, error);
+      }
+    }
   }
 
   getDraft(): AdmissionRegistration | null {
-    return this.read<AdmissionRegistration | null>(DRAFT_KEY, null);
+    const current = this.read<AdmissionRegistration | null>(this.draftKey(), null);
+    if (current?.status === "draft") return current;
+    if (current) this.clearDraft();
+
+    // One-time migration for unfinished drafts saved before draft contexts
+    // were introduced. Completed applications are deliberately discarded.
+    const legacy = this.read<AdmissionRegistration | null>(LEGACY_DRAFT_KEY, null);
+    localStorage.removeItem(LEGACY_DRAFT_KEY);
+    if (legacy?.status !== "draft") return null;
+    this.saveDraft(legacy);
+    return legacy;
   }
 
   clearDraft(): void {
-    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(this.draftKey());
+    localStorage.removeItem(LEGACY_DRAFT_KEY);
+  }
+
+  private draftKey(): string {
+    let context = sessionStorage.getItem(DRAFT_CONTEXT_KEY);
+    if (!context) {
+      context = crypto.randomUUID();
+      sessionStorage.setItem(DRAFT_CONTEXT_KEY, context);
+    }
+    return `${LEGACY_DRAFT_KEY}.${context}`;
   }
 
   upsertRegistration(

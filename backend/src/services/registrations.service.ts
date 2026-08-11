@@ -54,6 +54,37 @@ export class RegistrationsService {
   async feePreview(input: RegistrationInput) {
     return authoritativeFeePreviewUsing(this.prisma, input);
   }
+  async saveDraft(input: RegistrationInput) {
+    if (!input.id)
+      throw new ServiceError("Draft ID is required.", 422, "DRAFT_ID_REQUIRED");
+    return this.prisma.$transaction(async (tx) => {
+      const repo = new RegistrationsRepository(tx);
+      const existing = await repo.findById(input.id!);
+      if (existing) {
+        if (existing.status !== "draft")
+          throw new ServiceError("A submitted registration cannot be overwritten as a draft.", 409, "REGISTRATION_ALREADY_SUBMITTED");
+        return unpack(await repo.update(existing.id, {
+          studentName: input.student?.englishName || input.student?.arabicName || null,
+          grade: input.student?.applyingGrade || null,
+          data: json({ ...input, status: "draft", registrationNumber: existing.registrationNumber }),
+        }));
+      }
+      const branch = await tx.branch.findFirst({ where: { active: true, deletedAt: null } });
+      if (!branch) throw new ServiceError("Active branch is not configured.", 422);
+      const registrationNumber = `DRAFT-${input.id}`;
+      return unpack(await repo.create({
+        id: input.id,
+        registrationNumber,
+        branchId: branch.id,
+        status: "draft",
+        studentName: input.student?.englishName || input.student?.arabicName || null,
+        grade: input.student?.applyingGrade || null,
+        submittedAt: null,
+        data: json({ ...input, status: "draft", registrationNumber }),
+        createdAt: new Date(input.createdAt || new Date()),
+      }));
+    });
+  }
   async vatReconciliation(limit = 1000) {
     const rows = await this.prisma.registration.findMany({
       where: { deletedAt: null },
@@ -126,7 +157,7 @@ export class RegistrationsService {
         const repo = new RegistrationsRepository(tx);
         if (input.id) {
           const existing = await repo.findById(input.id);
-          if (existing) return unpack(existing);
+          if (existing?.status !== "draft") return unpack(existing);
         }
         const branch = await tx.branch.findFirst({
           where: { active: true, deletedAt: null },
@@ -138,20 +169,40 @@ export class RegistrationsService {
         const latest = await repo.latestNumber(prefix);
         const next =
           Number(latest?.registrationNumber.slice(prefix.length) || 124) + 1;
+        const requestedRegistrationNumber = String(input.registrationNumber || "").trim();
         const registrationNumber =
-          input.registrationNumber ||
-          `${prefix}${String(next).padStart(6, "0")}`;
-        const row = await repo.create({
-          id: input.id || randomUUID(),
+          requestedRegistrationNumber && !requestedRegistrationNumber.startsWith("DRAFT-")
+            ? requestedRegistrationNumber
+            : `${prefix}${String(next).padStart(6, "0")}`;
+        const finalStatus = input.status === "draft" ? "pending" : input.status || "pending";
+        const submittedAt = new Date(input.submittedAt || now);
+        const finalInput: RegistrationInput = {
+          ...input,
           registrationNumber,
-          branchId: branch.id,
-          status: input.status || "pending",
-          studentName: input.student?.englishName || input.student?.arabicName,
-          grade: input.student?.applyingGrade,
-          submittedAt: new Date(input.submittedAt || now),
-          data: json(input),
-          createdAt: new Date(input.createdAt || now),
-        });
+          status: finalStatus,
+          submittedAt: submittedAt.toISOString(),
+        };
+        const existing = input.id ? await repo.findById(input.id) : null;
+        const row = existing
+          ? await repo.update(existing.id, {
+              registrationNumber,
+              status: finalStatus,
+              studentName: input.student?.englishName || input.student?.arabicName,
+              grade: input.student?.applyingGrade,
+              submittedAt,
+              data: json(finalInput),
+            })
+          : await repo.create({
+              id: input.id || randomUUID(),
+              registrationNumber,
+              branchId: branch.id,
+              status: finalStatus,
+              studentName: input.student?.englishName || input.student?.arabicName,
+              grade: input.student?.applyingGrade,
+              submittedAt,
+              data: json(finalInput),
+              createdAt: new Date(input.createdAt || now),
+            });
         await new NotificationsRepository(tx).createCanonical({
           message: `New application waiting approval: ${input.student?.englishName || registrationNumber}`,
           targetRoles: ["Admissions", "Registrar", "Principal", "Super Admin"],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRuntimeDatabaseUrl, databaseConnectionMode } from "../src/prisma/database-url.js";
+import { buildRuntimeDatabaseUrl, databaseConnectionMode, selectDatabaseUrl } from "../src/prisma/database-url.js";
 
 describe("runtime PostgreSQL URL", () => {
   it("uses the Neon pooled endpoint at runtime", () => {
@@ -36,5 +36,25 @@ describe("runtime PostgreSQL URL", () => {
     );
     expect(new URL(runtime!).hostname).toBe("pool.example");
     expect(new URL(runtime!).searchParams.get("connection_limit")).toBe("7");
+  });
+
+  it("refuses to run tests against the production database target", () => {
+    const production = "postgresql://owner:secret@ep-production.neon.tech/neondb";
+    expect(() => selectDatabaseUrl({
+      NODE_ENV: "test",
+      DATABASE_URL: production,
+      TEST_DATABASE_URL: production,
+      ALLOW_DESTRUCTIVE_TEST_DATABASE: "yes",
+    })).toThrow(/must not match DATABASE_URL/);
+  });
+
+  it("selects an explicitly allowlisted isolated test database", () => {
+    const testUrl = "postgresql://owner:secret@ep-test.neon.tech/rawafed_test";
+    expect(selectDatabaseUrl({
+      NODE_ENV: "test",
+      DATABASE_URL: "postgresql://owner:secret@ep-production.neon.tech/neondb",
+      TEST_DATABASE_URL: testUrl,
+      TEST_DATABASE_ALLOWLIST: "ep-test.neon.tech/rawafed_test",
+    })).toBe(testUrl);
   });
 });

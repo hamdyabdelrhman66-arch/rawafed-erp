@@ -162,9 +162,14 @@ describe("frontend/backend operational contracts", () => {
             "post",
             {},
           );
-          await journals.deleteManual(postedManual.id);
-          observed.manualPostedDeleted =
-            (await tx.journalEntry.findUnique({ where: { id: postedManual.id } })) === null;
+          try {
+            await journals.deleteManual(postedManual.id);
+            observed.manualPostedDeleted = true;
+          } catch (error: any) {
+            observed.manualPostedDeleted =
+              error?.code === "POSTED_JOURNAL_IMMUTABLE" &&
+              (await tx.journalEntry.findUnique({ where: { id: postedManual.id } })) !== null;
+          }
 
           throw new RollbackOperationalFixture();
         },

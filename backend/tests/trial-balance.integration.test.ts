@@ -91,6 +91,11 @@ describe("trial balance", () => {
         observed.asset = assetRow;
         observed.totals = report.totals;
         observed.balanced = report.balanced;
+
+        const ledger = await new FinancialStatementsService(
+          tx as unknown as PrismaClient,
+        ).ledger(asset.id, "2026-07-01", "2026-07-31");
+        observed.ledger = ledger;
         throw new RollbackTrialBalanceFixture();
       }),
     ).rejects.toBeInstanceOf(RollbackTrialBalanceFixture);
@@ -113,5 +118,21 @@ describe("trial balance", () => {
       closingCredit: 200,
     });
     expect(observed.balanced).toBe(true);
+    expect(observed.ledger).toMatchObject({
+      openingBalance: 125,
+      periodDebit: 200,
+      periodCredit: 0,
+      closingBalance: 325,
+      transactions: [
+        {
+          entryNumber: expect.stringMatching(/^TB-PERIOD-/),
+          date: "2026-07-15",
+          postingDate: "2026-07-15",
+          debit: 200,
+          credit: 0,
+          balance: 325,
+        },
+      ],
+    });
   });
 });

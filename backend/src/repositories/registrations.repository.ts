@@ -27,6 +27,9 @@ export class RegistrationsRepository {
   create(data: Prisma.RegistrationUncheckedCreateInput) {
     return this.db.registration.create({ data });
   }
+  update(id: string, data: Prisma.RegistrationUncheckedUpdateInput) {
+    return this.db.registration.update({ where: { id }, data });
+  }
   updateStatus(id: string, status: string) {
     return this.db.registration.update({ where: { id }, data: { status } });
   }

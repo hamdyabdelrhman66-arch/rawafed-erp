@@ -5,6 +5,12 @@ import { AccountingSearchRepository } from "../repositories/accounting-search.re
 
 const num = (v: unknown) => Number(v || 0);
 const round = (v: number) => Math.round(v * 100) / 100;
+const dateBoundary = (value: string | undefined, endOfDay = false) => {
+  if (!value) return undefined;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!dateOnly) return new Date(value);
+  return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+};
 
 export interface TrialBalanceFilters {
   fromDate?: string;
@@ -30,8 +36,8 @@ export class FinancialStatementsService {
   constructor(private readonly prisma: PrismaClient) {}
   private dates(from?: string, to?: string) {
     return {
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      from: dateBoundary(from),
+      to: dateBoundary(to, true),
     };
   }
   async trialBalance(
@@ -42,8 +48,8 @@ export class FinancialStatementsService {
       typeof filtersOrFrom === "string"
         ? { fromDate: filtersOrFrom, toDate: legacyTo }
         : filtersOrFrom;
-    const from = filters.fromDate ? new Date(filters.fromDate) : undefined;
-    const to = filters.toDate ? new Date(filters.toDate) : undefined;
+    const from = dateBoundary(filters.fromDate);
+    const to = dateBoundary(filters.toDate, true);
     const accountWhere: Prisma.ChartOfAccountWhereInput = {};
     if (filters.accountType) {
       accountWhere.type = filters.accountType.toUpperCase() as AccountType;
@@ -179,27 +185,69 @@ export class FinancialStatementsService {
   }
   async ledger(accountId: string, from?: string, to?: string) {
     const account = await new AccountsRepository(this.prisma).find(accountId);
-    const lines = await new LedgerRepository(this.prisma).lines({
-      accountId,
-      ...this.dates(from, to),
+    if (!account) throw new Error("Account not found");
+
+    const dates = this.dates(from, to);
+    const repository = new LedgerRepository(this.prisma);
+    const [lines, priorBalances] = await Promise.all([
+      repository.lines({
+        accountId,
+        ...dates,
+      }),
+      dates.from
+        ? repository.balances({
+            accountId,
+            to: new Date(dates.from.getTime() - 1),
+          })
+        : Promise.resolve([]),
+    ]);
+    const includeConfiguredOpening =
+      !account.openingDate ||
+      (dates.from
+        ? account.openingDate <= dates.from
+        : !dates.to || account.openingDate <= dates.to);
+    const configuredOpening = includeConfiguredOpening
+      ? num(account.openingBalance) *
+        (account.normalBalance.toUpperCase() === "CREDIT" ? -1 : 1)
+      : 0;
+    const prior = priorBalances[0]?._sum;
+    const openingBalance = round(
+      configuredOpening + num(prior?.debit) - num(prior?.credit),
+    );
+    let balance = openingBalance;
+    const transactions = lines.map((line) => {
+      balance = round(balance + num(line.debit) - num(line.credit));
+      const postingDate = line.journalEntry.postingDate
+        .toISOString()
+        .slice(0, 10);
+      return {
+        id: line.id,
+        journalEntryId: line.journalEntryId,
+        entryNumber: line.journalEntry.entryNumber,
+        date: postingDate,
+        postingDate,
+        referenceNumber: line.journalEntry.referenceNumber,
+        description: line.description || line.journalEntry.description,
+        debit: num(line.debit),
+        credit: num(line.credit),
+        balance,
+        runningBalance: balance,
+      };
     });
-    let balance = 0;
+    const periodDebit = round(
+      transactions.reduce((total, transaction) => total + transaction.debit, 0),
+    );
+    const periodCredit = round(
+      transactions.reduce((total, transaction) => total + transaction.credit, 0),
+    );
     return {
       account,
-      entries: lines.map((line) => {
-        balance = round(balance + num(line.debit) - num(line.credit));
-        return {
-          id: line.id,
-          journalEntryId: line.journalEntryId,
-          entryNumber: line.journalEntry.entryNumber,
-          postingDate: line.journalEntry.postingDate.toISOString().slice(0, 10),
-          referenceNumber: line.journalEntry.referenceNumber,
-          description: line.description || line.journalEntry.description,
-          debit: num(line.debit),
-          credit: num(line.credit),
-          balance,
-        };
-      }),
+      openingBalance,
+      periodDebit,
+      periodCredit,
+      transactions,
+      // Kept for API clients that adopted the short-lived `entries` field.
+      entries: transactions,
       closingBalance: balance,
     };
   }

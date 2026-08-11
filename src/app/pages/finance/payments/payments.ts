@@ -97,24 +97,12 @@ export class Payments implements OnInit {
 
   }
 
-  printReceipt() {
-
-    const printWindow =
-      window.open(
-        '/finance/payment-details',
-        '_blank'
-      );
-
-    if (printWindow) {
-
-      printWindow.onload = () => {
-
-        printWindow.print();
-
-      };
-
-    }
-
+  printReceipt(payment: any) {
+    window.open(
+      `/finance/payment-details/${encodeURIComponent(String(payment.id))}?print=1`,
+      '_blank',
+      'noopener,noreferrer',
+    );
   }
 
 }

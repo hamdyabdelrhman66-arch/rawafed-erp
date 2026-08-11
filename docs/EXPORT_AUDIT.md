@@ -1,0 +1,33 @@
+# Rawafed export and print audit
+
+This inventory documents the active export paths after final stabilization. It does not change posted records or historical document snapshots.
+
+## Invoices
+
+- Invoice template, invoice detail, and invoice-generation downloads all use `InvoicePdfService`.
+- The service draws text, lines, totals, and tables as vector PDF content. The Rawafed logo and ZATCA QR remain raster images by design.
+- The PDF contains searchable invoice identifiers and numeric totals, embeds Cairo for Arabic text, uses A4 dimensions, and paginates line items.
+- Print uses the same invoice detail data and the invoice-specific A4 print stylesheet; application navigation and action controls are hidden in print mode.
+
+## Accounting and operational reports
+
+- Finance reports and account-ledger PDF downloads use `ReportExportService`.
+- Report tables are rendered as vector text and rules with Arabic font embedding and page breaks.
+- Excel exports use typed worksheet cells rather than screenshots. Monetary values remain numeric so totals and filters work in spreadsheet software.
+- Chart of Accounts ledger export uses the same backend ledger response as the on-screen drawer.
+
+## Admission documents
+
+- Registration contract, student information file, and admission letter use jsPDF/pdf-lib text drawing.
+- Signatures, QR codes, logos, and approved stationery artwork are embedded images; form text is not converted to a page screenshot.
+- A completed submission remains available on the success step for explicit PDF download. Starting a new registration is a separate user action.
+
+## Remaining browser-print paths
+
+Payment receipts, customer statements, inventory, payroll/expenses, and fixed-asset screen reports use dedicated print CSS and the browser print dialog. These are not used as the source for downloadable invoice PDFs. Browser print must be visually checked in Chrome at A4 with default scale before each production release.
+
+## Verification contract
+
+- `backend/tests/report-export.behavior.test.ts` verifies A4 output, multiple pages, embedded Cairo, and extractable invoice/report text.
+- No application source imports or calls `html2canvas`.
+- Images are limited to visual assets that cannot remain text (logo, QR, signatures, stationery).

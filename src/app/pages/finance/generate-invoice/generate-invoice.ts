@@ -1,13 +1,13 @@
 ﻿import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { AuthService } from '../../../core/auth/auth.service';
 import { PatientPackagesService } from '../../../core/finance/patient-packages.service';
 import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
+import { InvoicePdfService } from '../../../core/reports/invoice-pdf.service';
+import { StorageService } from '../../../core/services/storage.service';
 
 interface GenerateInvoiceForm {
   invoiceNumber: string;
@@ -35,8 +35,6 @@ interface GenerateInvoiceForm {
   styleUrls: ['./generate-invoice.css', '../../../shared/finance/finance-ui.scss']
 })
 export class GenerateInvoice implements OnInit {
-  @ViewChild('invoiceSheet') invoiceSheet?: ElementRef<HTMLElement>;
-
   readonly englishSellerName = 'RAWAFED INTERNATIONAL SCHOOL';
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Online Payment'];
   readonly billingEntities = ['Parent / Student', 'Company Sponsor', 'Scholarship', 'School'];
@@ -71,6 +69,8 @@ export class GenerateInvoice implements OnInit {
     private readonly accountService: PatientPackagesService,
     private readonly auth: AuthService,
     private readonly zatcaInvoice: ZatcaInvoiceService,
+    private readonly invoicePdf: InvoicePdfService,
+    private readonly storage: StorageService,
     public readonly i18n: I18nService
   ) {}
 
@@ -211,35 +211,21 @@ export class GenerateInvoice implements OnInit {
   }
 
   async downloadPdf(): Promise<void> {
-    if (!this.invoiceSheet) return;
-
     this.isExporting = true;
-
     try {
-      await this.waitForImages(this.invoiceSheet.nativeElement);
-
-      const canvas = await html2canvas(this.invoiceSheet.nativeElement, {
-        backgroundColor: '#ffffff',
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        windowWidth: this.invoiceSheet.nativeElement.scrollWidth,
-        windowHeight: this.invoiceSheet.nativeElement.scrollHeight,
+      const settings = this.storage.settings();
+      await this.invoicePdf.download({
+        invoiceNumber: this.form.invoiceNumber || 'generated', date: this.form.date,
+        studentName: this.form.patientName, registrationNumber: this.form.fileNumber || this.form.patientId,
+        category: this.form.serviceName, paymentMethod: this.paymentMethodLabel(this.form.paymentMethod),
+        schoolNameAr: settings.schoolNameAr, schoolNameEn: settings.schoolName,
+        addressAr: settings.addressAr, addressEn: settings.addressEn, phone: settings.phone,
+        email: settings.email, vatNumber: this.form.taxNumber || settings.vatNumber, qrDataUrl: this.qrImageDataUrl,
+        lines: [{ description: this.form.serviceName || this.l('School Fees', 'رسوم مدرسية'), quantity: 1,
+          unitPrice: this.subtotal, subtotal: this.taxableAmount, vat: this.vatAmount, total: this.totalAmount }],
+        subtotal: this.subtotal, discount: this.discount, vat: this.vatAmount, total: this.totalAmount,
+        paid: this.paidAmount, remaining: this.remainingAmount,
       });
-
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4',
-        compress: true,
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imageData = canvas.toDataURL('image/png', 1);
-
-      pdf.addImage(imageData, 'PNG', 0, 0, pageWidth, pageHeight);
-      pdf.save(`invoice-${this.form.invoiceNumber || 'generated'}.pdf`);
     } finally {
       this.isExporting = false;
     }
@@ -258,17 +244,4 @@ export class GenerateInvoice implements OnInit {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
-  private async waitForImages(element: HTMLElement): Promise<void> {
-    const images = Array.from(element.querySelectorAll('img'));
-    await Promise.all(
-      images.map((image) => {
-        if (image.complete) return Promise.resolve();
-
-        return new Promise<void>((resolve) => {
-          image.onload = () => resolve();
-          image.onerror = () => resolve();
-        });
-      }),
-    );
-  }
 }

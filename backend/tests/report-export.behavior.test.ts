@@ -1,9 +1,12 @@
 import { Workbook } from "exceljs";
+import { readFile } from "node:fs/promises";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
 import {
   ReportExportService,
   type ReportTable,
 } from "../../src/app/core/reports/report-export.service";
+import { InvoicePdfService } from "../../src/app/core/reports/invoice-pdf.service";
 
 const rows = Array.from({ length: 50 }, (_, index) => [
   `2026-07-${String((index % 12) + 1).padStart(2, "0")}`,
@@ -37,7 +40,11 @@ describe("Excel and PDF report exports", () => {
     const data = workbook.getWorksheet("Data")!;
     expect(data.views[0].rightToLeft).toBe(true);
     expect(data.rowCount).toBe(51);
+    expect(data.getCell("A2").value).toBeInstanceOf(Date);
+    expect(data.getColumn(1).numFmt).toBe("yyyy-mm-dd");
     expect(data.getCell("B2").value).toBe("مستخدم 1");
+    expect(data.getColumn(2).numFmt).toBeUndefined();
+    expect(data.getColumn(4).numFmt).toBe("#,##0.00;[Red](#,##0.00);-");
     expect(
       (workbook.getWorksheet("Checks")!.getCell("E2").value as { formula: string })
         .formula,
@@ -60,5 +67,50 @@ describe("Excel and PDF report exports", () => {
     }
     expect(pages[0]).toContain("أبريل");
     expect(pages[1]).not.toContain("أبريل");
+  });
+
+  it("creates a vector PDF whose report text remains extractable", async () => {
+    const font = new Uint8Array(
+      await readFile(new URL("../../public/fonts/Cairo.ttf", import.meta.url)),
+    );
+    const bytes = await new ReportExportService().buildPdf(report, font);
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+
+    const document = await getDocument({ data: bytes }).promise;
+    expect(document.numPages).toBeGreaterThan(1);
+    const firstPage = await document.getPage(1);
+    const content = await firstPage.getTextContent();
+    const extracted = content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .join(" ");
+    expect(extracted).toContain("2026");
+    expect(extracted).toContain("100");
+  });
+
+  it("creates a searchable vector invoice without rasterizing the document", async () => {
+    const font = new Uint8Array(
+      await readFile(new URL("../../public/fonts/Cairo.ttf", import.meta.url)),
+    );
+    const bytes = await new InvoicePdfService().build({
+      invoiceNumber: "RAW-INV-2026-001",
+      date: "2026-08-10",
+      studentName: "Test Student",
+      registrationNumber: "RAW-2026-001",
+      lines: [{ description: "Tuition", quantity: 1, unitPrice: 14000, subtotal: 14000, vat: 0, total: 14000 }],
+      subtotal: 14000,
+      discount: 445,
+      vat: 0,
+      total: 13555,
+      paid: 5000,
+      remaining: 8555,
+    }, font, null);
+    const document = await getDocument({ data: bytes }).promise;
+    const page = await document.getPage(1);
+    const content = await page.getTextContent();
+    const extracted = content.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+    expect(extracted).toContain("RAW-INV-2026-001");
+    expect(extracted).toContain("14000.00");
+    expect(extracted).toContain("445.00");
+    expect(extracted).toContain("8555.00");
   });
 });

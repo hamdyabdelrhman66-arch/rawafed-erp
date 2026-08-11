@@ -1,9 +1,9 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { requestContext } from "../observability/request-context.js";
-import { buildRuntimeDatabaseUrl } from "./database-url.js";
+import { buildRuntimeDatabaseUrl, selectDatabaseUrl } from "./database-url.js";
 
 export const runtimeDatabaseUrl = () => buildRuntimeDatabaseUrl(
-  process.env.DATABASE_URL || "",
+  selectDatabaseUrl(process.env),
   {
     poolUrl: process.env.DATABASE_POOL_URL,
     useNeonPooler: process.env.DATABASE_USE_NEON_POOLER !== "false",

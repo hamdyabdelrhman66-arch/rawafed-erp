@@ -15,10 +15,12 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:test:guard": "tsx scripts/test-database-guard.ts",
+    "db:reset:test": "NODE_ENV=test tsx scripts/test-database-guard.ts && NODE_ENV=test DATABASE_URL=\"$TEST_DATABASE_URL\" prisma migrate reset --force",
     "db:validate": "prisma validate",
-    "test": "vitest run",
-    "test:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=../test-results/junit.xml",
-    "test:coverage": "vitest run --coverage"
+    "test": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "NODE_ENV=test tsx scripts/test-database-guard.ts && vitest run tests/*.integration.test.ts",
+    "test:ci": "vitest run --config vitest.unit.config.ts --coverage --reporter=default --reporter=junit --outputFile.junit=../test-results/junit.xml",
+    "test:coverage": "vitest run --config vitest.unit.config.ts --coverage"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

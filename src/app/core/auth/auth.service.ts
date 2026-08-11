@@ -15,6 +15,13 @@ export class AuthService {
   ) {
     const current = this.session();
     if (current?.token) this.api.setToken(current.token);
+    window.addEventListener('storage', (event) => {
+      if (event.key !== AUTH_KEY) return;
+      const session = this.readSession();
+      this.session.set(session);
+      if (session?.token) this.api.setToken(session.token);
+      else this.api.clearToken();
+    });
     window.addEventListener('rawafed-session-expired', () => {
       this.session.set(null);
       void this.router.navigate(['/login'], { queryParams: { reason: 'session-expired' } });
@@ -33,7 +40,7 @@ export class AuthService {
         refreshToken: response.refreshToken
       };
       this.api.setToken(response.token);
-      sessionStorage.setItem(AUTH_KEY, JSON.stringify(session));
+      localStorage.setItem(AUTH_KEY, JSON.stringify(session));
       this.session.set(session);
       return true;
     } catch {
@@ -45,6 +52,7 @@ export class AuthService {
     const refreshToken = this.session()?.refreshToken;
     if (refreshToken) void this.api.post('/auth/logout', { refreshToken }).catch(() => undefined);
     this.api.clearToken();
+    localStorage.removeItem(AUTH_KEY);
     sessionStorage.removeItem(AUTH_KEY);
     this.session.set(null);
     this.router.navigate(['/login']);
@@ -65,11 +73,17 @@ export class AuthService {
 
   private readSession(): AuthSession | null {
     try {
-      const raw = sessionStorage.getItem(AUTH_KEY);
+      const legacy = sessionStorage.getItem(AUTH_KEY);
+      if (legacy && !localStorage.getItem(AUTH_KEY)) {
+        localStorage.setItem(AUTH_KEY, legacy);
+      }
+      sessionStorage.removeItem(AUTH_KEY);
+      const raw = localStorage.getItem(AUTH_KEY);
       const session = raw ? (JSON.parse(raw) as AuthSession) : null;
       if (session?.token === 'demo-vercel-session') {
-        sessionStorage.removeItem(AUTH_KEY);
+        localStorage.removeItem(AUTH_KEY);
         sessionStorage.removeItem('rawafed_api_token');
+        localStorage.removeItem('rawafed_api_token');
         return null;
       }
       return session;

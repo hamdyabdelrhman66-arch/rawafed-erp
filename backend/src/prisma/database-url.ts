@@ -6,6 +6,53 @@ export interface RuntimeDatabaseUrlOptions {
   connectTimeout?: string;
 }
 
+export interface DatabaseEnvironment {
+  NODE_ENV?: string;
+  DATABASE_URL?: string;
+  TEST_DATABASE_URL?: string;
+  PRODUCTION_DATABASE_URL?: string;
+  TEST_DATABASE_ALLOWLIST?: string;
+  ALLOW_DESTRUCTIVE_TEST_DATABASE?: string;
+}
+
+const databaseTarget = (raw: string): string => {
+  const url = new URL(raw);
+  return `${url.hostname.toLowerCase()}:${url.port || "5432"}/${url.pathname.replace(/^\//, "").toLowerCase()}`;
+};
+
+export function selectDatabaseUrl(environment: DatabaseEnvironment): string {
+  const directUrl = environment.DATABASE_URL?.trim() || "";
+  if (environment.NODE_ENV !== "test") return directUrl;
+
+  const testUrl = environment.TEST_DATABASE_URL?.trim();
+  if (!testUrl)
+    throw new Error("TEST_DATABASE_URL is required when NODE_ENV=test.");
+  const parsed = new URL(testUrl);
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol))
+    throw new Error("TEST_DATABASE_URL must use PostgreSQL.");
+  const target = databaseTarget(testUrl);
+  for (const [name, candidate] of [
+    ["DATABASE_URL", directUrl],
+    ["PRODUCTION_DATABASE_URL", environment.PRODUCTION_DATABASE_URL || ""],
+  ] as const) {
+    if (candidate && databaseTarget(candidate) === target)
+      throw new Error(`TEST_DATABASE_URL must not match ${name}.`);
+  }
+
+  const database = parsed.pathname.replace(/^\//, "");
+  const allowlist = (environment.TEST_DATABASE_ALLOWLIST || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowed =
+    allowlist.includes(parsed.hostname) ||
+    allowlist.includes(`${parsed.hostname}/${database}`) ||
+    environment.ALLOW_DESTRUCTIVE_TEST_DATABASE === "yes";
+  if (!allowed)
+    throw new Error("TEST_DATABASE_URL is not allowlisted for automated tests.");
+  return testUrl;
+}
+
 export function buildRuntimeDatabaseUrl(
   directUrl: string,
   options: RuntimeDatabaseUrlOptions = {},

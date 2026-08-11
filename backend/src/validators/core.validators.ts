@@ -102,6 +102,10 @@ export const registration = z
   })
   .passthrough();
 export const registrationFeePreview = registration.pick({ student: true, financial: true });
+export const registrationDraft = z.object({
+  id: z.string().uuid(),
+  status: z.literal("draft").optional(),
+}).passthrough();
 export const status = z.object({
   status: z.enum(["draft", "pending", "approved", "rejected", "archived"]),
 });

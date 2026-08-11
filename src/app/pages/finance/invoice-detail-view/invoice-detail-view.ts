@@ -1,14 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { AccountingService, InvoiceDetail } from '../../../core/finance/accounting.service';
 import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
+import { InvoicePdfService } from '../../../core/reports/invoice-pdf.service';
 
 @Component({
   selector: 'app-invoice-detail-view',
@@ -40,6 +39,7 @@ export class InvoiceDetailView implements OnInit {
     private readonly accounting: AccountingService,
     private readonly zatcaInvoice: ZatcaInvoiceService,
     private readonly feedback: FeedbackService,
+    private readonly invoicePdf: InvoicePdfService,
     public readonly i18n: I18nService,
   ) {}
 
@@ -156,10 +156,6 @@ date(value: string | null | undefined): string {
     }
   }
 
-  /**
-   * Downloads the exact rendered invoice design as a single A4 PDF page.
-   * It captures only #invoice-print-content, not the full application page.
-   */
   async downloadPdf(): Promise<void> {
     if (this.busy) return;
 
@@ -168,72 +164,37 @@ date(value: string | null | undefined): string {
     try {
       this.detail = await this.accounting.authorizeInvoicePdf(this.invoiceId);
       this.qrImage = await this.invoiceQr(this.detail);
-
-      await this.waitForInvoiceRendering();
-
-      const invoiceElement = document.getElementById('invoice-print-content');
-
-      if (!invoiceElement) {
-        throw new Error('Invoice document element was not found.');
-      }
-
-      invoiceElement.classList.add('pdf-exporting');
-
-      try {
-        const canvas = await html2canvas(invoiceElement, {
-          scale: Math.max(2, Math.min(3, window.devicePixelRatio || 2)),
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          logging: false,
-          scrollX: 0,
-          scrollY: -window.scrollY,
-          width: invoiceElement.scrollWidth,
-          height: invoiceElement.scrollHeight,
-          windowWidth: invoiceElement.scrollWidth,
-          windowHeight: invoiceElement.scrollHeight,
-          onclone: (clonedDocument) => {
-            const clonedInvoice = clonedDocument.getElementById('invoice-print-content');
-            clonedInvoice?.classList.add('pdf-exporting');
-          },
-        });
-
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-          compress: true,
-        });
-
-        const pageWidth = 210;
-        const pageHeight = 297;
-        const imageData = canvas.toDataURL('image/png', 1);
-
-        const scale = Math.min(
-          pageWidth / canvas.width,
-          pageHeight / canvas.height,
-        );
-
-        const imageWidth = canvas.width * scale;
-        const imageHeight = canvas.height * scale;
-        const imageX = (pageWidth - imageWidth) / 2;
-        const imageY = (pageHeight - imageHeight) / 2;
-
-        pdf.addImage(
-          imageData,
-          'PNG',
-          imageX,
-          imageY,
-          imageWidth,
-          imageHeight,
-          undefined,
-          'FAST',
-        );
-
-        pdf.save(`invoice-${this.detail.invoice.invoiceNumber}.pdf`);
-      } finally {
-        invoiceElement.classList.remove('pdf-exporting');
-      }
+      const data = this.detail;
+      await this.invoicePdf.download({
+        invoiceNumber: data.invoice.invoiceNumber,
+        status: data.invoice.status,
+        date: this.date(data.invoice.issuedAt),
+        studentName: this.i18n.language() === 'ar' ? data.student.nameAr || data.student.nameEn : data.student.nameEn,
+        registrationNumber: data.student.registrationNumber,
+        category: data.invoice.categoryLabel,
+        schoolNameAr: data.school.nameAr,
+        schoolNameEn: data.school.nameEn,
+        addressAr: data.school.addressAr,
+        addressEn: data.school.addressEn,
+        phone: data.school.phone,
+        email: data.school.email,
+        vatNumber: data.school.vatNumber,
+        qrDataUrl: this.qrImage,
+        lines: data.lines.map((line) => ({
+          description: line.description,
+          quantity: Number(line.quantity || 0),
+          unitPrice: Number(line.unitPrice || 0),
+          subtotal: Number(line.netAmount || 0),
+          vat: this.lineVat(line),
+          total: this.lineTotal(line),
+        })),
+        subtotal: Number(data.totals.subtotal || 0),
+        discount: Number(data.totals.discount || 0) + Number(data.totals.additionalDiscount || 0),
+        vat: this.displayedInvoiceVat(),
+        total: Number(data.totals.parentPayable ?? data.totals.total ?? 0),
+        paid: Number(data.totals.paid || 0),
+        remaining: Number(data.totals.remaining || 0),
+      });
     } catch (error) {
       this.feedback.error(
         this.i18n.t('invoice.pdf_failed'),

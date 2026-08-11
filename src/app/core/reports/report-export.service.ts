@@ -1,6 +1,5 @@
 import { Injectable } from "@angular/core";
 import { Workbook } from "exceljs";
-import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 export interface ReportTable {
@@ -128,7 +127,7 @@ export class ReportExportService {
       fgColor: { argb: "FF1D1C50" },
     };
     header.alignment = { horizontal: "center" };
-    dataSheet.columns.forEach((column) => {
+    dataSheet.columns.forEach((column, columnIndex) => {
       column.width = Math.min(
         32,
         Math.max(
@@ -140,7 +139,20 @@ export class ReportExportService {
             ),
         ),
       );
-      column.numFmt = "#,##0.00;[Red](#,##0.00);-";
+      const values = report.rows
+        .map((row) => row[columnIndex])
+        .filter((value) => value !== null && value !== undefined && value !== "");
+      const dateColumn = values.length > 0 && values.every((value) =>
+        /^\d{4}-\d{2}-\d{2}(?:[T ][^\s]+)?$/.test(String(value)),
+      );
+      const numericColumn = values.length > 0 && values.every((value) =>
+        typeof value === "number" || /^-?\d+(\.\d+)?$/.test(String(value)),
+      );
+      column.numFmt = dateColumn
+        ? "yyyy-mm-dd"
+        : numericColumn
+          ? "#,##0.00;[Red](#,##0.00);-"
+          : "General";
     });
     dataSheet.autoFilter = {
       from: "A1",
@@ -184,42 +196,151 @@ export class ReportExportService {
   }
 
   async downloadPdf(report: ReportTable): Promise<void> {
-    const chunks = this.chunk(report.rows, 18);
-    if (!chunks.length) chunks.push([]);
+    const response = await fetch("/fonts/Cairo.ttf");
+    if (!response.ok) throw new Error("The Arabic report font could not be loaded.");
+    const bytes = await this.buildPdf(report, new Uint8Array(await response.arrayBuffer()));
+    this.downloadBlob(new Blob([bytes], { type: "application/pdf" }), `${report.fileName}.pdf`);
+  }
+
+  async buildPdf(report: ReportTable, fontBytes: Uint8Array): Promise<Uint8Array> {
     const pdf = new jsPDF({
       unit: "pt",
       format: "a4",
       orientation: report.columns.length > 7 ? "landscape" : "portrait",
+      compress: true,
     });
-    for (let index = 0; index < chunks.length; index += 1) {
-      const page = this.buildPdfPage(
-        report,
-        chunks[index],
-        index + 1,
-        chunks.length,
-      );
-      document.body.appendChild(page);
-      try {
-        const canvas = await html2canvas(page, {
-          scale: 1.5,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-        });
-        if (index) pdf.addPage();
-        pdf.addImage(
-          canvas.toDataURL("image/jpeg", 0.94),
-          "JPEG",
-          0,
-          0,
-          pdf.internal.pageSize.getWidth(),
-          pdf.internal.pageSize.getHeight(),
-        );
-      } finally {
-        page.remove();
-      }
+    this.installArabicFont(pdf, fontBytes);
+    this.drawVectorReport(pdf, report);
+    return new Uint8Array(pdf.output("arraybuffer"));
+  }
+
+  private installArabicFont(pdf: jsPDF, bytes: Uint8Array): void {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
     }
-    pdf.save(`${report.fileName}.pdf`);
+    pdf.addFileToVFS("Cairo.ttf", btoa(binary));
+    pdf.addFont("Cairo.ttf", "Cairo", "normal");
+    pdf.setFont("Cairo", "normal");
+  }
+
+  private drawVectorReport(pdf: jsPDF, report: ReportTable): void {
+    const rtl = report.direction === "rtl";
+    const margin = 36;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const contentWidth = pageWidth - margin * 2;
+    const columnCount = Math.max(report.columns.length, 1);
+    const columnWidth = contentWidth / columnCount;
+    const rowHeight = 22;
+    const headerHeight = 104;
+    const footerY = pageHeight - 24;
+    let y = headerHeight;
+
+    const drawHeader = (): void => {
+      pdf.setFillColor(29, 28, 80);
+      pdf.rect(0, 0, pageWidth, 10, "F");
+      pdf.setTextColor(29, 28, 80);
+      pdf.setFontSize(18);
+      this.drawPdfText(
+        pdf,
+        report.locale === "ar" && report.titleAr ? report.titleAr : report.title,
+        rtl ? pageWidth - margin : margin,
+        40,
+        rtl,
+      );
+      pdf.setTextColor(71, 85, 105);
+      pdf.setFontSize(9);
+      this.drawPdfText(pdf, report.subtitle, rtl ? pageWidth - margin : margin, 59, rtl);
+      const school = rtl
+        ? "مدارس روافد الشرق الأوسط العالمية"
+        : "Rawafed International School";
+      this.drawPdfText(pdf, school, rtl ? margin : pageWidth - margin, 40, !rtl);
+      pdf.setDrawColor(183, 43, 43);
+      pdf.setLineWidth(1.5);
+      pdf.line(margin, 75, pageWidth - margin, 75);
+      pdf.setFillColor(238, 244, 252);
+      pdf.rect(margin, 84, contentWidth, 20, "F");
+      pdf.setTextColor(11, 55, 111);
+      pdf.setFontSize(7.5);
+      report.columns.forEach((column, index) => {
+        const visualIndex = rtl ? columnCount - 1 - index : index;
+        const x = margin + visualIndex * columnWidth;
+        this.drawPdfText(
+          pdf,
+          column,
+          rtl ? x + columnWidth - 5 : x + 5,
+          97,
+          rtl,
+        );
+      });
+    };
+
+    const drawFooter = (): void => {
+      pdf.setDrawColor(203, 213, 225);
+      pdf.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
+      pdf.setTextColor(100, 116, 139);
+      pdf.setFontSize(7);
+      this.drawPdfText(
+        pdf,
+        report.generatedBy || "Rawafed ERP",
+        rtl ? pageWidth - margin : margin,
+        footerY,
+        rtl,
+      );
+      pdf.text(String(pdf.getNumberOfPages()), rtl ? margin : pageWidth - margin, footerY, {
+        align: rtl ? "left" : "right",
+      });
+    };
+
+    drawHeader();
+    report.rows.forEach((row, rowIndex) => {
+      if (y + rowHeight > footerY - 18) {
+        drawFooter();
+        pdf.addPage();
+        drawHeader();
+        y = headerHeight;
+      }
+      if (rowIndex % 2) {
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(margin, y, contentWidth, rowHeight, "F");
+      }
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFontSize(7);
+      report.columns.forEach((_, index) => {
+        const visualIndex = rtl ? columnCount - 1 - index : index;
+        const x = margin + visualIndex * columnWidth;
+        const value = String(row[index] ?? "—");
+        const clipped = value.length > 34 ? `${value.slice(0, 33)}…` : value;
+        this.drawPdfText(
+          pdf,
+          clipped,
+          rtl ? x + columnWidth - 5 : x + 5,
+          y + 14,
+          rtl,
+        );
+      });
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
+      y += rowHeight;
+    });
+    drawFooter();
+  }
+
+  private drawPdfText(
+    pdf: jsPDF,
+    value: unknown,
+    x: number,
+    y: number,
+    rtl: boolean,
+  ): void {
+    const text = String(value ?? "—");
+    const containsArabic = /[\u0600-\u06ff]/.test(text);
+    pdf.text(containsArabic ? pdf.processArabic(text) : text, x, y, {
+      align: rtl ? "right" : "left",
+      baseline: "alphabetic",
+    });
   }
 
   private buildPdfPage(
@@ -262,6 +383,8 @@ export class ReportExportService {
     if (value === null || value === undefined) return null;
     if (typeof value === "number" || typeof value === "boolean") return value;
     const text = String(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text))
+      return new Date(`${text}T00:00:00.000Z`);
     if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
     return text;
   }

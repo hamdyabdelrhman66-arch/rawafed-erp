@@ -6,7 +6,26 @@ import { PurchaseRepository } from "../repositories/purchase.repository.js";
 import { StockRepository } from "../repositories/stock.repository.js";
 import { NotificationService } from "./inventory-notification.service.js";
 import { ServiceError } from "./service.error.js";
+import { JournalService, type PostingLine } from "./journal.service.js";
 const money = (v: unknown) => Math.round(Number(v || 0) * 100) / 100;
+
+export const goodsReceiptJournalLines = (input: {
+  inventoryAccountId: string;
+  inputVatAccountId?: string;
+  payableAccountId: string;
+  subtotal: number;
+  vatTotal: number;
+}): PostingLine[] => [
+  { accountId: input.inventoryAccountId, debit: money(input.subtotal) },
+  ...(input.vatTotal > 0
+    ? [{ accountId: input.inputVatAccountId!, debit: money(input.vatTotal) }]
+    : []),
+  {
+    accountId: input.payableAccountId,
+    credit: money(input.subtotal + input.vatTotal),
+  },
+];
+
 export class PurchaseService {
   constructor(private readonly prisma: PrismaClient) {}
   requests() {
@@ -156,10 +175,29 @@ export class PurchaseService {
         vatTotal = money(
           calculated.reduce((n: number, l: any) => n + l.vatAmount, 0),
         );
+      const supplierId = input.supplierId || order?.supplierId;
+      const [supplier, inventoryAccount, inputVatAccount] = await Promise.all([
+        supplierId
+          ? tx.accountingSupplier.findFirst({
+              where: { id: supplierId, active: true, deletedAt: null },
+              select: { id: true, payableAccountId: true },
+            })
+          : Promise.resolve(null),
+        tx.chartOfAccount.findUnique({ where: { systemKey: "inventory-main" } }),
+        vatTotal > 0
+          ? tx.chartOfAccount.findUnique({ where: { systemKey: "vat-input" } })
+          : Promise.resolve(null),
+      ]);
+      if (!supplier)
+        throw new ServiceError("An active supplier is required for a goods receipt.", 422, "SUPPLIER_REQUIRED");
+      if (!inventoryAccount?.active || inventoryAccount.deletedAt || !inventoryAccount.allowPosting)
+        throw new ServiceError("Inventory control account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
+      if (vatTotal > 0 && (!inputVatAccount?.active || inputVatAccount.deletedAt || !inputVatAccount.allowPosting))
+        throw new ServiceError("Input VAT account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
       const receipt = await purchase.createReceipt({
         grnNumber: input.grnNumber || `GRN-${Date.now()}`,
         purchaseOrderId: input.poId,
-        supplierId: input.supplierId || order?.supplierId,
+        supplierId: supplier.id,
         warehouseId: input.warehouseId,
         receivedDate: new Date(input.receivedDate || Date.now()),
         supplierInvoiceNo: input.supplierInvoiceNo,
@@ -201,7 +239,7 @@ export class PurchaseService {
         if (line.poLineId)
           await purchase.incrementReceived(line.poLineId, line.quantity);
       }
-      await stock.event({
+      const accountingEvent = await stock.event({
         eventType: "GOODS_RECEIPT",
         aggregateType: "goods_receipt",
         aggregateId: receipt.id,
@@ -209,12 +247,34 @@ export class PurchaseService {
         eventDate: receipt.receivedDate,
         amount: receipt.total,
       });
+      const journal = await JournalService.postUsing(tx, {
+        postingDate: receipt.receivedDate,
+        description: `Goods receipt ${receipt.grnNumber}`,
+        referenceNumber: receipt.supplierInvoiceNo || receipt.grnNumber,
+        sourceType: "inventory_goods_receipt",
+        sourceId: receipt.id,
+        sourceModule: "inventory",
+        postingEventType: "GOODS_RECEIPT_POSTED",
+        automatic: true,
+        lines: goodsReceiptJournalLines({
+          inventoryAccountId: inventoryAccount.id,
+          inputVatAccountId: inputVatAccount?.id,
+          payableAccountId: supplier.payableAccountId,
+          subtotal,
+          vatTotal,
+        }),
+      }, actor);
+      await tx.inventoryAccountingEvent.update({
+        where: { id: accountingEvent.id },
+        data: { status: "PROCESSED", processedAt: new Date() },
+      });
       await new AuditRepository(tx).create({
         actorId: actor.id,
         actorRole: actor.role,
         action: "goods receipt",
         entityType: "goods_receipt",
         entityId: receipt.id,
+        details: { journalEntryId: journal.id, accountingEventId: accountingEvent.id },
       });
       await NotificationService.using(tx).create(
         `Goods receipt posted: ${receipt.grnNumber}`,

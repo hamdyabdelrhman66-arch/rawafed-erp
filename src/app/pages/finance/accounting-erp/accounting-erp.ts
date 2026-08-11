@@ -844,19 +844,19 @@ export class AccountingErp implements OnInit {
   async deleteJournal(entry: JournalEntry): Promise<void> {
     if (!this.canPermanentlyDeleteJournal(entry)) {
       this.error = this.i18n.label(
-        "Permanent deletion is available for manual journals, student invoices, and student payments only.",
-        "الحذف النهائي متاح للقيود اليدوية وفواتير الطلاب ومدفوعاتهم فقط.",
+        "Only draft manual journals can be deleted. Reverse or correct posted entries and void operational documents from their source.",
+        "يمكن حذف مسودات القيود اليدوية فقط. استخدم العكس أو التصحيح للقيود المرحلة، وألغِ المستندات التشغيلية من مصدرها.",
       );
       this.feedback.warning(this.error);
       return;
     }
     const confirmed = await this.feedback.confirm({
-      title: this.i18n.label("Permanently delete journal?", "حذف القيد نهائيًا؟"),
+      title: this.i18n.label("Delete draft journal?", "حذف مسودة القيد؟"),
       message: this.i18n.label(
-        `Journal ${entry.entryNumber}, related invoices, payments, receipts, allocations, and financial effect will be permanently removed. This cannot be undone.`,
-        `سيتم حذف القيد ${entry.entryNumber} والفواتير والمدفوعات والسندات والتخصيصات والأثر المالي المرتبط به نهائيًا، ولا يمكن التراجع عن ذلك.`,
+        `Draft journal ${entry.entryNumber} will be deleted. No posted invoice, payment, receipt, or ledger history will be removed.`,
+        `سيتم حذف مسودة القيد ${entry.entryNumber}. لن يتم حذف أي فاتورة أو دفعة أو سند أو تاريخ محاسبي مرحّل.`,
       ),
-      confirmText: this.i18n.label("Permanently Delete", "حذف نهائي"),
+      confirmText: this.i18n.label("Delete Draft", "حذف المسودة"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -868,14 +868,14 @@ export class AccountingErp implements OnInit {
       this.setActiveTab("journal");
       this.feedback.success(
         this.i18n.label(
-          `Journal ${entry.entryNumber} was permanently deleted.`,
-          `تم حذف القيد ${entry.entryNumber} نهائيًا.`,
+          `Draft journal ${entry.entryNumber} was deleted.`,
+          `تم حذف مسودة القيد ${entry.entryNumber}.`,
         ),
       );
     } catch (error) {
       this.error = safeErrorMessage(error);
       this.feedback.error(
-        this.i18n.label("Journal and related financial documents could not be deleted.", "تعذر حذف القيد والمستندات المالية المرتبطة."),
+        this.i18n.label("Draft journal could not be deleted.", "تعذر حذف مسودة القيد."),
         this.error,
       );
     }
@@ -883,7 +883,7 @@ export class AccountingErp implements OnInit {
 
   canPermanentlyDeleteJournal(entry: JournalEntry): boolean {
     const sourceType = entry.sourceType || (entry.automatic ? "" : "manual_journal");
-    return ["manual_journal", "finance_invoice", "finance_payment"].includes(sourceType);
+    return sourceType === "manual_journal" && !entry.automatic && entry.status.toUpperCase() === "DRAFT";
   }
 
   resetJournalForm(): void {

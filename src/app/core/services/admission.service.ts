@@ -65,6 +65,16 @@ export class AdmissionService {
     return saved;
   }
 
+  async saveDraft(registration: AdmissionRegistration): Promise<AdmissionRegistration> {
+    const saved = await this.api.post<AdmissionRegistration>('/public/registrations/draft', {
+      ...registration,
+      status: 'draft',
+    });
+    if (!saved?.id || saved.status !== 'draft') throw new Error('The school system did not confirm the saved draft.');
+    this.storage.saveDraft(saved);
+    return saved;
+  }
+
   feePreview(registration: Pick<AdmissionRegistration, 'student' | 'financial'>): Promise<RegistrationFeePreview> {
     return this.api.post<RegistrationFeePreview>('/public/registrations/fee-preview', {
       student: registration.student,
@@ -187,13 +197,6 @@ export class AdmissionService {
 
   downloadRegistrationInfoPdf(registration: AdmissionRegistration): void {
     this.downloadRegistrationPdf(registration, 'registrationInfo');
-  }
-
-  downloadSubmittedPdfs(registration: AdmissionRegistration): void {
-    this.downloadRegistrationPdf(registration, 'contract').catch((error) => console.error('Contract PDF download failed', error));
-    window.setTimeout(() => {
-      this.downloadRegistrationPdf(registration, 'registrationInfo').catch((error) => console.error('Student file PDF download failed', error));
-    }, 300);
   }
 
   previewAdmissionLetter(request: AdmissionLetterRequest): void {
@@ -680,6 +683,7 @@ export class AdmissionService {
 
   private resolveRegistrationNumber(registration: AdmissionRegistration): string {
     const requested = registration.registrationNumber?.trim();
+    if (requested?.startsWith('DRAFT-')) return this.generateRegistrationNumber();
     const numberBelongsToAnotherRegistration = requested
       ? this.storage.registrations().some((item) => item.registrationNumber === requested && item.id !== registration.id)
       : false;

@@ -19,10 +19,10 @@ export class ApiService {
   constructor(private readonly http: HttpClient) {}
 
   get token(): string {
-    const token = sessionStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
     if (token) return token;
     try {
-      const session = JSON.parse(sessionStorage.getItem('rawafed_auth') || 'null');
+      const session = JSON.parse(localStorage.getItem('rawafed_auth') || sessionStorage.getItem('rawafed_auth') || 'null');
       return session?.token || '';
     } catch {
       return '';
@@ -30,10 +30,12 @@ export class ApiService {
   }
 
   setToken(token: string): void {
-    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(TOKEN_KEY);
   }
 
   clearToken(): void {
+    localStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
   }
 
@@ -78,7 +80,7 @@ export class ApiService {
   }
 
   private readRefreshToken(): string {
-    try { return JSON.parse(sessionStorage.getItem('rawafed_auth') || 'null')?.refreshToken || ''; }
+    try { return JSON.parse(localStorage.getItem('rawafed_auth') || sessionStorage.getItem('rawafed_auth') || 'null')?.refreshToken || ''; }
     catch { return ''; }
   }
 
@@ -90,11 +92,12 @@ export class ApiService {
       { refreshToken },
       { headers: new HttpHeaders({ 'Content-Type': 'application/json' }) },
     )).then((response) => {
-      const session = JSON.parse(sessionStorage.getItem('rawafed_auth') || 'null');
+      const session = JSON.parse(localStorage.getItem('rawafed_auth') || sessionStorage.getItem('rawafed_auth') || 'null');
       if (!session || !response.token) throw new Error('Session refresh did not return an access token.');
       session.token = response.token;
       if (response.refreshToken) session.refreshToken = response.refreshToken;
-      sessionStorage.setItem('rawafed_auth', JSON.stringify(session));
+      localStorage.setItem('rawafed_auth', JSON.stringify(session));
+      sessionStorage.removeItem('rawafed_auth');
       this.setToken(response.token);
       return response.token;
     }).catch((error) => {
@@ -105,6 +108,8 @@ export class ApiService {
   }
 
   private clearSession(): void {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('rawafed_auth');
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem('rawafed_auth');
     window.dispatchEvent(new Event('rawafed-session-expired'));

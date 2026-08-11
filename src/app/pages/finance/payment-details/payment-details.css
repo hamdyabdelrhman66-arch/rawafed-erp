@@ -123,3 +123,32 @@
   }
 
 }
+
+@page { size: A4 portrait; margin: 14mm; }
+
+@media print {
+  :host {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483647 !important;
+    display: block !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    background: #fff !important;
+  }
+
+  .payment-receipt {
+    display: block !important;
+    width: 182mm !important;
+    margin: 0 auto !important;
+    color: #111 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .details-card,
+  .receipt-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

@@ -30,6 +30,7 @@ export class LedgerRepository {
     return this.db.journalLine.groupBy({
       by: ["accountId"],
       where: {
+        accountId: filter.accountId,
         account: filter.accountTypes
           ? { type: { in: filter.accountTypes } }
           : undefined,

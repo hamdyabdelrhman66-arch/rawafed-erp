@@ -1,9 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import QRCode from 'qrcode';
 import { StorageService } from '../../../core/services/storage.service';
+import { InvoicePdfService } from '../../../core/reports/invoice-pdf.service';
 
 @Component({
   selector: 'app-invoice-template',
@@ -17,11 +16,9 @@ export class InvoiceTemplate implements OnChanges {
   @Input() qrData = '';
   qrImageDataUrl = '';
 
-  @ViewChild('invoiceSheet') invoiceSheet?: ElementRef<HTMLElement>;
-
   isExporting = false;
 
-  constructor(public readonly storage: StorageService) {}
+  constructor(public readonly storage: StorageService, private readonly invoicePdf: InvoicePdfService) {}
 
   get schoolSettings() { return this.storage.settings(); }
 
@@ -30,37 +27,27 @@ export class InvoiceTemplate implements OnChanges {
   }
 
   async downloadPdf(): Promise<void> {
-    if (!this.invoiceSheet) {
-      return;
-    }
-
     this.isExporting = true;
-
     try {
-      await this.waitForImages(this.invoiceSheet.nativeElement);
-
-      const canvas = await html2canvas(this.invoiceSheet.nativeElement, {
-        backgroundColor: '#ffffff',
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        windowWidth: this.invoiceSheet.nativeElement.scrollWidth,
-        windowHeight: this.invoiceSheet.nativeElement.scrollHeight,
+      const settings = this.schoolSettings;
+      await this.invoicePdf.download({
+        invoiceNumber: this.invoice?.no || 'generated', status: this.statusLabel(this.invoice?.status),
+        date: this.invoice?.date, studentName: this.invoice?.patient,
+        registrationNumber: this.invoice?.patientId || this.invoice?.fileNo,
+        category: this.invoice?.lines?.[0]?.category || this.invoice?.service,
+        paymentMethod: this.paymentMethodLabel(this.invoice?.paymentMethod),
+        schoolNameAr: settings.schoolNameAr, schoolNameEn: settings.schoolName,
+        addressAr: settings.addressAr, addressEn: settings.addressEn,
+        phone: settings.phone, email: settings.email, vatNumber: this.invoice?.taxNumber || settings.vatNumber,
+        lines: (this.invoice?.lines || []).map((line: any) => ({
+          description: line.service || this.invoice?.service || 'رسوم مدرسية', quantity: Number(this.invoice?.count || 1),
+          unitPrice: Number(line.amount || 0), subtotal: Number(line.amount || 0) - Number(line.discount || 0),
+          vat: Number(line.vat || 0), total: Number(line.total || 0),
+        })),
+        subtotal: Number(this.invoice?.amount || 0), discount: Number(this.invoice?.discount || 0),
+        vat: Number(this.invoice?.vat || 0), total: Number(this.invoice?.total || 0),
+        paid: Number(this.invoice?.paid || 0), remaining: Number(this.invoice?.remaining || 0), qrDataUrl: this.qrImageDataUrl,
       });
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true,
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imageData = canvas.toDataURL('image/png', 1);
-
-      pdf.addImage(imageData, 'PNG', 0, 0, pageWidth, pageHeight);
-      pdf.save(`invoice-${this.invoice?.no || 'generated'}.pdf`);
     } finally {
       this.isExporting = false;
     }
@@ -95,22 +82,6 @@ export class InvoiceTemplate implements OnChanges {
     const numberValue = Number(value);
     const safeValue = Number.isFinite(numberValue) ? numberValue : 0;
     return Math.round((safeValue + Number.EPSILON) * 100) / 100;
-  }
-
-  private async waitForImages(element: HTMLElement): Promise<void> {
-    const images = Array.from(element.querySelectorAll('img'));
-    await Promise.all(
-      images.map((image) => {
-        if (image.complete) {
-          return Promise.resolve();
-        }
-
-        return new Promise<void>((resolve) => {
-          image.onload = () => resolve();
-          image.onerror = () => resolve();
-        });
-      }),
-    );
   }
 
   private async refreshQrImage(): Promise<void> {

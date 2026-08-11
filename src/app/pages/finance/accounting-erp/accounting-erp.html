@@ -354,7 +354,7 @@
             <td>{{ entry.status | statusLabel }}</td>
             <td class="entry-actions">
               <button type="button" *ngIf="entry.status.toUpperCase() === 'DRAFT'" (click)="editJournal(entry)">{{ i18n.label('Edit Draft','تعديل المسودة') }}</button>
-              <button type="button" class="danger-action" *ngIf="canPermanentlyDeleteJournal(entry)" (click)="deleteJournal(entry)">{{ i18n.label('Delete Permanently','حذف نهائي') }}</button>
+              <button type="button" class="danger-action" *ngIf="canPermanentlyDeleteJournal(entry)" (click)="deleteJournal(entry)">{{ i18n.label('Delete Draft','حذف المسودة') }}</button>
               <button type="button" *ngIf="['DRAFT','SUBMITTED','APPROVED'].includes(entry.status.toUpperCase())" (click)="journalAction(entry, 'post')">{{ i18n.label('Post','ترحيل') }}</button>
               <button type="button" *ngIf="entry.status.toUpperCase() === 'POSTED'" (click)="correctJournal(entry)">{{ i18n.label('Correct Entry','تصحيح القيد') }}</button>
               <button type="button" *ngIf="entry.status.toUpperCase() === 'POSTED' && !entry.automatic" (click)="journalAction(entry, 'reverse')">{{ i18n.label('Reverse','عكس') }}</button>

@@ -285,9 +285,18 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     this.saveDraft(false);
   }
 
-  saveDraft(showMessage = true): void {
-    this.storage.saveDraft(this.composeRegistration());
-    if (showMessage) this.feedback.success('Draft saved successfully.', 'Your entered registration data was kept.');
+  async saveDraft(showMessage = true): Promise<void> {
+    const current = this.composeRegistration();
+    this.storage.saveDraft(current);
+    if (!showMessage) return;
+    try {
+      const saved = await this.admission.saveDraft(current);
+      this.draft.set(saved);
+      this.form.markAsPristine();
+      this.feedback.success('Draft saved successfully.', 'The exact values were saved to the school system.');
+    } catch (error) {
+      this.feedback.error('Draft was kept locally but not saved to the school system.', safeErrorMessage(error));
+    }
   }
 
   async submit(stepper?: MatStepper): Promise<void> {
@@ -308,9 +317,12 @@ export class RegistrationComponent implements OnInit, OnDestroy {
         throw new Error(this.feePreviewError() || 'VAT eligibility could not be verified. / تعذر التحقق من الأهلية الضريبية.');
       }
       const submitted = await this.admission.submit(this.composeRegistration());
-      this.admission.downloadSubmittedPdfs(submitted);
+      this.restoreSavedRegistration(submitted);
+      this.storage.clearDraft();
       this.feedback.success(`Registration ${submitted.registrationNumber} submitted successfully.`, 'Finance account and admission review were updated.');
-      this.resetForNextRegistration(stepper);
+      if (stepper) stepper.selectedIndex = 8;
+      this.activeStep.set(8);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Registration submit failed', error);
       const message = safeErrorMessage(error);
@@ -325,7 +337,7 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     return this.form.dirty && !this.isSubmitting() && !this.submittedRegistration();
   }
 
-  private resetForNextRegistration(stepper?: MatStepper): void {
+  startNewRegistration(stepper?: MatStepper): void {
     const next = createEmptyRegistration();
     this.submittedRegistration.set(null);
     this.submitError.set('');
@@ -356,11 +368,22 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   }
 
   downloadDraftPdf(): void {
-    this.admission.downloadContractPdf(this.composeRegistration());
+    this.admission.downloadContractPdf(this.submittedRegistration() || this.composeRegistration());
   }
 
   downloadDraftRegistrationInfoPdf(): void {
-    this.admission.downloadRegistrationInfoPdf(this.composeRegistration());
+    this.admission.downloadRegistrationInfoPdf(this.submittedRegistration() || this.composeRegistration());
+  }
+
+  private restoreSavedRegistration(registration: AdmissionRegistration): void {
+    this.submittedRegistration.set(registration);
+    this.draft.set(registration);
+    this.documents.set(registration.documents || []);
+    this.agreementScrolled.set(registration.agreement.scrolledToEnd);
+    this.parentSignature.set(registration.signatures.parentSignature);
+    this.studentSignature.set(registration.signatures.studentSignature);
+    this.form.reset(this.registrationToFormValue(registration), { emitEvent: false });
+    this.form.markAsPristine();
   }
 
   studentSummary(): [string, string][] {

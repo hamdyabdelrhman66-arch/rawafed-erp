@@ -40,6 +40,95 @@ async function main(): Promise<void> {
   for (const name of roleNames)
     await prisma.role.upsert({ where: { name }, update: {}, create: { name } });
 
+  const permissions: Array<[string, string]> = [
+    ["accounting.periods.manage", "accounting"],
+    ["finance.invoices.exportPdf", "finance"],
+    ["finance.invoices.print", "finance"],
+    ["finance.invoices.view", "finance"],
+    ["finance.payments.record", "finance"],
+    ["finance.receipts.view", "finance"],
+    ["journals.cancel.draft", "accounting"],
+    ["journals.correct.posted", "accounting"],
+    ["journals.create.manual", "accounting"],
+    ["journals.delete.permanent", "accounting"],
+    ["journals.edit.draft", "accounting"],
+    ["journals.post", "accounting"],
+    ["journals.reverse", "accounting"],
+    ["journals.submit", "accounting"],
+    ["journals.view", "accounting"],
+    ["security.alerts.manage", "security"],
+    ["security.audit.view", "security"],
+    ["security.loginAttempts.view", "security"],
+    ["security.permissions.manage", "security"],
+    ["security.sessions.revoke", "security"],
+    ["security.sessions.view", "security"],
+    ["security.settings.manage", "security"],
+    ["student_discount.approve", "finance"],
+    ["student_discount.cancel", "finance"],
+    ["student_discount.create", "finance"],
+    ["student_discount.view", "finance"],
+    ["students.archive", "students"],
+    ["students.audit.view", "students"],
+    ["students.delete", "students"],
+    ["students.delete.permanent", "students"],
+    ["students.edit", "students"],
+    ["students.edit.financeData", "students"],
+    ["students.edit.identity", "students"],
+    ["students.restore", "students"],
+  ];
+  for (const [code, module] of permissions) {
+    await prisma.permission.upsert({
+      where: { code },
+      update: { module },
+      create: { code, module },
+    });
+  }
+
+  const grants: Record<string, string[]> = {
+    "Super Admin": permissions.map(([code]) => code),
+    "Finance Manager": permissions
+      .map(([code]) => code)
+      .filter((code) => !code.startsWith("security.") && !code.startsWith("students.delete.permanent")),
+    "Chief Accountant": [
+      "accounting.periods.manage", "finance.invoices.exportPdf", "finance.invoices.print",
+      "finance.invoices.view", "finance.payments.record", "finance.receipts.view",
+      "journals.cancel.draft", "journals.correct.posted", "journals.create.manual",
+      "journals.edit.draft", "journals.post", "journals.reverse", "journals.submit",
+      "journals.view", "student_discount.approve", "student_discount.cancel",
+      "student_discount.create", "student_discount.view", "students.edit.financeData",
+    ],
+    Finance: [
+      "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
+      "finance.payments.record", "finance.receipts.view", "journals.cancel.draft",
+      "journals.create.manual", "journals.edit.draft", "journals.submit", "journals.view",
+      "student_discount.create", "student_discount.view",
+    ],
+    Accountant: [
+      "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
+      "finance.payments.record", "finance.receipts.view", "journals.cancel.draft",
+      "journals.create.manual", "journals.edit.draft", "journals.submit", "journals.view",
+      "student_discount.create", "student_discount.view",
+    ],
+    Auditor: [
+      "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
+      "finance.receipts.view", "journals.view", "student_discount.view", "security.audit.view",
+    ],
+    Admissions: [
+      "students.archive", "students.audit.view", "students.delete", "students.edit",
+      "students.edit.identity", "students.restore",
+    ],
+    Registrar: ["students.audit.view", "students.edit"],
+    Principal: ["students.archive", "students.audit.view", "students.edit", "students.restore"],
+  };
+  for (const [roleName, codes] of Object.entries(grants)) {
+    const role = await prisma.role.findUniqueOrThrow({ where: { name: roleName } });
+    const granted = await prisma.permission.findMany({ where: { code: { in: codes } } });
+    await prisma.rolePermission.createMany({
+      data: granted.map((permission) => ({ roleId: role.id, permissionId: permission.id })),
+      skipDuplicates: true,
+    });
+  }
+
   const adminRole = await prisma.role.findUniqueOrThrow({
     where: { name: "Super Admin" },
   });
@@ -86,6 +175,7 @@ async function main(): Promise<void> {
     ["3100", "Retained Earnings", AccountType.EQUITY, "retained-earnings"],
     ["4100", "Tuition Revenue", AccountType.REVENUE, "tuition-revenue"],
     ["1155", "Government VAT Receivable", AccountType.ASSET, "government-vat-receivable"],
+    ["1300", "Inventory", AccountType.ASSET, "inventory-main"],
     ["5100", "Operating Expenses", AccountType.EXPENSE, "operating-expenses"],
     [
       "1150",
@@ -120,10 +210,46 @@ async function main(): Promise<void> {
       validFrom: new Date("2020-07-01"),
     },
   });
+  await prisma.costCenter.upsert({
+    where: { code: "ADMIN" },
+    update: { active: true },
+    create: {
+      code: "ADMIN",
+      nameAr: "الإدارة العامة",
+      nameEn: "General Administration",
+    },
+  });
+  const warehouse = await prisma.warehouse.upsert({
+    where: { code: "MAIN" },
+    update: { active: true },
+    create: {
+      code: "MAIN",
+      name: "Main Warehouse",
+      nameAr: "المخزن الرئيسي",
+      location: "Rawafed Main Campus",
+    },
+  });
+  await prisma.warehouseLocation.upsert({
+    where: { warehouseId_code: { warehouseId: warehouse.id, code: "DEFAULT" } },
+    update: { active: true },
+    create: {
+      warehouseId: warehouse.id,
+      code: "DEFAULT",
+      name: "Default Location",
+    },
+  });
   for (const [key, value] of [
     ["currency", "SAR"],
     ["timezone", "Asia/Riyadh"],
     ["locale", "ar-SA"],
+    ["school", {
+      nameAr: "مدارس روافد العالمية",
+      nameEn: "Rawafed International School",
+      addressAr: "الرياض، حي الخليج، شارع بحر العرب",
+      addressEn: "Riyadh, Al Khaleej District, Bahr Al Arab Street",
+      logoUrl: "/assets/rawafed-logo.png",
+    }],
+    ["finance", { currency: "SAR", vatRate: 15, decimalPlaces: 2 }],
   ] as const) {
     await prisma.setting.upsert({
       where: { key },

@@ -59,6 +59,11 @@ export function postgresCoreRoutes(
     validate(validators.registration),
     c.publicRegistration,
   );
+  r.post(
+    "/api/public/registrations/draft",
+    validate(validators.registrationDraft),
+    c.publicRegistrationDraft,
+  );
   r.get(
     "/api/registrations",
     ...secured,
