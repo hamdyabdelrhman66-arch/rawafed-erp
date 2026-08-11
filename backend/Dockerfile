@@ -6,7 +6,9 @@ COPY tsconfig.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
-RUN npm run db:generate && npm run build && npm prune --omit=dev
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npm run db:generate \
+    && npm run build \
+    && npm prune --omit=dev
 
 FROM node:22-alpine AS runtime
 RUN apk add --no-cache curl postgresql-client tini
