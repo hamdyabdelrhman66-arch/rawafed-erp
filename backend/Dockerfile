@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY tsconfig.json ./
+COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
 RUN npm run db:generate && npm run build && npm prune --omit=dev
@@ -14,6 +15,7 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /app/package.json ./package.json
 COPY scripts ./scripts
 RUN addgroup -S rawafed && adduser -S -G rawafed rawafed && mkdir -p /app/uploads /app/backups && chown -R rawafed:rawafed /app
