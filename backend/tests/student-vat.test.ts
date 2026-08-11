@@ -3,13 +3,13 @@ import { calculateFeePreview, normalizeManualTaxIdentity, resolveVatEligibility 
 import { RegistrationsService } from "../src/services/registrations.service.js";
 
 const policies = [
-  ["REGISTRATION", "GOVERNMENT_BORNE"],
-  ["TUITION", "GOVERNMENT_BORNE"],
-  ["BOOKS", "STANDARD"],
-  ["UNIFORM", "STANDARD"],
-  ["TRANSPORTATION", "STANDARD"],
-  ["ACTIVITIES", "STANDARD"],
-  ["OTHER_SERVICES", "STANDARD"],
+  ["REGISTRATION", "EXEMPT"],
+  ["TUITION", "EXEMPT"],
+  ["BOOKS", "EXEMPT"],
+  ["UNIFORM", "EXEMPT"],
+  ["TRANSPORTATION", "EXEMPT"],
+  ["ACTIVITIES", "EXEMPT"],
+  ["OTHER_SERVICES", "EXEMPT"],
 ].map(([category, saudiTaxTreatment]) => ({
   category,
   taxTreatment: "STANDARD",
@@ -83,7 +83,7 @@ describe("authoritative Saudi education VAT", () => {
     const after = preview(saudi, [["Tuition", "TUITION", 16_000]]);
     expect(before.parentPayableTotal).toBe(18_400);
     expect(after.parentPayableTotal).toBe(16_000);
-    expect(after.governmentBorneAmount).toBe(2_400);
+    expect(after.governmentBorneAmount).toBe(0);
     expect(after.decisionHash).not.toBe(before.decisionHash);
   });
 
@@ -96,30 +96,30 @@ describe("authoritative Saudi education VAT", () => {
 
   it("9. calculates tuition-only registration", () => {
     const result = preview(saudi, [["Tuition", "TUITION", 16_000]]);
-    expect(result).toMatchObject({ subtotal: 16_000, totalVat: 2_400, governmentBorneAmount: 2_400, parentPayableTotal: 16_000 });
+    expect(result).toMatchObject({ subtotal: 16_000, totalVat: 0, chargedVat: 0, governmentBorneAmount: 0, parentPayableTotal: 16_000 });
   });
 
   it("10. calculates tuition and books by separate category policies", () => {
     const result = preview(saudi, [["Tuition", "TUITION", 16_000], ["Books", "BOOKS", 1_000]]);
-    expect(result).toMatchObject({ subtotal: 17_000, totalVat: 2_550, chargedVat: 150, governmentBorneAmount: 2_400, parentPayableTotal: 17_150 });
+    expect(result).toMatchObject({ subtotal: 17_000, totalVat: 0, chargedVat: 0, governmentBorneAmount: 0, parentPayableTotal: 17_000 });
   });
 
   it("11. calculates tuition and uniform by separate category policies", () => {
-    expect(preview(saudi, [["Tuition", "TUITION", 16_000], ["Uniform", "UNIFORM", 800]]).parentPayableTotal).toBe(16_920);
+    expect(preview(saudi, [["Tuition", "TUITION", 16_000], ["Uniform", "UNIFORM", 800]]).parentPayableTotal).toBe(16_800);
   });
 
   it("12. calculates tuition and transportation by separate category policies", () => {
-    expect(preview(saudi, [["Tuition", "TUITION", 16_000], ["Transportation", "TRANSPORTATION", 2_000]]).chargedVat).toBe(300);
+    expect(preview(saudi, [["Tuition", "TUITION", 16_000], ["Transportation", "TRANSPORTATION", 2_000]]).chargedVat).toBe(0);
   });
 
   it("13. supports mixed service categories", () => {
     const result = preview(saudi, [["Registration", "REGISTRATION", 1_000], ["Tuition", "TUITION", 16_000], ["Books", "BOOKS", 1_000], ["Activities", "ACTIVITIES", 500]]);
-    expect(result.lines.map((line) => line.treatment)).toEqual(["GOVERNMENT_BORNE", "GOVERNMENT_BORNE", "STANDARD", "STANDARD"]);
+    expect(result.lines.map((line) => line.treatment)).toEqual(["EXEMPT", "EXEMPT", "EXEMPT", "EXEMPT"]);
   });
 
   it("14. provides a Saudi invoice snapshot with taxable VAT preserved", () => {
     const result = preview(saudi, [["Tuition", "TUITION", 16_000]]);
-    expect(result.lines[0]).toMatchObject({ vatRate: 15, vatAmount: 2_400, chargedVat: 0, treatment: "GOVERNMENT_BORNE" });
+    expect(result.lines[0]).toMatchObject({ vatRate: 0, vatAmount: 0, chargedVat: 0, treatment: "EXEMPT" });
   });
 
   it("15. provides a non-Saudi standard-rate invoice snapshot", () => {

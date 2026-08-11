@@ -174,9 +174,19 @@ async function main(): Promise<void> {
     ],
     ["3100", "Retained Earnings", AccountType.EQUITY, "retained-earnings"],
     ["4100", "Tuition Revenue", AccountType.REVENUE, "tuition-revenue"],
+    ["4110", "Registration Revenue", AccountType.REVENUE, "registration-revenue"],
+    ["4120", "Books Revenue", AccountType.REVENUE, "books-revenue"],
+    ["4130", "Uniform Revenue", AccountType.REVENUE, "uniform-revenue"],
+    ["4140", "Transportation Revenue", AccountType.REVENUE, "transportation-revenue"],
+    ["4150", "Activities Revenue", AccountType.REVENUE, "activities-revenue"],
+    ["4190", "Other Services Revenue", AccountType.REVENUE, "other-services-revenue"],
     ["1155", "Government VAT Receivable", AccountType.ASSET, "government-vat-receivable"],
     ["1300", "Inventory", AccountType.ASSET, "inventory-main"],
     ["5100", "Operating Expenses", AccountType.EXPENSE, "operating-expenses"],
+    ["5110", "Cost of Books Sold", AccountType.EXPENSE, "books-cost"],
+    ["5120", "Cost of Uniform Sold", AccountType.EXPENSE, "uniform-cost"],
+    ["5130", "Transportation Costs", AccountType.EXPENSE, "transportation-cost"],
+    ["5140", "Activity Costs", AccountType.EXPENSE, "activities-cost"],
     [
       "1150",
       "Input VAT",
@@ -199,6 +209,64 @@ async function main(): Promise<void> {
       update: { systemKey, ...flags },
       create: { code, name, type, systemKey, system: true, ...flags },
     });
+
+  // These mappings are operational configuration, not optional demo data.
+  // Upsert them on every deployment so a removed/disabled category cannot make
+  // student creation fail with VAT_CONFIGURATION_MISSING.  Rawafed's approved
+  // rule is that a verified Saudi National ID (prefix 1) is not charged VAT.
+  const accountByKey = new Map(
+    (await prisma.chartOfAccount.findMany({
+      where: {
+        systemKey: { in: [
+          "accounts-receivable", "inventory-main", "registration-revenue",
+          "tuition-revenue", "books-revenue", "uniform-revenue",
+          "transportation-revenue", "activities-revenue", "other-services-revenue",
+          "books-cost", "uniform-cost", "transportation-cost", "activities-cost",
+        ] },
+        deletedAt: null,
+      },
+    })).map((account) => [account.systemKey, account]),
+  );
+  const receivableAccount = accountByKey.get("accounts-receivable");
+  if (!receivableAccount) throw new Error("Accounts receivable control account is missing during seed.");
+  const inventoryAccount = accountByKey.get("inventory-main");
+  const revenueMappings: Array<[string, string, string?]> = [
+    ["REGISTRATION", "registration-revenue"],
+    ["TUITION", "tuition-revenue"],
+    ["BOOKS", "books-revenue", "books-cost"],
+    ["UNIFORM", "uniform-revenue", "uniform-cost"],
+    ["TRANSPORTATION", "transportation-revenue", "transportation-cost"],
+    ["ACTIVITIES", "activities-revenue", "activities-cost"],
+    ["OTHER_SERVICES", "other-services-revenue"],
+  ];
+  for (const [category, revenueKey, costKey] of revenueMappings) {
+    const revenueAccount = accountByKey.get(revenueKey);
+    if (!revenueAccount) throw new Error(`Revenue account ${revenueKey} is missing during seed.`);
+    await prisma.revenueCategoryMapping.upsert({
+      where: { category },
+      update: {
+        revenueAccountId: revenueAccount.id,
+        costAccountId: costKey ? accountByKey.get(costKey)?.id : null,
+        receivableAccountId: receivableAccount.id,
+        inventoryAccountId: ["BOOKS", "UNIFORM"].includes(category) ? inventoryAccount?.id : null,
+        taxTreatment: "STANDARD",
+        saudiTaxTreatment: "EXEMPT",
+        vatRate: 15,
+        active: true,
+      },
+      create: {
+        category,
+        revenueAccountId: revenueAccount.id,
+        costAccountId: costKey ? accountByKey.get(costKey)?.id : null,
+        receivableAccountId: receivableAccount.id,
+        inventoryAccountId: ["BOOKS", "UNIFORM"].includes(category) ? inventoryAccount?.id : null,
+        taxTreatment: "STANDARD",
+        saudiTaxTreatment: "EXEMPT",
+        vatRate: 15,
+        active: true,
+      },
+    });
+  }
 
   await prisma.vatRate.upsert({
     where: { code: "SA_STANDARD" },
