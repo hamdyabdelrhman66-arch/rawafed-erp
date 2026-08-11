@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateFeePreview, resolveVatEligibility } from "../src/services/student-vat.js";
+import { calculateFeePreview, normalizeManualTaxIdentity, resolveVatEligibility } from "../src/services/student-vat.js";
 import { RegistrationsService } from "../src/services/registrations.service.js";
 
 const policies = [
@@ -27,6 +27,33 @@ const preview = (identity: typeof saudi, lines: Array<[string, string, number]>)
 );
 
 describe("authoritative Saudi education VAT", () => {
+  it("normalizes a manual child beginning with 1 to the Saudi no-parent-charge rule", () => {
+    const normalized = normalizeManualTaxIdentity({
+      identityType: "IQAMA",
+      identityNumber: "1123456789",
+      nationality: "Egyptian",
+    });
+    expect(normalized).toEqual({
+      identityType: "NATIONAL_ID",
+      identityNumber: "1123456789",
+      nationality: "سعودي",
+    });
+    expect(preview(normalized as typeof saudi, [["Tuition", "TUITION", 12_000]]))
+      .toMatchObject({ subtotal: 12_000, chargedVat: 0, parentPayableTotal: 12_000 });
+  });
+
+  it("normalizes a manual Iqama beginning with 2 away from the Saudi default", () => {
+    expect(normalizeManualTaxIdentity({
+      identityType: "NATIONAL_ID",
+      identityNumber: "2123456789",
+      nationality: "سعودي",
+    })).toEqual({
+      identityType: "IQAMA",
+      identityNumber: "2123456789",
+      nationality: "غير سعودي",
+    });
+  });
+
   it("1. accepts a Saudi student with a valid National ID starting with 1", () => {
     expect(resolveVatEligibility(saudi).classification).toBe("SAUDI_CITIZEN");
   });

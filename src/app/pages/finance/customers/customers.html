@@ -80,7 +80,7 @@
             <label><span>{{ l('Arabic name', 'الاسم بالعربية') }} *</span><input name="nameAr" [(ngModel)]="manualForm.nameAr" /></label>
             <label><span>{{ l('English name', 'الاسم بالإنجليزية') }} *</span><input name="nameEn" [(ngModel)]="manualForm.nameEn" dir="ltr" /></label>
             <label><span>{{ l('Identity type', 'نوع الهوية') }} *</span><select name="identityType" [(ngModel)]="manualForm.identityType"><option value="NATIONAL_ID">{{ l('National ID', 'هوية وطنية') }}</option><option value="IQAMA">{{ l('Iqama', 'إقامة') }}</option></select></label>
-            <label><span>{{ l('National ID / Iqama', 'الهوية / الإقامة') }} *</span><input name="nationalId" [(ngModel)]="manualForm.nationalId" inputmode="numeric" maxlength="10" dir="ltr" /></label>
+            <label><span>{{ l('National ID / Iqama', 'الهوية / الإقامة') }} *</span><input name="nationalId" [(ngModel)]="manualForm.nationalId" (ngModelChange)="syncManualIdentity($event)" inputmode="numeric" maxlength="10" dir="ltr" /></label>
             <label><span>{{ l('Nationality', 'الجنسية') }} *</span><input name="nationality" [(ngModel)]="manualForm.nationality" /></label>
             <label><span>{{ l('Mobile', 'الجوال') }} *</span><input name="phone" [(ngModel)]="manualForm.phone" inputmode="tel" dir="ltr" /></label>
             <label><span>{{ l('Email', 'البريد الإلكتروني') }}</span><input type="email" name="email" [(ngModel)]="manualForm.email" dir="ltr" /></label>
@@ -102,6 +102,7 @@
 
         <div class="form-section fees-section">
           <div class="section-title"><div><h3>{{ l('Manual fees', 'المصروفات اليدوية') }}</h3><p>{{ l('VAT is calculated by the backend from identity and category rules.', 'تُحتسب الضريبة من الـbackend وفق الهوية وفئة البند.') }}</p></div><button type="button" (click)="addFee()">+ {{ l('Add fee item', 'إضافة بند') }}</button></div>
+          <p class="tax-identity-hint" [class.saudi]="manualForm.nationalId?.startsWith('1')">{{ manualIdentityTaxHint }}</p>
           <div class="fee-row" *ngFor="let fee of manualForm.fees; index as index">
             <label><span>{{ l('Fee name', 'اسم البند') }}</span><input [name]="'feeName' + index" [(ngModel)]="fee.name" /></label>
             <label><span>{{ l('Category', 'الفئة') }}</span><select [name]="'feeCategory' + index" [(ngModel)]="fee.category"><option *ngFor="let category of feeCategories" [value]="category.value">{{ l(category.en, category.ar) }}</option></select></label>

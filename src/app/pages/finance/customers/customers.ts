@@ -80,6 +80,37 @@ export class Customers implements OnInit {
     return this.manualForm.fees.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
   }
 
+  get manualIdentityTaxHint(): string {
+    const nationalId = String(this.manualForm.nationalId || '');
+    if (nationalId.startsWith('1'))
+      return this.l(
+        'Saudi National ID: VAT on eligible education fees is not charged to the parent.',
+        'هوية سعودية: لا تُضاف ضريبة الخدمات التعليمية المؤهلة إلى المبلغ المستحق على ولي الأمر.',
+      );
+    if (nationalId.startsWith('2'))
+      return this.l(
+        'Non-Saudi Iqama: VAT is calculated by the backend according to the fee category.',
+        'إقامة غير سعودية: يحتسب النظام الضريبة من الـbackend وفق فئة المصروف.',
+      );
+    return this.l(
+      'Enter the identity number to determine the approved VAT treatment.',
+      'أدخل رقم الهوية لتحديد المعالجة الضريبية المعتمدة.',
+    );
+  }
+
+  syncManualIdentity(value: unknown): void {
+    const nationalId = String(value ?? '').replace(/\D/g, '').slice(0, 10);
+    this.manualForm.nationalId = nationalId;
+    if (nationalId.startsWith('1')) {
+      this.manualForm.identityType = 'NATIONAL_ID';
+      this.manualForm.nationality = 'سعودي';
+    } else if (nationalId.startsWith('2')) {
+      this.manualForm.identityType = 'IQAMA';
+      if (['سعودي', 'سعودية', 'السعودية', 'Saudi', 'Saudi Arabia'].includes(String(this.manualForm.nationality || '').trim()))
+        this.manualForm.nationality = 'غير سعودي';
+    }
+  }
+
   async saveManualCustomer(): Promise<void> {
     this.formError = '';
     if (!this.manualForm.nameAr.trim() || !this.manualForm.nameEn.trim() || !this.manualForm.phone.trim() || !/^\d{10}$/.test(this.manualForm.nationalId)) {

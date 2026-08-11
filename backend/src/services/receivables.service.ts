@@ -9,7 +9,7 @@ import { JournalService } from "./journal.service.js";
 import { ServiceError } from "./service.error.js";
 import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
 import { AuditRepository } from "../repositories/audit.repository.js";
-import { calculateFeePreview } from "./student-vat.js";
+import { calculateFeePreview, normalizeManualTaxIdentity } from "./student-vat.js";
 
 export class ReceivablesService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -25,6 +25,11 @@ export class ReceivablesService {
   }
   async createManualCustomer(input: any, actor: Actor) {
     const created = await this.prisma.$transaction(async (tx) => {
+      const taxIdentity = normalizeManualTaxIdentity({
+        identityType: input.identityType,
+        identityNumber: input.nationalId,
+        nationality: input.nationality,
+      });
       const academicYear = await tx.academicYear.findFirst({
         where: { active: true, deletedAt: null, branch: { active: true, deletedAt: null } },
         include: { branch: true },
@@ -40,7 +45,7 @@ export class ReceivablesService {
 
       const policies = await tx.revenueCategoryMapping.findMany({ where: { active: true } });
       const preview = calculateFeePreview(
-        { identityType: input.identityType, identityNumber: input.nationalId, nationality: input.nationality },
+        taxIdentity,
         input.fees.map((fee: any) => ({ name: fee.name, category: fee.category, amount: fee.amount })),
         policies,
       );
@@ -57,9 +62,9 @@ export class ReceivablesService {
         source: "MANUAL_FINANCE_CUSTOMER",
         customerType: input.customerType,
         student: {
-          identityType: input.identityType,
-          nationalId: input.nationalId,
-          nationality: input.nationality,
+          identityType: taxIdentity.identityType,
+          nationalId: taxIdentity.identityNumber,
+          nationality: taxIdentity.nationality,
           manualCustomerType: input.customerType,
         },
         worker: input.customerType === "WORKER" ? { position: input.position, department: input.department } : undefined,
@@ -90,7 +95,7 @@ export class ReceivablesService {
           englishName: input.nameEn,
           arabicName: input.nameAr,
           grade: input.customerType === "WORKER" ? (input.position || "Worker") : input.grade,
-          nationalId: input.nationalId,
+          nationalId: taxIdentity.identityNumber,
           parentName: input.customerType === "CHILD" ? input.guardianName : undefined,
           parentPhone: input.customerType === "CHILD" ? input.guardianPhone : input.phone,
           parentEmail: input.email || undefined,
@@ -140,7 +145,7 @@ export class ReceivablesService {
           nameEn: input.nameEn,
           phone: input.phone,
           email: input.email || undefined,
-          nationalId: input.nationalId,
+          nationalId: taxIdentity.identityNumber,
           receivableAccountId: receivable.id,
           notes: input.notes,
         },

@@ -73,6 +73,37 @@ const SAUDI_NATIONALITIES = new Set([
   "سعودي", "سعودية", "السعودية", "المملكة العربية السعودية",
 ]);
 
+/**
+ * Manual finance entry follows the school's approved identity-number rule:
+ * a number beginning with 1 is a Saudi National ID; a number beginning with 2
+ * is a non-Saudi Iqama. This removes contradictory defaults before the strict
+ * authoritative VAT validator runs, without weakening validation in the
+ * registration/editing workflows.
+ */
+export function normalizeManualTaxIdentity(identity: StudentTaxIdentity): {
+  identityType: IdentityType | unknown;
+  identityNumber: string;
+  nationality: string;
+} {
+  const identityNumber = digits(identity.identityNumber ?? identity.nationalId);
+  const enteredNationality = String(identity.nationality ?? "").trim();
+  if (identityNumber.startsWith("1"))
+    return { identityType: "NATIONAL_ID", identityNumber, nationality: "سعودي" };
+  if (identityNumber.startsWith("2"))
+    return {
+      identityType: "IQAMA",
+      identityNumber,
+      nationality: SAUDI_NATIONALITIES.has(normalized(enteredNationality))
+        ? "غير سعودي"
+        : enteredNationality || "غير سعودي",
+    };
+  return {
+    identityType: identity.identityType,
+    identityNumber,
+    nationality: enteredNationality,
+  };
+}
+
 const localizedVatError = (code: string, en: string, ar: string) =>
   new ServiceError(`${en} / ${ar}`, 422, code);
 
