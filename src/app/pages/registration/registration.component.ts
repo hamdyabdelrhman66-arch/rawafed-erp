@@ -363,8 +363,8 @@ export class RegistrationComponent implements OnInit, OnDestroy {
     });
   }
 
-  print(): void {
-    window.print();
+  async print(): Promise<void> {
+    await this.admission.printRegistrationInfoPdf(this.submittedRegistration() || this.composeRegistration());
   }
 
   downloadDraftPdf(): void {

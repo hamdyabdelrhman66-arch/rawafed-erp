@@ -196,13 +196,48 @@ export class ReportExportService {
   }
 
   async downloadPdf(report: ReportTable): Promise<void> {
-    const response = await fetch("/fonts/Cairo.ttf");
-    if (!response.ok) throw new Error("The Arabic report font could not be loaded.");
-    const bytes = await this.buildPdf(report, new Uint8Array(await response.arrayBuffer()));
+    const [fontResponse, logoResponse] = await Promise.all([
+      fetch("/fonts/Amiri-Regular.ttf"),
+      fetch("/assets/rawafed-logo.png"),
+    ]);
+    if (!fontResponse.ok)
+      throw new Error("The Arabic report font could not be loaded.");
+    const bytes = await this.buildPdf(
+      report,
+      new Uint8Array(await fontResponse.arrayBuffer()),
+      logoResponse.ok ? new Uint8Array(await logoResponse.arrayBuffer()) : null,
+    );
     this.downloadBlob(new Blob([bytes], { type: "application/pdf" }), `${report.fileName}.pdf`);
   }
 
-  async buildPdf(report: ReportTable, fontBytes: Uint8Array): Promise<Uint8Array> {
+  async printPdf(report: ReportTable): Promise<void> {
+    const [fontResponse, logoResponse] = await Promise.all([
+      fetch("/fonts/Amiri-Regular.ttf"),
+      fetch("/assets/rawafed-logo.png"),
+    ]);
+    if (!fontResponse.ok)
+      throw new Error("The Arabic report font could not be loaded.");
+    const bytes = await this.buildPdf(
+      report,
+      new Uint8Array(await fontResponse.arrayBuffer()),
+      logoResponse.ok ? new Uint8Array(await logoResponse.arrayBuffer()) : null,
+    );
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const popup = window.open(url, "_blank");
+    if (!popup) {
+      URL.revokeObjectURL(url);
+      throw new Error("تعذر فتح نافذة الطباعة. يرجى السماح بالنوافذ المنبثقة.");
+    }
+    popup.opener = null;
+    popup.addEventListener("load", () => popup.print(), { once: true });
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  async buildPdf(
+    report: ReportTable,
+    fontBytes: Uint8Array,
+    logoBytes: Uint8Array | null = null,
+  ): Promise<Uint8Array> {
     const pdf = new jsPDF({
       unit: "pt",
       format: "a4",
@@ -210,7 +245,7 @@ export class ReportExportService {
       compress: true,
     });
     this.installArabicFont(pdf, fontBytes);
-    this.drawVectorReport(pdf, report);
+    this.drawVectorReport(pdf, report, logoBytes);
     return new Uint8Array(pdf.output("arraybuffer"));
   }
 
@@ -220,87 +255,163 @@ export class ReportExportService {
     for (let offset = 0; offset < bytes.length; offset += chunkSize) {
       binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
     }
-    pdf.addFileToVFS("Cairo.ttf", btoa(binary));
-    pdf.addFont("Cairo.ttf", "Cairo", "normal");
-    pdf.setFont("Cairo", "normal");
+    pdf.addFileToVFS("Amiri-Regular.ttf", btoa(binary));
+    pdf.addFont("Amiri-Regular.ttf", "Amiri", "normal");
+    pdf.setFont("Amiri", "normal");
   }
 
-  private drawVectorReport(pdf: jsPDF, report: ReportTable): void {
+  private drawVectorReport(
+    pdf: jsPDF,
+    report: ReportTable,
+    logoBytes: Uint8Array | null,
+  ): void {
     const rtl = report.direction === "rtl";
-    const margin = 36;
+    const margin = 32;
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const contentWidth = pageWidth - margin * 2;
-    const columnCount = Math.max(report.columns.length, 1);
-    const columnWidth = contentWidth / columnCount;
-    const rowHeight = 22;
-    const headerHeight = 104;
-    const footerY = pageHeight - 24;
-    let y = headerHeight;
+    const widths = this.reportColumnWidths(pdf, report, contentWidth);
+    const footerY = pageHeight - 31;
+    let y = 0;
 
-    const drawHeader = (): void => {
+    const drawIdentityHeader = (): void => {
       pdf.setFillColor(29, 28, 80);
-      pdf.rect(0, 0, pageWidth, 10, "F");
+      pdf.rect(0, 0, pageWidth, 12, "F");
+      pdf.setFillColor(190, 47, 47);
+      pdf.rect(rtl ? 0 : pageWidth - 125, 12, 125, 5, "F");
+      if (logoBytes) {
+        try {
+          pdf.addImage(
+            this.bytesDataUrl(logoBytes, "image/png"),
+            "PNG",
+            rtl ? pageWidth - margin - 48 : margin,
+            24,
+            48,
+            48,
+            undefined,
+            "FAST",
+          );
+        } catch {
+          // A missing or corrupt logo must not prevent the financial report export.
+        }
+      }
       pdf.setTextColor(29, 28, 80);
-      pdf.setFontSize(18);
+      pdf.setFontSize(17);
       this.drawPdfText(
         pdf,
         report.locale === "ar" && report.titleAr ? report.titleAr : report.title,
-        rtl ? pageWidth - margin : margin,
-        40,
+        rtl ? margin : pageWidth - margin,
+        39,
+        !rtl,
+      );
+      pdf.setFontSize(10.5);
+      this.drawPdfText(
+        pdf,
+        rtl ? "مدارس روافد الشرق الأوسط العالمية" : "Rawafed International School",
+        rtl ? pageWidth - margin - 58 : margin + 58,
+        37,
         rtl,
       );
       pdf.setTextColor(71, 85, 105);
       pdf.setFontSize(9);
-      this.drawPdfText(pdf, report.subtitle, rtl ? pageWidth - margin : margin, 59, rtl);
-      const school = rtl
-        ? "مدارس روافد الشرق الأوسط العالمية"
-        : "Rawafed International School";
-      this.drawPdfText(pdf, school, rtl ? margin : pageWidth - margin, 40, !rtl);
-      pdf.setDrawColor(183, 43, 43);
-      pdf.setLineWidth(1.5);
-      pdf.line(margin, 75, pageWidth - margin, 75);
-      pdf.setFillColor(238, 244, 252);
-      pdf.rect(margin, 84, contentWidth, 20, "F");
-      pdf.setTextColor(11, 55, 111);
-      pdf.setFontSize(7.5);
-      report.columns.forEach((column, index) => {
-        const visualIndex = rtl ? columnCount - 1 - index : index;
-        const x = margin + visualIndex * columnWidth;
-        this.drawPdfText(
-          pdf,
-          column,
-          rtl ? x + columnWidth - 5 : x + 5,
-          97,
-          rtl,
-        );
-      });
-    };
-
-    const drawFooter = (): void => {
-      pdf.setDrawColor(203, 213, 225);
-      pdf.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
-      pdf.setTextColor(100, 116, 139);
-      pdf.setFontSize(7);
       this.drawPdfText(
         pdf,
-        report.generatedBy || "Rawafed ERP",
-        rtl ? pageWidth - margin : margin,
-        footerY,
+        rtl
+          ? "الرياض، حي الخليج، شارع بحر العرب"
+          : "Riyadh, Al Khaleej District, Bahr Al Arab Street",
+        rtl ? pageWidth - margin - 58 : margin + 58,
+        51,
         rtl,
       );
-      pdf.text(String(pdf.getNumberOfPages()), rtl ? margin : pageWidth - margin, footerY, {
-        align: rtl ? "left" : "right",
-      });
+      this.drawPdfText(pdf, report.subtitle, rtl ? margin : pageWidth - margin, 58, !rtl);
+      pdf.setDrawColor(183, 43, 43);
+      pdf.setLineWidth(1.5);
+      pdf.line(margin, 82, pageWidth - margin, 82);
+      y = 94;
     };
 
-    drawHeader();
+    const drawTableHeader = (): void => {
+      const headerLines = report.columns.map((column, index) =>
+        this.wrappedPdfText(pdf, column, Math.max(widths[index] - 10, 12)),
+      );
+      const headerHeight = Math.max(25, ...headerLines.map((lines) => lines.length * 9 + 10));
+      pdf.setFillColor(238, 244, 252);
+      pdf.rect(margin, y, contentWidth, headerHeight, "F");
+      pdf.setTextColor(11, 55, 111);
+      pdf.setFontSize(7.5);
+      let offset = 0;
+      report.columns.forEach((_column, index) => {
+        const cellX = rtl ? pageWidth - margin - offset - widths[index] : margin + offset;
+        this.drawWrappedCell(pdf, headerLines[index], cellX, y, widths[index], headerHeight, rtl);
+        offset += widths[index];
+      });
+      this.drawTableGrid(pdf, y, headerHeight, widths, rtl, pageWidth, margin);
+      y += headerHeight;
+    };
+
+    const drawSummary = (): void => {
+      const items = report.summary.slice(0, 6);
+      if (!items.length) return;
+      const columns = Math.min(items.length, 3);
+      const cardWidth = (contentWidth - (columns - 1) * 8) / columns;
+      items.forEach((item, index) => {
+        const row = Math.floor(index / columns);
+        const visualColumn = rtl ? columns - 1 - (index % columns) : index % columns;
+        const x = margin + visualColumn * (cardWidth + 8);
+        const top = y + row * 45;
+        pdf.setFillColor(248, 250, 252);
+        pdf.setDrawColor(219, 227, 239);
+        pdf.roundedRect(x, top, cardWidth, 37, 4, 4, "FD");
+        pdf.setTextColor(100, 116, 139);
+        pdf.setFontSize(7);
+        this.drawPdfText(pdf, item.label, rtl ? x + cardWidth - 7 : x + 7, top + 12, rtl);
+        pdf.setTextColor(7, 51, 107);
+        pdf.setFontSize(11);
+        this.drawPdfText(pdf, item.value, rtl ? x + cardWidth - 7 : x + 7, top + 29, rtl);
+      });
+      y += Math.ceil(items.length / columns) * 45 + 4;
+    };
+
+    const drawChart = (): void => {
+      const labels = report.chart?.labels?.slice(0, 12) || [];
+      const values = report.chart?.values?.slice(0, labels.length) || [];
+      if (!labels.length || !values.length) return;
+      const chartHeight = 82;
+      const baseline = y + chartHeight - 18;
+      const max = Math.max(...values.map((value) => Math.abs(Number(value) || 0)), 1);
+      const slot = contentWidth / labels.length;
+      pdf.setDrawColor(203, 213, 225);
+      pdf.line(margin, baseline, pageWidth - margin, baseline);
+      labels.forEach((label, index) => {
+        const value = Number(values[index] || 0);
+        const barHeight = Math.max(2, (Math.abs(value) / max) * (chartHeight - 34));
+        const x = margin + index * slot + slot * 0.2;
+        pdf.setFillColor(20, 86, 157);
+        pdf.roundedRect(x, baseline - barHeight, slot * 0.6, barHeight, 2, 2, "F");
+        pdf.setFontSize(6.5);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(this.localizedNumber(value, report.locale), x + slot * 0.3, baseline - barHeight - 3, { align: "center" });
+        const labelLines = this.wrappedPdfText(pdf, label, slot - 4).slice(0, 2);
+        labelLines.forEach((line, lineIndex) =>
+          pdf.text(line, x + slot * 0.3, baseline + 8 + lineIndex * 7, { align: "center" }),
+        );
+      });
+      y += chartHeight + 6;
+    };
+
+    drawIdentityHeader();
+    drawSummary();
+    drawChart();
+    drawTableHeader();
     report.rows.forEach((row, rowIndex) => {
-      if (y + rowHeight > footerY - 18) {
-        drawFooter();
+      const cellLines = report.columns.map((_column, index) =>
+        this.wrappedPdfText(pdf, row[index] ?? "—", Math.max(widths[index] - 10, 12)),
+      );
+      const rowHeight = Math.max(23, ...cellLines.map((lines) => lines.length * 9 + 10));
+      if (y + rowHeight > footerY - 12) {
         pdf.addPage();
-        drawHeader();
-        y = headerHeight;
+        drawIdentityHeader();
+        drawTableHeader();
       }
       if (rowIndex % 2) {
         pdf.setFillColor(248, 250, 252);
@@ -308,24 +419,83 @@ export class ReportExportService {
       }
       pdf.setTextColor(15, 23, 42);
       pdf.setFontSize(7);
+      let offset = 0;
       report.columns.forEach((_, index) => {
-        const visualIndex = rtl ? columnCount - 1 - index : index;
-        const x = margin + visualIndex * columnWidth;
-        const value = String(row[index] ?? "—");
-        const clipped = value.length > 34 ? `${value.slice(0, 33)}…` : value;
-        this.drawPdfText(
-          pdf,
-          clipped,
-          rtl ? x + columnWidth - 5 : x + 5,
-          y + 14,
-          rtl,
-        );
+        const cellX = rtl ? pageWidth - margin - offset - widths[index] : margin + offset;
+        this.drawWrappedCell(pdf, cellLines[index], cellX, y, widths[index], rowHeight, rtl);
+        offset += widths[index];
       });
-      pdf.setDrawColor(226, 232, 240);
-      pdf.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
+      this.drawTableGrid(pdf, y, rowHeight, widths, rtl, pageWidth, margin);
       y += rowHeight;
     });
-    drawFooter();
+    const pages = pdf.getNumberOfPages();
+    for (let page = 1; page <= pages; page += 1) {
+      pdf.setPage(page);
+      pdf.setDrawColor(203, 213, 225);
+      pdf.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
+      pdf.setTextColor(100, 116, 139);
+      pdf.setFontSize(7);
+      this.drawPdfText(pdf, report.generatedBy || "Rawafed ERP", rtl ? pageWidth - margin : margin, footerY, rtl);
+      pdf.text(`${page} / ${pages}`, rtl ? margin : pageWidth - margin, footerY, { align: rtl ? "left" : "right" });
+    }
+  }
+
+  private reportColumnWidths(pdf: jsPDF, report: ReportTable, contentWidth: number): number[] {
+    pdf.setFontSize(7);
+    const weights = report.columns.map((column, index) => {
+      const samples = [column, ...report.rows.slice(0, 80).map((row) => String(row[index] ?? ""))];
+      const longest = Math.max(...samples.map((value) => Math.min(pdf.getTextWidth(this.preparedPdfText(pdf, value)), 150)), 18);
+      return Math.max(28, longest + 12);
+    });
+    const sum = weights.reduce((total, value) => total + value, 0) || 1;
+    return weights.map((weight) => (weight / sum) * contentWidth);
+  }
+
+  private wrappedPdfText(pdf: jsPDF, value: unknown, maxWidth: number): string[] {
+    return pdf.splitTextToSize(this.preparedPdfText(pdf, value), maxWidth) as string[];
+  }
+
+  private preparedPdfText(pdf: jsPDF, value: unknown): string {
+    const text = String(value ?? "—");
+    return /[\u0600-\u06ff]/.test(text) ? pdf.processArabic(text) : text;
+  }
+
+  private drawWrappedCell(
+    pdf: jsPDF,
+    lines: string[],
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    rtl: boolean,
+  ): void {
+    const lineHeight = 9;
+    const startY = y + Math.max(10, (height - lines.length * lineHeight) / 2 + 7);
+    lines.forEach((line, index) =>
+      pdf.text(line, rtl ? x + width - 5 : x + 5, startY + index * lineHeight, {
+        align: rtl ? "right" : "left",
+      }),
+    );
+  }
+
+  private drawTableGrid(
+    pdf: jsPDF,
+    y: number,
+    height: number,
+    widths: number[],
+    rtl: boolean,
+    pageWidth: number,
+    margin: number,
+  ): void {
+    pdf.setDrawColor(220, 228, 238);
+    pdf.setLineWidth(0.35);
+    pdf.line(margin, y + height, pageWidth - margin, y + height);
+    let offset = 0;
+    widths.slice(0, -1).forEach((width) => {
+      offset += width;
+      const x = rtl ? pageWidth - margin - offset : margin + offset;
+      pdf.line(x, y, x, y + height);
+    });
   }
 
   private drawPdfText(
@@ -335,12 +505,23 @@ export class ReportExportService {
     y: number,
     rtl: boolean,
   ): void {
-    const text = String(value ?? "—");
-    const containsArabic = /[\u0600-\u06ff]/.test(text);
-    pdf.text(containsArabic ? pdf.processArabic(text) : text, x, y, {
+    pdf.text(this.preparedPdfText(pdf, value), x, y, {
       align: rtl ? "right" : "left",
       baseline: "alphabetic",
     });
+  }
+
+  private localizedNumber(value: number, locale: ReportTable["locale"]): string {
+    return new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en-US", {
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+
+  private bytesDataUrl(bytes: Uint8Array, mime: string): string {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000)
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    return `data:${mime};base64,${btoa(binary)}`;
   }
 
   private buildPdfPage(

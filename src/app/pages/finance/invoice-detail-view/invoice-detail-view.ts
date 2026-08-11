@@ -7,7 +7,7 @@ import { ZatcaInvoiceService } from '../../../core/finance/zatca-invoice.service
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
-import { InvoicePdfService } from '../../../core/reports/invoice-pdf.service';
+import { InvoicePdfDocument, InvoicePdfService } from '../../../core/reports/invoice-pdf.service';
 
 @Component({
   selector: 'app-invoice-detail-view',
@@ -124,11 +124,6 @@ date(value: string | null | undefined): string {
   ).format(new Date(value));
 }
 
-  /**
-   * Prints the invoice document only.
-   * The CSS file will hide the application shell, toolbar, sidebar and all
-   * elements outside #invoice-print-content while printing.
-   */
   async print(): Promise<void> {
     if (this.busy) return;
 
@@ -137,21 +132,13 @@ date(value: string | null | undefined): string {
     try {
       this.detail = await this.accounting.authorizeInvoicePrint(this.invoiceId);
       this.qrImage = await this.invoiceQr(this.detail);
-
-      await this.waitForInvoiceRendering();
-
-      document.body.classList.add('invoice-print-mode');
-      window.print();
+      await this.invoicePdf.print(this.pdfDocument(this.detail));
     } catch (error) {
       this.feedback.error(
         this.i18n.t('invoice.print_failed'),
         safeErrorMessage(error),
       );
     } finally {
-      window.setTimeout(() => {
-        document.body.classList.remove('invoice-print-mode');
-      }, 300);
-
       this.busy = false;
     }
   }
@@ -164,37 +151,7 @@ date(value: string | null | undefined): string {
     try {
       this.detail = await this.accounting.authorizeInvoicePdf(this.invoiceId);
       this.qrImage = await this.invoiceQr(this.detail);
-      const data = this.detail;
-      await this.invoicePdf.download({
-        invoiceNumber: data.invoice.invoiceNumber,
-        status: data.invoice.status,
-        date: this.date(data.invoice.issuedAt),
-        studentName: this.i18n.language() === 'ar' ? data.student.nameAr || data.student.nameEn : data.student.nameEn,
-        registrationNumber: data.student.registrationNumber,
-        category: data.invoice.categoryLabel,
-        schoolNameAr: data.school.nameAr,
-        schoolNameEn: data.school.nameEn,
-        addressAr: data.school.addressAr,
-        addressEn: data.school.addressEn,
-        phone: data.school.phone,
-        email: data.school.email,
-        vatNumber: data.school.vatNumber,
-        qrDataUrl: this.qrImage,
-        lines: data.lines.map((line) => ({
-          description: line.description,
-          quantity: Number(line.quantity || 0),
-          unitPrice: Number(line.unitPrice || 0),
-          subtotal: Number(line.netAmount || 0),
-          vat: this.lineVat(line),
-          total: this.lineTotal(line),
-        })),
-        subtotal: Number(data.totals.subtotal || 0),
-        discount: Number(data.totals.discount || 0) + Number(data.totals.additionalDiscount || 0),
-        vat: this.displayedInvoiceVat(),
-        total: Number(data.totals.parentPayable ?? data.totals.total ?? 0),
-        paid: Number(data.totals.paid || 0),
-        remaining: Number(data.totals.remaining || 0),
-      });
+      await this.invoicePdf.download(this.pdfDocument(this.detail));
     } catch (error) {
       this.feedback.error(
         this.i18n.t('invoice.pdf_failed'),
@@ -203,6 +160,39 @@ date(value: string | null | undefined): string {
     } finally {
       this.busy = false;
     }
+  }
+
+  private pdfDocument(data: InvoiceDetail): InvoicePdfDocument {
+    return {
+      invoiceNumber: data.invoice.invoiceNumber,
+      status: data.invoice.status,
+      date: this.date(data.invoice.issuedAt),
+      studentName: this.i18n.language() === 'ar' ? data.student.nameAr || data.student.nameEn : data.student.nameEn,
+      registrationNumber: data.student.registrationNumber,
+      category: data.invoice.categoryLabel,
+      schoolNameAr: data.school.nameAr,
+      schoolNameEn: data.school.nameEn,
+      addressAr: data.school.addressAr,
+      addressEn: data.school.addressEn,
+      phone: data.school.phone,
+      email: data.school.email,
+      vatNumber: data.school.vatNumber,
+      qrDataUrl: this.qrImage,
+      lines: data.lines.map((line) => ({
+        description: line.description,
+        quantity: Number(line.quantity || 0),
+        unitPrice: Number(line.unitPrice || 0),
+        subtotal: Number(line.netAmount || 0),
+        vat: this.lineVat(line),
+        total: this.lineTotal(line),
+      })),
+      subtotal: Number(data.totals.subtotal || 0),
+      discount: Number(data.totals.discount || 0) + Number(data.totals.additionalDiscount || 0),
+      vat: this.displayedInvoiceVat(),
+      total: Number(data.totals.parentPayable ?? data.totals.total ?? 0),
+      paid: Number(data.totals.paid || 0),
+      remaining: Number(data.totals.remaining || 0),
+    };
   }
 
   private async waitForInvoiceRendering(): Promise<void> {

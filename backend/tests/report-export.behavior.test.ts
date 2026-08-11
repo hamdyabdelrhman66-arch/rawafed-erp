@@ -71,7 +71,7 @@ describe("Excel and PDF report exports", () => {
 
   it("creates a vector PDF whose report text remains extractable", async () => {
     const font = new Uint8Array(
-      await readFile(new URL("../../public/fonts/Cairo.ttf", import.meta.url)),
+      await readFile(new URL("../../public/fonts/Amiri-Regular.ttf", import.meta.url)),
     );
     const bytes = await new ReportExportService().buildPdf(report, font);
     expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
@@ -85,11 +85,13 @@ describe("Excel and PDF report exports", () => {
       .join(" ");
     expect(extracted).toContain("2026");
     expect(extracted).toContain("100");
+    expect(extracted.normalize("NFKC")).toContain("تقرير التدقيق المالي");
+    expect(extracted.normalize("NFKC")).toContain("اعتماد فاتورة");
   });
 
   it("creates a searchable vector invoice without rasterizing the document", async () => {
     const font = new Uint8Array(
-      await readFile(new URL("../../public/fonts/Cairo.ttf", import.meta.url)),
+      await readFile(new URL("../../public/fonts/Amiri-Regular.ttf", import.meta.url)),
     );
     const bytes = await new InvoicePdfService().build({
       invoiceNumber: "RAW-INV-2026-001",

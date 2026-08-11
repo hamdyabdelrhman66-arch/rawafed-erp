@@ -231,8 +231,8 @@ export class Reports implements OnInit {
   async downloadExcel(): Promise<void> {
     if (this.result) await this.exporter.downloadExcel(this.exportModel());
   }
-  print(): void {
-    window.print();
+  async print(): Promise<void> {
+    if (this.result) await this.exporter.printPdf(this.exportModel());
   }
   format(value: unknown): string {
     return typeof value === "number"

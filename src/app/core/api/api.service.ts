@@ -40,15 +40,24 @@ export class ApiService {
   }
 
   get<T>(path: string): Promise<T> {
-    return this.request(() => this.http.get<T>(this.url(path), { headers: this.headers() }));
+    return this.request(
+      () => this.http.get<T>(this.url(path), { headers: this.headers(path) }),
+      this.isPublicPath(path),
+    );
   }
 
   post<T>(path: string, body: unknown): Promise<T> {
-    return this.request(() => this.http.post<T>(this.url(path), body, { headers: this.headers() }), path === '/auth/refresh');
+    return this.request(
+      () => this.http.post<T>(this.url(path), body, { headers: this.headers(path) }),
+      path === '/auth/refresh' || this.isPublicPath(path),
+    );
   }
 
   postForm<T>(path: string, body: FormData): Promise<T> {
-    return this.request(() => this.http.post<T>(this.url(path), body, { headers: this.headers() }));
+    return this.request(
+      () => this.http.post<T>(this.url(path), body, { headers: this.headers(path) }),
+      this.isPublicPath(path),
+    );
   }
 
   patch<T>(path: string, body: unknown): Promise<T> {
@@ -119,8 +128,14 @@ export class ApiService {
     return `${this.apiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
   }
 
-  private headers(): HttpHeaders {
-    return this.token ? new HttpHeaders({ Authorization: `Bearer ${this.token}` }) : new HttpHeaders();
+  private headers(path = ''): HttpHeaders {
+    return !this.isPublicPath(path) && this.token
+      ? new HttpHeaders({ Authorization: `Bearer ${this.token}` })
+      : new HttpHeaders();
+  }
+
+  private isPublicPath(path: string): boolean {
+    return path === '/public' || path.startsWith('/public/');
   }
 
   private handleError(error: unknown) {

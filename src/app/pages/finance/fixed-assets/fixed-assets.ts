@@ -6,6 +6,7 @@ import { Subscription } from 'rxjs';
 import { FixedAssetsService } from '../../../core/finance/fixed-assets.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
+import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
 
 type Tab = 'assets' | 'categories' | 'depreciation' | 'transfers' | 'disposal' | 'maintenance' | 'reports';
 
@@ -52,6 +53,7 @@ export class FixedAssets implements OnInit, OnDestroy {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly feedback: FeedbackService,
+    private readonly reportExport: ReportExportService,
     public readonly i18n: I18nService
   ) {}
 
@@ -137,13 +139,28 @@ export class FixedAssets implements OnInit, OnDestroy {
     try { this.reportRows = await this.service.report(this.reportType); }
     catch (error) { this.feedback.error(this.l('Report could not be loaded.', 'تعذر تحميل التقرير.'), safeErrorMessage(error)); }
   }
-  exportReport(): void {
+  async exportReport(): Promise<void> {
     if (!this.reportRows.length) return;
-    const columns = Object.keys(this.reportRows[0]).filter((key) => typeof this.reportRows[0][key] !== 'object');
-    const csv = [columns, ...this.reportRows.map((row) => columns.map((key) => row[key] ?? ''))]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = `${this.reportType}.csv`; link.click(); URL.revokeObjectURL(url);
+    await this.reportExport.downloadExcel(this.assetReportExport());
+  }
+  async printReport(): Promise<void> { if (this.reportRows.length) await this.reportExport.printPdf(this.assetReportExport()); }
+  private assetReportExport(): ReportTable {
+    const columns = this.reportColumns();
+    return {
+      title: this.reportTypes.find((item) => item[0] === this.reportType)?.[1] || 'Asset Report',
+      titleAr: this.reportLabel(this.reportType),
+      subtitle: new Date().toISOString().slice(0, 10),
+      columns: columns.map((column) => this.reportColumnLabel(column)),
+      rows: this.reportRows.map((row) => columns.map((column) => row[column] ?? '—')),
+      summary: [
+        { label: this.l('Rows', 'عدد السجلات'), value: this.reportRows.length },
+        { label: this.l('Total Cost', 'إجمالي التكلفة'), value: this.totalCost },
+        { label: this.l('Book Value', 'القيمة الدفترية'), value: this.totalBookValue },
+      ],
+      fileName: this.reportType,
+      direction: this.i18n.direction(),
+      locale: this.i18n.language(),
+    };
   }
   reportColumns(): string[] { return this.reportRows[0] ? Object.keys(this.reportRows[0]).filter((key) => typeof this.reportRows[0][key] !== 'object') : []; }
   reportColumnLabel(column: string): string {

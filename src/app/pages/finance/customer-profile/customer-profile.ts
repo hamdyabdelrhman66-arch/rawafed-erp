@@ -6,6 +6,7 @@ import { AccountingService } from '../../../core/finance/accounting.service';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
+import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
 
 @Component({
   selector: 'app-customer-profile',
@@ -42,6 +43,7 @@ export class CustomerProfile implements OnInit {
     private readonly accounting: AccountingService,
     public readonly i18n: I18nService,
     private readonly feedback: FeedbackService,
+    private readonly reportExport: ReportExportService,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -95,8 +97,30 @@ export class CustomerProfile implements OnInit {
     });
   }
 
-  printStatement(): void {
-    window.print();
+  async printStatement(): Promise<void> {
+    await this.reportExport.printPdf(this.statementReport());
+  }
+
+  private statementReport(): ReportTable {
+    const transactions = this.statement?.transactions || [];
+    return {
+      title: 'Student Account Statement',
+      titleAr: 'كشف حساب الطالب',
+      subtitle: this.i18n.language() === 'ar' ? (this.customer?.nameAr || this.customer?.nameEn || '') : (this.customer?.nameEn || this.customer?.nameAr || ''),
+      description: `${this.customer?.registrationNumber || ''} · ${this.customer?.grade || ''}`,
+      columns: ['التاريخ', 'القيد', 'المرجع', 'الوصف', 'مدين', 'دائن', 'الرصيد'],
+      rows: transactions.map((row: any) => [row.date, row.entryNumber, row.referenceNumber || '—', row.description, Number(row.debit || 0), Number(row.credit || 0), Number(row.balance || 0)]),
+      summary: [
+        { label: 'إجمالي الرسوم', value: this.money(this.customer?.summary?.grossFees) },
+        { label: 'إجمالي الخصومات', value: this.money(this.customer?.summary?.totalDiscounts) },
+        { label: 'إجمالي المدفوعات', value: this.money(this.customer?.summary?.paymentTotal) },
+        { label: 'الرصيد المتبقي', value: this.money(this.customer?.summary?.outstanding) },
+      ],
+      chart: { labels: ['الرسوم', 'الخصومات', 'المدفوع', 'المتبقي'], values: [Number(this.customer?.summary?.grossFees || 0), Number(this.customer?.summary?.totalDiscounts || 0), Number(this.customer?.summary?.paymentTotal || 0), Number(this.customer?.summary?.outstanding || 0)] },
+      fileName: `rawafed-statement-${this.customer?.registrationNumber || this.customer?.id || 'student'}`,
+      direction: 'rtl',
+      locale: 'ar',
+    };
   }
 
   money(value: unknown): string {

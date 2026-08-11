@@ -8,8 +8,7 @@ import { drawCalibrationField, drawImageField, drawTextField } from './contract-
 import { arabicWeekday, bytesToDataUrl, formatFees, formatGregorianDate, parseContractDate, triggerDownload } from './contract-utils';
 
 const CONTRACT_TEMPLATE_PATH = 'templates/official-contract-template.pdf';
-const CAIRO_BOLD_FONT_PATH = 'fonts/Cairo-Bold.ttf';
-const CAIRO_FONT_PATH = 'fonts/Cairo.ttf';
+const ARABIC_FONT_PATH = 'fonts/Amiri-Regular.ttf';
 
 @Injectable({ providedIn: 'root' })
 export class ContractService {
@@ -17,7 +16,7 @@ export class ContractService {
 
   async generateSignedContractPdf(registration: AdmissionRegistration): Promise<string> {
     const pdf = await this.loadOfficialContractPdf();
-    const cairoBoldFont = await this.embedCairoBold(pdf);
+    const cairoBoldFont = await this.embedArabicFont(pdf);
     const pages = pdf.getPages();
     const renderedFields = new Set<ContractFieldName>();
 
@@ -42,7 +41,7 @@ export class ContractService {
 
   async generateContractCalibrationPdf(): Promise<string> {
     const pdf = await this.loadOfficialContractPdf();
-    const cairoBoldFont = await this.embedCairoBold(pdf);
+    const cairoBoldFont = await this.embedArabicFont(pdf);
     const pages = pdf.getPages();
 
     Object.entries(CONTRACT_FIELDS).forEach(([fieldName, field]) => {
@@ -86,8 +85,8 @@ export class ContractService {
     return pdf;
   }
 
-  private async embedCairoBold(pdf: PDFDocument): Promise<PDFFont> {
-    const fontBytes = await this.fetchAssetBytes(CAIRO_BOLD_FONT_PATH).catch(() => this.fetchAssetBytes(CAIRO_FONT_PATH));
+  private async embedArabicFont(pdf: PDFDocument): Promise<PDFFont> {
+    const fontBytes = await this.fetchAssetBytes(ARABIC_FONT_PATH);
     return await pdf.embedFont(fontBytes, { subset: true });
   }
 

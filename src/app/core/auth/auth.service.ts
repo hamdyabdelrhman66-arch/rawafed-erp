@@ -24,6 +24,7 @@ export class AuthService {
     });
     window.addEventListener('rawafed-session-expired', () => {
       this.session.set(null);
+      if (['/', '/login', '/register'].includes(window.location.pathname)) return;
       void this.router.navigate(['/login'], { queryParams: { reason: 'session-expired' } });
     });
   }

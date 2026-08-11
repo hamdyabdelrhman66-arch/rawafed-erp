@@ -1,12 +1,15 @@
 import { PDFDocument, PDFFont, PDFImage, PDFPage, rgb } from 'pdf-lib';
+import jsPDF from 'jspdf';
 import { ContractFieldBox } from './contract-fields';
 
 const TEXT_PADDING = 2;
 const MIN_FONT_SIZE = 4;
+const arabicShaper = new jsPDF();
 
 export function drawTextField(pdfPage: PDFPage, value: string, field: ContractFieldBox, font: PDFFont): void {
   if (field.type !== 'text') return;
-  const text = String(value || '').trim();
+  const rawText = String(value || '').trim();
+  const text = /[\u0600-\u06ff]/.test(rawText) ? arabicShaper.processArabic(rawText) : rawText;
   if (!text) return;
 
   const maxWidth = Math.max(1, field.width - TEXT_PADDING * 2);

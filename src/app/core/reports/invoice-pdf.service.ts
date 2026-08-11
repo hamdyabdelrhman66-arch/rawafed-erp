@@ -47,13 +47,26 @@ export class InvoicePdfService {
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
+  async print(document: InvoicePdfDocument): Promise<void> {
+    const bytes = await this.build(document);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const popup = window.open(url, '_blank');
+    if (!popup) {
+      URL.revokeObjectURL(url);
+      throw new Error('تعذر فتح نافذة الطباعة. يرجى السماح بالنوافذ المنبثقة.');
+    }
+    popup.opener = null;
+    popup.addEventListener('load', () => popup.print(), { once: true });
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
   async build(
     document: InvoicePdfDocument,
     suppliedFont?: Uint8Array,
     suppliedLogo?: Uint8Array | null,
   ): Promise<Uint8Array> {
     const [font, logo] = await Promise.all([
-      suppliedFont ? Promise.resolve(suppliedFont) : this.asset('/fonts/Cairo.ttf'),
+      suppliedFont ? Promise.resolve(suppliedFont) : this.asset('/fonts/Amiri-Regular.ttf'),
       suppliedLogo !== undefined
         ? Promise.resolve(suppliedLogo)
         : this.asset('/assets/rawafed-logo.png').catch(() => null),
@@ -111,17 +124,27 @@ export class InvoicePdfService {
     };
     drawTableHeader();
     for (const line of document.lines.length ? document.lines : [{ description: '—', quantity: 0, unitPrice: 0, subtotal: 0, vat: 0, total: 0 }]) {
-      if (y > height - 210) { pdf.addPage(); y = 45; drawTableHeader(); }
+      const descriptionLines = pdf.splitTextToSize(this.prepared(pdf, line.description), contentW * proportions[0] - 10) as string[];
+      const rowHeight = Math.max(25, descriptionLines.length * 9 + 10);
+      if (y + rowHeight > height - 55) { pdf.addPage(); y = 45; drawTableHeader(); }
       const values = [line.description, line.quantity, this.money(line.unitPrice), this.money(line.subtotal), this.money(line.vat), this.money(line.total)];
       let x = width - margin;
       values.forEach((value, index) => {
         const cellW = contentW * proportions[index]; x -= cellW;
-        pdf.setFontSize(7); pdf.setTextColor(30, 41, 59); this.text(pdf, String(value), x + cellW - 5, y + 17, true);
+        pdf.setFontSize(7); pdf.setTextColor(30, 41, 59);
+        if (index === 0) {
+          descriptionLines.forEach((descriptionLine, lineIndex) =>
+            pdf.text(descriptionLine, x + cellW - 5, y + 13 + lineIndex * 9, { align: 'right' }),
+          );
+        } else {
+          this.text(pdf, String(value), x + cellW - 5, y + Math.max(17, rowHeight / 2 + 3), true);
+        }
       });
-      pdf.setDrawColor(226, 232, 240); pdf.line(margin, y + 25, width - margin, y + 25); y += 25;
+      pdf.setDrawColor(226, 232, 240); pdf.line(margin, y + rowHeight, width - margin, y + rowHeight); y += rowHeight;
     }
 
     y += 18;
+    if (y + 150 > height - 48) { pdf.addPage(); y = 55; }
     if (document.qrDataUrl) pdf.addImage(document.qrDataUrl, 'PNG', margin, y, 105, 105, undefined, 'FAST');
     const summaryX = width - margin - 245;
     const summary = [
@@ -135,8 +158,14 @@ export class InvoicePdfService {
       else { pdf.setFillColor(index === 5 ? 255 : 248, index === 5 ? 245 : 250, index === 5 ? 245 : 252); pdf.rect(summaryX, top, 245, 24, 'F'); pdf.setTextColor(index === 5 ? 180 : 30, 41, 59); }
       pdf.setFontSize(8); this.text(pdf, label, summaryX + 235, top + 16, true); pdf.text(`${this.money(Number(amount))} SAR`, summaryX + 8, top + 16);
     });
-    pdf.setDrawColor(203, 213, 225); pdf.line(margin, height - 42, width - margin, height - 42);
-    pdf.setFontSize(7); pdf.setTextColor(100, 116, 139); this.text(pdf, document.addressAr || '', width - margin, height - 27, true);
+    const pages = pdf.getNumberOfPages();
+    for (let page = 1; page <= pages; page += 1) {
+      pdf.setPage(page);
+      pdf.setDrawColor(203, 213, 225); pdf.line(margin, height - 42, width - margin, height - 42);
+      pdf.setFontSize(7); pdf.setTextColor(100, 116, 139);
+      this.text(pdf, document.addressAr || '', width - margin, height - 27, true);
+      pdf.text(`${page} / ${pages}`, margin, height - 27);
+    }
     return new Uint8Array(pdf.output('arraybuffer'));
   }
 
@@ -146,11 +175,14 @@ export class InvoicePdfService {
   }
   private installFont(pdf: jsPDF, bytes: Uint8Array): void {
     let binary = ''; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    pdf.addFileToVFS('Cairo.ttf', btoa(binary)); pdf.addFont('Cairo.ttf', 'Cairo', 'normal'); pdf.setFont('Cairo');
+    pdf.addFileToVFS('Amiri-Regular.ttf', btoa(binary)); pdf.addFont('Amiri-Regular.ttf', 'Amiri', 'normal'); pdf.setFont('Amiri');
   }
   private text(pdf: jsPDF, value: unknown, x: number, y: number, rtl: boolean): void {
-    const raw = String(value ?? '—'); const text = /[\u0600-\u06ff]/.test(raw) ? pdf.processArabic(raw) : raw;
-    pdf.text(text, x, y, { align: rtl ? 'right' : 'left' });
+    pdf.text(this.prepared(pdf, value), x, y, { align: rtl ? 'right' : 'left' });
+  }
+  private prepared(pdf: jsPDF, value: unknown): string {
+    const raw = String(value ?? '—');
+    return /[\u0600-\u06ff]/.test(raw) ? pdf.processArabic(raw) : raw;
   }
   private money(value: number): string { return (Math.round(Number(value || 0) * 100) / 100).toFixed(2); }
   private dataUrl(bytes: Uint8Array, mime: string): string {

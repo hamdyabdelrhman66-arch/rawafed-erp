@@ -7,6 +7,7 @@ import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { AccountingService } from '../../../core/finance/accounting.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
+import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
 
 @Component({
   selector: 'app-expenses',
@@ -30,7 +31,7 @@ export class Expenses implements OnInit {
   unpaidExpenses = 0;
   vatTotal = 0;
 
-  constructor(private readonly expensesService: ExpensesService, private readonly accounting: AccountingService, public readonly i18n: I18nService, private readonly feedback: FeedbackService) {}
+  constructor(private readonly expensesService: ExpensesService, private readonly accounting: AccountingService, public readonly i18n: I18nService, private readonly feedback: FeedbackService, private readonly reportExport: ReportExportService) {}
 
   ngOnInit(): void {
     this.expensesService.getExpenses().subscribe((expenses: any[]) => {
@@ -84,5 +85,21 @@ export class Expenses implements OnInit {
     }).subscribe({ next: () => { this.feedback.success(this.i18n.t('expense.payment_saved')); this.selectedExpense = null; this.ngOnInit(); }, error: (error) => this.feedback.error(this.i18n.t('expense.payment_failed'), safeErrorMessage(error)) });
   }
 
-  printReport(): void { window.print(); }
+  async printReport(): Promise<void> { await this.reportExport.printPdf(this.expenseReport()); }
+
+  private expenseReport(): ReportTable {
+    return {
+      title: 'Expense Register',
+      titleAr: 'سجل المصروفات',
+      subtitle: this.fromDate || this.toDate ? `${this.fromDate || '—'} - ${this.toDate || '—'}` : 'جميع الفترات',
+      description: 'تقرير المصروفات والمدفوعات من قاعدة البيانات',
+      columns: ['رقم المصروف', 'التاريخ', 'المورد', 'الوصف', 'قبل الضريبة', 'الضريبة', 'الإجمالي', 'المدفوع', 'المتبقي', 'الحالة'],
+      rows: this.filteredExpenses.map((expense) => [expense.expenseNo || expense.no, expense.date, expense.supplierName || 'غير مسجل', expense.title || expense.category || '', Number(expense.amountBeforeVat || 0), Number(expense.vatAmount || 0), Number(expense.totalAmount ?? expense.amount ?? 0), Number(expense.paidAmount || 0), Number(expense.remaining || 0), this.i18n.status(expense.paymentStatus || expense.status)]),
+      summary: [{ label: 'إجمالي المصروفات', value: this.money(this.totalExpenses) }, { label: 'المدفوع', value: this.money(this.paidExpenses) }, { label: 'غير المدفوع', value: this.money(this.unpaidExpenses) }, { label: 'ضريبة المدخلات', value: this.money(this.vatTotal) }],
+      chart: { labels: ['المدفوع', 'غير المدفوع', 'ضريبة المدخلات'], values: [this.paidExpenses, this.unpaidExpenses, this.vatTotal] },
+      fileName: `rawafed-expenses-${this.fromDate || 'all'}-${this.toDate || 'all'}`,
+      direction: 'rtl',
+      locale: 'ar',
+    };
+  }
 }

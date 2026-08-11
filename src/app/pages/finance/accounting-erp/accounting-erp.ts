@@ -17,6 +17,7 @@ import {
   safeErrorMessage,
 } from "../../../core/feedback/feedback.service";
 import { AuthService } from "../../../core/auth/auth.service";
+import { ReportExportService, ReportTable } from "../../../core/reports/report-export.service";
 
 type AccountingTab = "overview" | "accounts" | "journal" | "ledger" | "trial" | "mappings";
 type AccountFormMode = "details" | "create" | "edit";
@@ -127,6 +128,7 @@ export class AccountingErp implements OnInit {
     public readonly i18n: I18nService,
     private readonly feedback: FeedbackService,
     private readonly auth: AuthService,
+    private readonly reportExport: ReportExportService,
   ) {}
 
   ngOnInit(): void {
@@ -915,21 +917,34 @@ export class AccountingErp implements OnInit {
     );
   }
 
-  exportTrialExcel(): void {
+  async exportTrialExcel(): Promise<void> {
+    await this.reportExport.downloadExcel(this.trialBalanceExport());
+    this.feedback.success("Trial balance exported successfully.");
+  }
+
+  async exportTrialPdf(): Promise<void> {
+    await this.reportExport.downloadPdf(this.trialBalanceExport());
+  }
+
+  async printTrialPdf(): Promise<void> {
+    await this.reportExport.printPdf(this.trialBalanceExport());
+  }
+
+  private trialBalanceExport(): ReportTable {
     const headers = [
-      "Code",
-      "Account",
-      "Type",
-      "Opening Debit",
-      "Opening Credit",
-      "Period Debit",
-      "Period Credit",
-      "Closing Debit",
-      "Closing Credit",
+      this.i18n.label("Code", "الكود"),
+      this.i18n.label("Account", "الحساب"),
+      this.i18n.label("Type", "النوع"),
+      this.i18n.label("Opening Debit", "افتتاحي مدين"),
+      this.i18n.label("Opening Credit", "افتتاحي دائن"),
+      this.i18n.label("Period Debit", "حركة مدين"),
+      this.i18n.label("Period Credit", "حركة دائن"),
+      this.i18n.label("Closing Debit", "ختامي مدين"),
+      this.i18n.label("Closing Credit", "ختامي دائن"),
     ];
     const rows = this.visibleTrialRows.map((row) => [
       row.code,
-      `${" ".repeat(Number(row.level || 0) * 2)}${row.nameEn}`,
+      `${" ".repeat(Number(row.level || 0) * 2)}${this.i18n.language() === "ar" ? row.nameAr || row.nameEn : row.nameEn}`,
       row.type,
       row.openingDebit,
       row.openingCredit,
@@ -938,40 +953,25 @@ export class AccountingErp implements OnInit {
       row.closingDebit,
       row.closingCredit,
     ]);
-    rows.push([
-      "",
-      "Total",
-      "",
-      this.trialTotals.openingDebit || 0,
-      this.trialTotals.openingCredit || 0,
-      this.trialTotals.periodDebit || 0,
-      this.trialTotals.periodCredit || 0,
-      this.trialTotals.closingDebit || 0,
-      this.trialTotals.closingCredit || 0,
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row
-          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-          .join(","),
-      )
-      .join("\n");
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8;" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `trial-balance-${this.fromDate}-to-${this.toDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    this.feedback.success("Trial balance exported successfully.");
-  }
-
-  exportTrialPdf(): void {
-    this.feedback.info(
-      "Preparing report...",
-      "The print dialog will open with the current filters.",
-    );
-    window.print();
+    return {
+      title: "Trial Balance",
+      titleAr: "ميزان المراجعة",
+      subtitle: `${this.fromDate} - ${this.toDate}`,
+      columns: headers,
+      rows,
+      summary: [
+        { label: this.i18n.label("Closing Debit", "إجمالي الختامي المدين"), value: this.trialTotals.closingDebit || 0 },
+        { label: this.i18n.label("Closing Credit", "إجمالي الختامي الدائن"), value: this.trialTotals.closingCredit || 0 },
+        { label: this.i18n.label("Difference", "الفرق"), value: Math.abs(Number(this.trialTotals.closingDebit || 0) - Number(this.trialTotals.closingCredit || 0)) },
+      ],
+      fileName: `trial-balance-${this.fromDate}-to-${this.toDate}`,
+      direction: this.i18n.direction(),
+      locale: this.i18n.language(),
+      generatedBy: this.auth.session()?.displayName,
+      chart: {
+        labels: [this.i18n.label("Debit", "مدين"), this.i18n.label("Credit", "دائن")],
+        values: [Number(this.trialTotals.closingDebit || 0), Number(this.trialTotals.closingCredit || 0)],
+      },
+    };
   }
 }

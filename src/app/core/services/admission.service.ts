@@ -199,6 +199,20 @@ export class AdmissionService {
     this.downloadRegistrationPdf(registration, 'registrationInfo');
   }
 
+  async printRegistrationInfoPdf(registration: AdmissionRegistration): Promise<void> {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const dataUrl = registration.registrationInfoPdf?.dataUrl || await this.buildRegistrationInfoDataUrl(registration);
+    const blob = new Blob([this.dataUrlToBytes(dataUrl)], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    printWindow.location.href = url;
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      printWindow.print();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }, { once: true });
+  }
+
   previewAdmissionLetter(request: AdmissionLetterRequest): void {
     window.open(this.buildAdmissionLetterPdf(request).output('bloburl'), '_blank');
   }
@@ -273,7 +287,7 @@ export class AdmissionService {
       registration,
       y: 0
     };
-    this.installStudentFileFont(context.pdf, await this.fetchAssetBytes('fonts/Cairo.ttf'));
+    this.installStudentFileFont(context.pdf, await this.fetchAssetBytes('fonts/Amiri-Regular.ttf'));
 
     await this.addStudentFilePage(context, 'Registration Information / Student File');
     await this.studentFileSection(context, 'Student Information', [
@@ -521,9 +535,9 @@ export class AdmissionService {
     for (let offset = 0; offset < bytes.length; offset += 0x8000) {
       binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
     }
-    pdf.addFileToVFS('Cairo.ttf', btoa(binary));
-    pdf.addFont('Cairo.ttf', 'Cairo', 'normal');
-    pdf.setFont('Cairo', 'normal');
+    pdf.addFileToVFS('Amiri-Regular.ttf', btoa(binary));
+    pdf.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
+    pdf.setFont('Amiri', 'normal');
   }
 
   private async drawStudentFileFooters(context: StudentFileContext): Promise<void> {

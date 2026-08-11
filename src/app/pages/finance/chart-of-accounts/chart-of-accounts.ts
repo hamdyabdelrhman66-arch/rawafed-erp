@@ -313,7 +313,7 @@ export class ChartOfAccounts implements OnInit {
     }
   }
 
-  exportExcel(): void {
+  async exportExcel(): Promise<void> {
     const header = ['Code', 'Arabic Name', 'English Name', 'Type', 'Parent', 'Opening', 'Current', 'Debit', 'Credit', 'Journal Entries', 'Status'];
     const rows = this.accounts.map((account) => [
       account.code,
@@ -328,8 +328,14 @@ export class ChartOfAccounts implements OnInit {
       account.journalEntries || 0,
       account.status
     ]);
-    const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    this.downloadCsv('chart-of-accounts.csv', [header, ...rows]);
+    await this.reportExport.downloadExcel({
+      title: 'Chart of Accounts', titleAr: 'دليل الحسابات',
+      subtitle: this.l('Live account hierarchy', 'شجرة الحسابات الحالية'),
+      columns: header, rows,
+      summary: [{ label: this.l('Accounts', 'عدد الحسابات'), value: this.accounts.length }],
+      fileName: 'chart-of-accounts', direction: this.i18n.direction(), locale: this.i18n.language(),
+      generatedBy: this.auth.session()?.displayName,
+    });
     this.feedback.success(this.l('Chart of Accounts exported successfully.', 'تم تصدير دليل الحسابات بنجاح.'));
   }
 

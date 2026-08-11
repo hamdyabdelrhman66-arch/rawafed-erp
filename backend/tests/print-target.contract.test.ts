@@ -6,14 +6,14 @@ const workspace = resolve(process.cwd(), "..");
 const read = (path: string) => readFileSync(resolve(workspace, path), "utf8");
 
 describe("print target isolation", () => {
-  it("isolates the invoice document on an A4 page", () => {
+  it("prints the generated invoice PDF instead of the application page", () => {
     const css = read("src/app/pages/finance/invoice-detail-view/invoice-detail-view.css");
     const component = read("src/app/pages/finance/invoice-detail-view/invoice-detail-view.ts");
     expect(css).toMatch(/@page\s*{[\s\S]*?size:\s*A4 portrait/);
     expect(css).toMatch(/@media print[\s\S]*?:host[\s\S]*?position:\s*fixed/);
     expect(css).toMatch(/\.invoice-document[\s\S]*?width:\s*210mm/);
-    expect(component).toContain("document.body.classList.add('invoice-print-mode')");
-    expect(component).toContain("document.body.classList.remove('invoice-print-mode')");
+    expect(component).toContain("await this.invoicePdf.print(this.pdfDocument(this.detail))");
+    expect(component).not.toContain("window.print()");
   });
 
   it("opens the selected receipt and prints only its A4 receipt component", () => {

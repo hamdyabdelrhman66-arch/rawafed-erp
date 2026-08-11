@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AccountingService } from '../../../core/finance/accounting.service';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 import { InventoryService } from '../../../core/inventory/inventory.service';
+import { ReportExportService, ReportTable } from '../../../core/reports/report-export.service';
 
 type InventoryTab = 'dashboard' | 'items' | 'warehouses' | 'movements' | 'pr' | 'po' | 'grn' | 'students' | 'reports';
 
@@ -48,7 +49,8 @@ export class InventoryErp implements OnInit {
     private readonly accounting: AccountingService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly feedback: FeedbackService
+    private readonly feedback: FeedbackService,
+    private readonly reportExport: ReportExportService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -220,8 +222,48 @@ export class InventoryErp implements OnInit {
     return `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} SAR`;
   }
 
-  print(): void {
-    window.print();
+  async print(): Promise<void> {
+    await this.reportExport.printPdf(this.inventoryReport());
+  }
+
+  private inventoryReport(): ReportTable {
+    const reports: Record<string, { title: string; columns: string[]; rows: Array<Array<string | number>> }> = {
+      items: {
+        title: 'سجل الأصناف',
+        columns: ['الكود', 'الاسم العربي', 'الاسم الإنجليزي', 'الفئة', 'الكمية', 'القيمة الحالية', 'الحالة'],
+        rows: this.filteredItems.map((item) => [item.itemCode, item.nameAr || 'غير مسجل', item.nameEn || 'غير مسجل', item.category || 'غير مسجل', Number(item.currentQuantity || item.quantity || 0), Number(item.currentValue || 0), item.status || '—']),
+      },
+      warehouses: {
+        title: 'سجل المستودعات',
+        columns: ['الكود', 'الاسم', 'الموقع', 'المسؤول', 'الحالة'],
+        rows: this.warehouses.map((row) => [row.code, row.nameAr || row.nameEn || row.name, row.location || 'غير مسجل', row.responsibleEmployee || 'غير مسجل', row.status || '—']),
+      },
+      movements: {
+        title: 'حركة المخزون',
+        columns: ['التاريخ', 'النوع', 'الصنف', 'المستودع', 'الكمية', 'المرجع'],
+        rows: this.movements.map((row) => [row.date || row.createdAt, row.movementType || row.type, this.itemName(row.itemId), row.warehouse?.nameAr || row.warehouse?.nameEn || row.warehouseId || '—', Number(row.quantity || 0), row.referenceNumber || '—']),
+      },
+      pr: {
+        title: 'طلبات الشراء', columns: ['الرقم', 'التاريخ', 'الطالب', 'الحالة', 'الإجمالي'],
+        rows: this.purchaseRequests.map((row) => [row.requestNumber || row.number, row.requestDate || row.createdAt, row.requestedBy || 'غير مسجل', row.status || '—', Number(row.totalAmount || 0)]),
+      },
+      po: {
+        title: 'أوامر الشراء', columns: ['الرقم', 'التاريخ', 'المورد', 'الحالة', 'الإجمالي'],
+        rows: this.purchaseOrders.map((row) => [row.orderNumber || row.number, row.orderDate || row.createdAt, row.supplier?.nameAr || row.supplier?.nameEn || row.supplierId || 'غير مسجل', row.status || '—', Number(row.totalAmount || 0)]),
+      },
+      grn: {
+        title: 'سندات استلام البضاعة', columns: ['الرقم', 'التاريخ', 'المورد', 'المستودع', 'الحالة', 'الإجمالي'],
+        rows: this.goodsReceipts.map((row) => [row.receiptNumber || row.number, row.receiptDate || row.createdAt, row.supplier?.nameAr || row.supplier?.nameEn || row.supplierId || 'غير مسجل', row.warehouse?.nameAr || row.warehouse?.nameEn || row.warehouseId || '—', row.status || '—', Number(row.totalAmount || 0)]),
+      },
+    };
+    const selected = reports[this.tab] || reports['items'];
+    return {
+      title: 'Inventory Report', titleAr: selected.title, subtitle: 'مدارس روافد الشرق الأوسط العالمية',
+      description: 'تقرير صادر مباشرة من نظام المخزون', columns: selected.columns, rows: selected.rows,
+      summary: [{ label: 'عدد السجلات', value: selected.rows.length }, { label: 'قيمة المخزون', value: this.money(this.totals.stockValue) }],
+      chart: { labels: ['الأصناف', 'المستودعات', 'الحركات'], values: [this.items.length, this.warehouses.length, this.movements.length] },
+      fileName: `rawafed-inventory-${this.tab}`, direction: 'rtl', locale: 'ar',
+    };
   }
 
   private ensureDefaultWarehouse(): void {

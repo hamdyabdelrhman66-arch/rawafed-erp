@@ -24,6 +24,7 @@ describe('authenticated tab session restoration', () => {
     vi.stubGlobal('sessionStorage', new MemoryStorage());
     vi.stubGlobal('window', {
       addEventListener: vi.fn((name: string, listener: EventListener) => listeners.set(name, listener)),
+      location: { pathname: '/register' },
     });
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -46,5 +47,12 @@ describe('authenticated tab session restoration', () => {
     listeners.get('storage')?.({ key: 'rawafed_auth' } as StorageEvent);
     expect(auth.session()).toBeNull();
     expect(api.clearToken).toHaveBeenCalled();
+  });
+
+  it('does not redirect the public registration page after a stale session expires', () => {
+    const auth = new AuthService(router, api);
+    listeners.get('rawafed-session-expired')?.(new Event('rawafed-session-expired'));
+    expect(auth.session()).toBeNull();
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 });
