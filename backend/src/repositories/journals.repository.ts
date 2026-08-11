@@ -13,6 +13,8 @@ export class JournalsRepository {
     return this.db.journalEntry.findFirst({
       where: { id, deletedAt: null },
       include: {
+        branch: { select: { id: true, code: true, name: true, nameAr: true } },
+        academicYear: { select: { id: true, name: true } },
         reversal: true,
         reversedFrom: true,
         correctedFrom: true,
@@ -28,6 +30,8 @@ export class JournalsRepository {
     return this.db.journalEntry.findMany({
       where: { deletedAt: null, ...where },
       include: {
+        branch: { select: { id: true, code: true, name: true, nameAr: true } },
+        academicYear: { select: { id: true, name: true } },
         createdBy: { select: { id: true, displayName: true, username: true } },
         postedBy: { select: { id: true, displayName: true, username: true } },
         reversal: { select: { id: true, entryNumber: true } },

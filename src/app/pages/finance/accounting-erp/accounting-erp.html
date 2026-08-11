@@ -711,45 +711,93 @@
     </tbody></table></div>
   </section>
 
-  <div class="voucher-modal" *ngIf="selectedJournal">
-    <article>
-      <header>
-        <div>
-          <span>{{ 'accounting.journal_voucher' | t }}</span>
-          <h2>{{ selectedJournal.entryNumber }}</h2>
+  <div class="voucher-modal" *ngIf="selectedJournal" role="dialog" aria-modal="true" [attr.aria-label]="i18n.label('Journal Voucher', 'سند القيد')">
+    <article class="journal-voucher" id="journal-voucher-print">
+      <header class="voucher-header">
+        <div class="voucher-brand">
+          <img src="/assets/rawafed-logo.png" [alt]="i18n.label('Rawafed International School', 'مدارس روافد العالمية')" />
+          <div>
+            <strong>{{ i18n.label('Rawafed International School', 'مدارس روافد العالمية') }}</strong>
+            <small>{{ i18n.label('Finance & Accounting Department', 'الإدارة المالية والحسابات') }}</small>
+          </div>
         </div>
-        <button type="button" (click)="closeJournalVoucher()">{{ 'common.close' | t }}</button>
+        <div class="voucher-title">
+          <span>{{ i18n.label('Journal Voucher', 'سند قيد محاسبي') }}</span>
+          <h2 dir="ltr">{{ selectedJournal.entryNumber }}</h2>
+          <em class="voucher-status">{{ selectedJournal.status | statusLabel }}</em>
+        </div>
+        <div class="voucher-actions">
+          <button type="button" class="primary" (click)="printJournalVoucher()">{{ i18n.label('Print', 'طباعة') }}</button>
+          <button type="button" (click)="closeJournalVoucher()">{{ 'common.close' | t }}</button>
+        </div>
       </header>
-      <div class="voucher-meta">
-        <span>{{ 'accounting.posting_date' | t }}: {{ selectedJournal.postingDate }}</span>
-        <span>{{ 'common.status' | t }}: {{ selectedJournal.status | statusLabel }}</span>
-        <span>{{ 'accounting.created_by' | t }}: {{ selectedJournal.createdBy || '-' }}</span>
-        <span>{{ 'common.source' | t }}: {{ selectedJournal.sourceType || ('accounting.manual' | t) }}</span>
-      </div>
-      <p>{{ selectedJournal.description }}</p>
-      <div class="table-scroll">
+
+      <section class="voucher-meta" [attr.aria-label]="i18n.label('Journal information', 'بيانات القيد')">
+        <div><small>{{ 'accounting.posting_date' | t }}</small><strong>{{ journalDate(selectedJournal.postingDate) }}</strong></div>
+        <div><small>{{ i18n.label('Creation method', 'طريقة إنشاء القيد') }}</small><strong>{{ journalSourceLabel(selectedJournal) }}</strong></div>
+        <div><small>{{ 'accounting.created_by' | t }}</small><strong>{{ journalCreator(selectedJournal) }}</strong></div>
+        <div><small>{{ i18n.label('Branch', 'الفرع') }}</small><strong>{{ selectedJournal.branchName || i18n.label('Not specified', 'غير محدد') }}</strong></div>
+        <div><small>{{ i18n.label('Academic year', 'العام الدراسي') }}</small><strong>{{ selectedJournal.academicYearName || i18n.label('Not specified', 'غير محدد') }}</strong></div>
+        <div><small>{{ i18n.label('Reference number', 'رقم المرجع') }}</small><strong dir="ltr">{{ selectedJournal.referenceNumber || selectedJournal.sourceTransactionNumber || '—' }}</strong></div>
+      </section>
+
+      <section class="voucher-description">
+        <small>{{ i18n.label('Journal description', 'بيان القيد') }}</small>
+        <p>{{ selectedJournal.description || i18n.label('No description recorded', 'لا يوجد بيان مسجل') }}</p>
+      </section>
+
+      <section class="voucher-source">
+        <div>
+          <small>{{ i18n.label('Source / posting event', 'المصدر / سبب الترحيل') }}</small>
+          <strong>{{ journalSourceLabel(selectedJournal) }}</strong>
+        </div>
+        <div>
+          <small>{{ i18n.label('Related document', 'المستند المرتبط') }}</small>
+          <strong>{{ journalRelatedDocument(selectedJournal) }}</strong>
+        </div>
+      </section>
+
+      <div class="table-scroll voucher-lines">
         <table>
           <thead>
             <tr>
+              <th>#</th>
               <th>{{ 'common.account' | t }}</th>
               <th>{{ 'common.description' | t }}</th>
+              <th>{{ i18n.label('Cost Center', 'مركز التكلفة') }}</th>
               <th>{{ 'common.debit' | t }}</th>
               <th>{{ 'common.credit' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let line of selectedJournal.lines">
-              <td>{{ line.accountCode }} - {{ line.accountNameEn }}</td>
-              <td>{{ line.description || '-' }}</td>
-              <td>{{ money(line.debit) }}</td>
-              <td>{{ money(line.credit) }}</td>
+            <tr *ngFor="let line of selectedJournal.lines; let index = index">
+              <td>{{ index + 1 }}</td>
+              <td class="voucher-account"><strong>{{ journalAccountName(line) }}</strong></td>
+              <td>{{ line.description || selectedJournal.description || '—' }}</td>
+              <td>{{ journalCostCenter(line) }}</td>
+              <td class="amount debit">{{ line.debit ? journalMoney(line.debit) : '—' }}</td>
+              <td class="amount credit">{{ line.credit ? journalMoney(line.credit) : '—' }}</td>
             </tr>
           </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="4">{{ i18n.label('Totals', 'الإجمالي') }}</th>
+              <th class="amount">{{ journalMoney(journalDebitTotal(selectedJournal)) }}</th>
+              <th class="amount">{{ journalMoney(journalCreditTotal(selectedJournal)) }}</th>
+            </tr>
+          </tfoot>
         </table>
       </div>
-      <footer>
-        <span>{{ 'common.attachments' | t }}: -</span>
-        <span>{{ 'accounting.related_document' | t }}: {{ selectedJournal.sourceId || '-' }}</span>
+
+      <div class="voucher-balance" [class.unbalanced]="journalDebitTotal(selectedJournal) !== journalCreditTotal(selectedJournal)">
+        <strong>{{ journalDebitTotal(selectedJournal) === journalCreditTotal(selectedJournal) ? i18n.label('Balanced journal entry', 'القيد متوازن') : i18n.label('Unbalanced journal entry', 'القيد غير متوازن') }}</strong>
+        <span>{{ i18n.label('Debit', 'مدين') }}: {{ journalMoney(journalDebitTotal(selectedJournal)) }} · {{ i18n.label('Credit', 'دائن') }}: {{ journalMoney(journalCreditTotal(selectedJournal)) }}</span>
+      </div>
+
+      <footer class="voucher-footer">
+        <div><small>{{ i18n.label('Created at', 'تاريخ الإنشاء') }}</small><strong>{{ journalDateTime(selectedJournal.createdAt) }}</strong></div>
+        <div><small>{{ i18n.label('Posted by', 'رُحّل بواسطة') }}</small><strong>{{ selectedJournal.postedByName || journalCreator(selectedJournal) }}</strong></div>
+        <div><small>{{ 'common.attachments' | t }}</small><strong>{{ selectedJournal.attachmentUrl ? i18n.label('Attached', 'مرفق') : i18n.label('No attachments', 'لا توجد مرفقات') }}</strong></div>
       </footer>
     </article>
   </div>

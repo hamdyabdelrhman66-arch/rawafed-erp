@@ -636,4 +636,35 @@ textarea,
   main {
     padding: 0 !important;
   }
+
+  body:has(#journal-voucher-print) * {
+    visibility: hidden !important;
+  }
+
+  body:has(#journal-voucher-print) .voucher-modal,
+  body:has(#journal-voucher-print) .voucher-modal * {
+    visibility: visible !important;
+  }
+
+  body:has(#journal-voucher-print) .voucher-modal {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body:has(#journal-voucher-print) #journal-voucher-print {
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 12mm !important;
+  }
+
+  body:has(#journal-voucher-print) #journal-voucher-print .voucher-actions {
+    display: none !important;
+  }
 }
