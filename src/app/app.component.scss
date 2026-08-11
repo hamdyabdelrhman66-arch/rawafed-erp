@@ -276,10 +276,23 @@ nav a.active,
 
 .topbar-meta {
   width: 100%;
-  justify-content: flex-start;
+  direction: rtl;
+  justify-content: space-between;
   flex-wrap: nowrap;
   overflow: visible;
   padding-block: 2px;
+}
+
+.topbar-context,
+.topbar-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.topbar-actions {
+  flex: 0 0 auto;
 }
 
 .topbar-meta button,
@@ -536,7 +549,7 @@ main {
   }
 
   .topbar-meta {
-    justify-content: flex-start;
+    justify-content: space-between;
     flex-wrap: nowrap;
   }
 }
@@ -554,5 +567,15 @@ main {
 
   .topbar-meta {
     flex-wrap: wrap;
+  }
+
+  .topbar-context,
+  .topbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions {
+    justify-content: flex-start;
   }
 }

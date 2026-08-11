@@ -53,7 +53,27 @@ export class CashBankService {
   }
 
   async banks() {
-    return (await new CashBankRepository(this.prisma).banks()).map(shapeBank);
+    const repository = new CashBankRepository(this.prisma);
+    const [registeredBanks, bankAccounts] = await Promise.all([
+      repository.banks(),
+      repository.bankAccounts(),
+    ]);
+    const registeredAccountIds = new Set(
+      registeredBanks.map((bank) => bank.accountId),
+    );
+    const accountBackedBanks = bankAccounts
+      .filter((account) => !registeredAccountIds.has(account.id))
+      .map((account) => ({
+        id: account.id,
+        accountId: account.id,
+        bankName: account.nameAr || account.name,
+        iban: null,
+        accountNumber: null,
+        active: account.active,
+        notes: account.notes,
+        account,
+      }));
+    return [...registeredBanks, ...accountBackedBanks].map(shapeBank);
   }
 
   async createCashbox(input: any) {

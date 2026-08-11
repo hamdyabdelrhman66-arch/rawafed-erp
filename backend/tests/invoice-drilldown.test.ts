@@ -68,4 +68,43 @@ describe("invoice drill-down", () => {
     expect(response.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it.each(["journals.create.manual", "journals.post", "journals.delete.permanent"])(
+    "keeps the built-in Finance role operational for %s when legacy grants are missing",
+    async (permission) => {
+      const middleware = requirePermission(
+        { rolePermission: { findFirst: vi.fn().mockResolvedValue(null) } } as any,
+        permission,
+      );
+      const response = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+      const next = vi.fn();
+
+      await middleware(
+        { user: { id: "finance-user-1", role: "Finance" } } as any,
+        response,
+        next,
+      );
+
+      expect(next).toHaveBeenCalledOnce();
+      expect(response.status).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not broaden the built-in Finance fallback to unrelated permissions", async () => {
+    const middleware = requirePermission(
+      { rolePermission: { findFirst: vi.fn().mockResolvedValue(null) } } as any,
+      "security.users.manage",
+    );
+    const response = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+    const next = vi.fn();
+
+    await middleware(
+      { user: { id: "finance-user-1", role: "Finance" } } as any,
+      response,
+      next,
+    );
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
 });

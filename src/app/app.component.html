@@ -473,17 +473,20 @@
   <section class="workspace">
     <header class="topbar">
       <div class="topbar-meta">
-        <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
-        <span class="pill" *ngIf="storage.settings().academicYear?.trim()"
-          ><mat-icon>calendar_month</mat-icon
-          >{{ storage.settings().academicYear }}</span
-        >
-        <span class="pill user-pill"
-          ><mat-icon>account_circle</mat-icon
-          >{{ auth.session()?.displayName || ("common.user" | t) }} ·
-          {{ auth.session()?.role || "" }}</span
-        >
-        <div class="notification-center" #notificationCenter>
+        <div class="topbar-context">
+          <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
+          <span class="pill" *ngIf="storage.settings().academicYear?.trim()"
+            ><mat-icon>calendar_month</mat-icon
+            >{{ storage.settings().academicYear }}</span
+          >
+          <span class="pill user-pill"
+            ><mat-icon>account_circle</mat-icon
+            >{{ auth.session()?.displayName || ("common.user" | t) }} ·
+            {{ auth.session()?.role || "" }}</span
+          >
+        </div>
+        <div class="topbar-actions">
+          <div class="notification-center" #notificationCenter>
           <button
             #notificationButton
             mat-stroked-button
@@ -526,35 +529,36 @@
               {{ "nav.no_notifications" | t }}
             </p>
           </div>
+          </div>
+          <button
+            mat-stroked-button
+            type="button"
+            [attr.aria-label]="'common.arabic' | t"
+            (click)="toggleDirection()"
+          >
+            <mat-icon>translate</mat-icon>
+            {{
+              i18n.language() === "en"
+                ? ("common.arabic" | t)
+                : ("common.english" | t)
+            }}
+          </button>
+          <mat-slide-toggle
+            [checked]="darkMode()"
+            (change)="toggleDarkMode()"
+            [attr.aria-label]="'nav.dark' | t"
+            >{{ "nav.dark" | t }}</mat-slide-toggle
+          >
+          <button
+            mat-stroked-button
+            type="button"
+            [attr.aria-label]="'nav.logout' | t"
+            (click)="logout()"
+          >
+            <mat-icon>logout</mat-icon>
+            {{ "nav.logout" | t }}
+          </button>
         </div>
-        <button
-          mat-stroked-button
-          type="button"
-          [attr.aria-label]="'common.arabic' | t"
-          (click)="toggleDirection()"
-        >
-          <mat-icon>translate</mat-icon>
-          {{
-            i18n.language() === "en"
-              ? ("common.arabic" | t)
-              : ("common.english" | t)
-          }}
-        </button>
-        <mat-slide-toggle
-          [checked]="darkMode()"
-          (change)="toggleDarkMode()"
-          [attr.aria-label]="'nav.dark' | t"
-          >{{ "nav.dark" | t }}</mat-slide-toggle
-        >
-        <button
-          mat-stroked-button
-          type="button"
-          [attr.aria-label]="'nav.logout' | t"
-          (click)="logout()"
-        >
-          <mat-icon>logout</mat-icon>
-          {{ "nav.logout" | t }}
-        </button>
       </div>
     </header>
     <main>

@@ -100,13 +100,13 @@ async function main(): Promise<void> {
     Finance: [
       "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
       "finance.payments.record", "finance.receipts.view", "journals.cancel.draft",
-      "journals.create.manual", "journals.delete.permanent", "journals.edit.draft", "journals.submit", "journals.view",
+      "journals.create.manual", "journals.delete.permanent", "journals.edit.draft", "journals.post", "journals.submit", "journals.view",
       "student_discount.create", "student_discount.view",
     ],
     Accountant: [
       "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
       "finance.payments.record", "finance.receipts.view", "journals.cancel.draft",
-      "journals.create.manual", "journals.delete.permanent", "journals.edit.draft", "journals.submit", "journals.view",
+      "journals.create.manual", "journals.delete.permanent", "journals.edit.draft", "journals.post", "journals.submit", "journals.view",
       "student_discount.create", "student_discount.view",
     ],
     Auditor: [

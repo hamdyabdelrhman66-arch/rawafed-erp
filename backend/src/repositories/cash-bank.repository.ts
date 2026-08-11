@@ -31,6 +31,17 @@ export class CashBankRepository {
       },
     });
   }
+  bankAccounts() {
+    return this.db.chartOfAccount.findMany({
+      where: { isBankAccount: true, active: true, deletedAt: null },
+      include: {
+        journalLines: {
+          where: { journalEntry: { status: { in: ["POSTED", "REVERSED"] }, deletedAt: null } },
+        },
+      },
+      orderBy: { code: "asc" },
+    });
+  }
   createCashbox(data: Prisma.CashboxUncheckedCreateInput) {
     return this.db.cashbox.create({ data, include: { account: true } });
   }
