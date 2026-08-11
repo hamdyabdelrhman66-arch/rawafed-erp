@@ -13,6 +13,7 @@
     "restore:database": "sh scripts/restore-database.sh",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
+    "db:prepare:railway": "npm run db:migrate && npm run seed",
     "db:migrate:dev": "prisma migrate dev",
     "db:test:guard": "tsx scripts/test-database-guard.ts",
     "db:migrate:test": "NODE_ENV=test tsx scripts/test-database-guard.ts && NODE_ENV=test DATABASE_URL=\"$TEST_DATABASE_URL\" prisma migrate deploy",
