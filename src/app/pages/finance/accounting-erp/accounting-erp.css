@@ -1095,17 +1095,18 @@ td.negative {
   min-width: 0;
   max-width: 100%;
   padding-inline: 2px;
+  overflow: visible;
 }
 
 .line-head,
 .line-row {
   display: grid;
   grid-template-columns:
-    minmax(200px, 1.6fr)
-    minmax(86px, .42fr)
-    minmax(86px, .42fr)
-    minmax(140px, 1fr)
-    minmax(72px, auto);
+    minmax(0, 2fr)
+    minmax(0, .48fr)
+    minmax(0, .48fr)
+    minmax(0, 1.12fr)
+    82px;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -1115,6 +1116,27 @@ td.negative {
 .line-row > * {
   min-width: 0;
   max-width: 100%;
+}
+
+.line-row {
+  width: 100%;
+}
+
+.line-field {
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+
+.line-field > span {
+  display: none;
+}
+
+.line-field input,
+.line-field app-searchable-select {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 
 .line-head {
@@ -1137,6 +1159,11 @@ td.negative {
   min-width: 0;
   max-width: 100%;
   container-type: inline-size;
+  overflow: visible;
+}
+
+.journal-form > .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .journal-form label small {
@@ -1182,16 +1209,24 @@ input.invalid {
   }
 
   .line-row {
-    grid-template-columns: minmax(0, 1fr) minmax(90px, .5fr) minmax(90px, .5fr);
+    grid-template-columns: minmax(0, 1fr) minmax(100px, .42fr) minmax(100px, .42fr);
     padding: 12px;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     background: #f8fafc;
   }
 
-  .line-row app-searchable-select,
-  .line-row input[type="text"] {
+  .line-row .account-field,
+  .line-row .description-field {
     grid-column: 1 / -1;
+  }
+
+  .line-field > span {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 850;
   }
 
   .line-row .remove-line {
@@ -1274,10 +1309,28 @@ input.invalid {
   }
 
   .line-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(100px, .42fr) minmax(100px, .42fr);
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     padding: 10px;
+  }
+
+  .line-row .account-field,
+  .line-row .description-field,
+  .line-row .remove-line {
+    grid-column: 1 / -1;
+  }
+
+  .line-field > span {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 850;
+  }
+
+  .line-row .remove-line {
+    justify-self: start;
   }
 
   .accounts-toolbar,

@@ -291,18 +291,30 @@
           <span></span>
         </div>
         <div class="line-row" *ngFor="let line of draftEntry.lines; let index = index">
-          <app-searchable-select
-            [options]="accounts"
-            valueKey="id"
-            [(value)]="line.accountId"
-            [labelWith]="accountOptionLabel"
-            [placeholder]="'accounting.select_account' | t"
-            [searchPlaceholder]="'accounting.code_or_name' | t"
-            [emptyText]="'accounting.no_accounts' | t">
-          </app-searchable-select>
-          <input type="number" [(ngModel)]="line.debit" [name]="'debit' + index" min="0" />
-          <input type="number" [(ngModel)]="line.credit" [name]="'credit' + index" min="0" />
-          <input type="text" [(ngModel)]="line.description" [name]="'description' + index" />
+          <label class="line-field account-field">
+            <span>{{ 'common.account' | t }}</span>
+            <app-searchable-select
+              [options]="accounts"
+              valueKey="id"
+              [(value)]="line.accountId"
+              [labelWith]="accountOptionLabel"
+              [placeholder]="'accounting.select_account' | t"
+              [searchPlaceholder]="'accounting.code_or_name' | t"
+              [emptyText]="'accounting.no_accounts' | t">
+            </app-searchable-select>
+          </label>
+          <label class="line-field debit-field">
+            <span>{{ 'common.debit' | t }}</span>
+            <input type="number" [(ngModel)]="line.debit" [name]="'debit' + index" min="0" />
+          </label>
+          <label class="line-field credit-field">
+            <span>{{ 'common.credit' | t }}</span>
+            <input type="number" [(ngModel)]="line.credit" [name]="'credit' + index" min="0" />
+          </label>
+          <label class="line-field description-field">
+            <span>{{ 'common.description' | t }}</span>
+            <input type="text" [(ngModel)]="line.description" [name]="'description' + index" />
+          </label>
           <button type="button" class="remove-line" (click)="removeLine(index)" [disabled]="draftEntry.lines.length <= 2">{{ 'common.remove' | t }}</button>
         </div>
       </div>
