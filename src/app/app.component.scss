@@ -235,12 +235,10 @@ nav a.active,
   top: 0;
   z-index: 12;
   min-width: 0;
-  min-height: 70px;
-  display: grid;
-  grid-template-columns: minmax(180px, .8fr) minmax(0, 2.2fr);
+  min-height: 58px;
+  display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px clamp(20px, 2vw, 30px);
+  padding: 8px clamp(14px, 1.5vw, 22px);
   background: rgba(246, 248, 252, .9);
   backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--raw-border);
@@ -277,10 +275,11 @@ nav a.active,
 }
 
 .topbar-meta {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  row-gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
   overflow: visible;
+  padding-block: 2px;
 }
 
 .topbar-meta button,
@@ -290,7 +289,7 @@ nav a.active,
 }
 
 .pill {
-  min-height: 38px;
+  min-height: 36px;
   max-width: 240px;
   padding: 0 11px;
   border-radius: 999px;
@@ -533,13 +532,12 @@ main {
   }
 
   .topbar {
-    grid-template-columns: 1fr;
-    align-items: stretch;
+    align-items: center;
   }
 
   .topbar-meta {
     justify-content: flex-start;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 }
 
@@ -552,5 +550,9 @@ main {
 
   main {
     padding: 16px;
+  }
+
+  .topbar-meta {
+    flex-wrap: wrap;
   }
 }

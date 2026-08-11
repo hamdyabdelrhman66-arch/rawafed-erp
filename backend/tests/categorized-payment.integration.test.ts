@@ -76,14 +76,13 @@ describe("categorized payment accounting", () => {
         journal.lines.reduce((sum, line) => sum + Number(line.debit), 0) ===
         journal.lines.reduce((sum, line) => sum + Number(line.credit), 0));
       const paymentJournal = journals.find((journal) => journal.paymentId === payment.id)!;
-      await expect(new JournalService(nestedClient).deleteManual(paymentJournal.id, {}))
-        .rejects.toMatchObject({ code: "OPERATIONAL_JOURNAL_DELETE_BLOCKED" });
+      await new JournalService(nestedClient).deleteManual(paymentJournal.id, {});
       observed.deletedInvoices = await tx.financeInvoice.count({ where: { id: { in: invoices.map((row) => row.id) } } });
       observed.deletedPayments = await tx.financePayment.count({ where: { id: payment.id } });
       observed.deletedJournals = await tx.journalEntry.count({ where: { id: { in: journals.map((row) => row.id) } } });
       throw new RollbackCategorizedPayment();
     }, { timeout: 90_000 })).rejects.toBeInstanceOf(RollbackCategorizedPayment);
-    expect(observed).toEqual({ invoices: 2, allocations: 2, paid: 1, partial: 1, balanced: true, deletedInvoices: 2, deletedPayments: 1, deletedJournals: 3 });
+    expect(observed).toEqual({ invoices: 2, allocations: 2, paid: 1, partial: 1, balanced: true, deletedInvoices: 0, deletedPayments: 0, deletedJournals: 0 });
   }, 90_000);
 
   it("links an approved additional discount to an invoice created by the same payment", async () => {

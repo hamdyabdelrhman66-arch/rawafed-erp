@@ -472,17 +472,6 @@
   </aside>
   <section class="workspace">
     <header class="topbar">
-      <div class="school-meta">
-        <img
-          class="mini-logo school-logo"
-          src="/assets/rawafed-logo.png"
-          [alt]="'app.school_full' | t"
-        />
-        <div>
-          <strong>{{ storage.settings().schoolName }}</strong>
-          <small>{{ storage.settings().schoolNameAr }}</small>
-        </div>
-      </div>
       <div class="topbar-meta">
         <span class="pill"><mat-icon>event</mat-icon>{{ currentDate() }}</span>
         <span class="pill" *ngIf="storage.settings().academicYear?.trim()"

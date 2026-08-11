@@ -93,20 +93,20 @@ async function main(): Promise<void> {
       "accounting.periods.manage", "finance.invoices.exportPdf", "finance.invoices.print",
       "finance.invoices.view", "finance.payments.record", "finance.receipts.view",
       "journals.cancel.draft", "journals.correct.posted", "journals.create.manual",
-      "journals.edit.draft", "journals.post", "journals.reverse", "journals.submit",
+      "journals.delete.permanent", "journals.edit.draft", "journals.post", "journals.reverse", "journals.submit",
       "journals.view", "student_discount.approve", "student_discount.cancel",
       "student_discount.create", "student_discount.view", "students.edit.financeData",
     ],
     Finance: [
       "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
       "finance.payments.record", "finance.receipts.view", "journals.cancel.draft",
-      "journals.create.manual", "journals.edit.draft", "journals.submit", "journals.view",
+      "journals.create.manual", "journals.delete.permanent", "journals.edit.draft", "journals.submit", "journals.view",
       "student_discount.create", "student_discount.view",
     ],
     Accountant: [
       "finance.invoices.exportPdf", "finance.invoices.print", "finance.invoices.view",
       "finance.payments.record", "finance.receipts.view", "journals.cancel.draft",
-      "journals.create.manual", "journals.edit.draft", "journals.submit", "journals.view",
+      "journals.create.manual", "journals.delete.permanent", "journals.edit.draft", "journals.submit", "journals.view",
       "student_discount.create", "student_discount.view",
     ],
     Auditor: [
