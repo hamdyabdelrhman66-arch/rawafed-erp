@@ -5,7 +5,7 @@
 ## One-time Neon setup
 
 1. In the Neon project, create a separate branch named `rawafed-test` from a schema-only or disposable baseline. Do not reuse the production branch endpoint.
-2. Copy the **pooled** connection string for that branch into `backend/.env.test.local` as `TEST_DATABASE_URL`.
+2. Copy the **pooled** connection string for that branch into `backend/.env.test.local` as `TEST_DATABASE_URL`. Keep passwords URL-encoded.
 3. Keep the production URL in `DATABASE_URL`; the guard compares the resolved host, port, and database name and refuses a match.
 4. Add the exact test endpoint to the allowlist.
 
@@ -22,11 +22,30 @@ Never commit either connection string. For a CI secret store, configure the same
 
 ```bash
 cd backend
+set -a
+source .env.test.local
+set +a
+npm run db:test:guard
+npm run db:migrate:test
+npm run db:seed:test
+npm run test:integration
+npm run test:e2e
+```
+
+For an intentional clean reset of the disposable test branch only:
+
+```bash
+cd backend
+set -a
+source .env.test.local
+set +a
 npm run db:test:guard
 npm run db:reset:test
-npm run test:integration
+npm run db:test:guard
 ```
 
 `db:reset:test` runs only after the safety guard succeeds. `ALLOW_DESTRUCTIVE_TEST_DATABASE=yes` can satisfy the allowlist requirement, but it **cannot** bypass a target matching `DATABASE_URL` or `PRODUCTION_DATABASE_URL`.
+
+The second guard invocation is the post-reset safety verification. Do not run Prisma reset, migration, seed, integration, or E2E commands manually with an unguarded `DATABASE_URL` substitution.
 
 Unit tests do not require a database and can be run independently. Integration tests import the guarded Prisma client and refuse to start without the isolated target.

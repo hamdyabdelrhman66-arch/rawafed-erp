@@ -66,6 +66,17 @@ export class PurchaseRepository {
       orderBy: { receivedDate: "desc" },
     });
   }
+  receiptByNumber(grnNumber: string) {
+    return this.db.goodsReceipt.findFirst({
+      where: { grnNumber, deletedAt: null },
+      include: {
+        supplier: true,
+        warehouse: true,
+        purchaseOrder: true,
+        lines: { include: { item: true, movement: true } },
+      },
+    });
+  }
   createReceipt(data: Prisma.GoodsReceiptUncheckedCreateInput) {
     return this.db.goodsReceipt.create({ data });
   }

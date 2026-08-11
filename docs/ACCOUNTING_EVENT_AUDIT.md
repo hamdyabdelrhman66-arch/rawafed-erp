@@ -2,24 +2,28 @@
 
 All monetary source operations below post inside the same PostgreSQL transaction as their operational record. Journal lines feed `LedgerRepository`, then `FinancialStatementsService` (ledger, trial balance, statements, and dashboard). Posted history is immutable; corrections use reversal/correction journals.
 
-| Source operation | Journal source/event | Debit / credit policy source | Reversal / correction |
-| --- | --- | --- | --- |
-| Student invoice (registration, tuition, books, uniform, activities, transportation) | `finance_invoice` | Revenue-category mappings plus the student receivable account; VAT uses the backend tax decision | Void/credit-note operational workflow; posted journal is not deleted |
-| Student payment / receipt | `finance_payment` | Configured cash/bank account against student receivable | Payment cancel/refund workflow |
-| Approved student discount | `STUDENT_DISCOUNT_APPROVED` | Configured discount and receivable mappings | `STUDENT_DISCOUNT_CANCELLED` reversal journal |
-| Accounting expense / supplier invoice | `accounting_expense` | Selected expense, input VAT, supplier payable or payment account | Correct/void source; journal reversal preserves history |
-| Expense payment | `accounting_expense_payment` | Payable against configured cash/bank account | Source reversal/correction |
-| Supplier payment | `supplier_payment` | Supplier payable against configured cash/bank account | Source reversal/correction |
-| Goods receipt | `inventory_goods_receipt` / `GOODS_RECEIPT_POSTED` | Inventory control + input VAT against supplier payable | Posted journal is immutable; receipt reversal must reverse its source journal |
-| Student books/uniform stock issue | `inventory_cost` | Revenue-category inventory and cost mappings | Stock reversal calls accounting reversal |
-| Warehouse transfer | No general-ledger movement | Same owned inventory control account; quantity subledger changes only | Reverse warehouse movement |
-| Fixed-asset acquisition | `fixed_asset_acquisition` | Asset category and configured funding/payable account | Asset operational reversal/disposal workflow |
-| Monthly depreciation | `fixed_asset_depreciation` | Category depreciation expense and accumulated depreciation | Reversal journal |
-| Asset disposal/sale/write-off | `fixed_asset_*` | Configured asset, accumulated depreciation, gain/loss and proceeds accounts | Correct originating disposal transaction |
-| Payroll run | `payroll_run` | Configured salary/social-insurance expense and payable accounts | Controlled payroll reversal |
-| Payroll payment | `payroll_payment` | Payroll payable against configured cash/bank | Payment reversal |
-| Cash/bank transfer | `cash_bank_transfer` | Destination cash/bank debit and source credit | Reversal journal |
-| Manual journal | `manual_journal` | User-selected posting-enabled manual accounts | Draft may be edited/deleted; posted entry must be reversed/corrected |
+| Source operation | Status | Journal source/event | Current automated coverage | Reversal / correction status |
+| --- | --- | --- | --- | --- |
+| Student invoice: registration fee, tuition, books, uniform, activities, transportation | Supported | `finance_invoice` | VAT/category unit tests and categorized-payment integration test | Posted journal immutable; discount credit-note path exists. Full invoice void/reissue E2E still requires the isolated DB. |
+| Student payment / receipt | Supported | `finance_payment` | Allocation, validation, error-classification unit tests and categorized-payment integration test | Cancellation/refund remains an operational workflow to verify in integration. |
+| Approved student discount | Supported | `STUDENT_DISCOUNT_APPROVED` | Ten discount unit tests plus categorized-payment integration test | `STUDENT_DISCOUNT_CANCELLED` posts a reversal journal. |
+| Accounting expense / expense-backed supplier bill | Supported | `accounting_expense` | Operational-contract integration test | No destructive journal delete; source correction/reversal must be used. |
+| Expense payment | Supported | `accounting_expense_payment` | Operational-contract integration test | Source correction/reversal required; dedicated cancellation E2E not yet present. |
+| Supplier payment | Supported | `supplier_payment` | Operational-contract integration test | Source correction/reversal required; dedicated cancellation E2E not yet present. |
+| Purchase-order supplier invoice as a standalone document | Not implemented | — | None | Blocking if a supplier invoice must exist independently of expense or goods receipt. |
+| Goods receipt | Supported for posting | `inventory_goods_receipt` / `GOODS_RECEIPT_POSTED` | Journal-line, missing-mapping rollback-precondition, and idempotent-retry unit tests; full DB reconciliation is blocked by the missing isolated DB | Receipt reversal is not implemented; posted journal itself remains immutable. |
+| Student books/uniform stock issue | Supported | `inventory_cost` | Category mapping unit tests; DB workflow requires integration run | Stock reversal calls the accounting reversal. |
+| Warehouse transfer | Supported as non-GL quantity movement | No GL entry | Source audit confirms one atomic warehouse transaction | Same owned inventory account, so no GL movement. A controlled reverse-transfer workflow is not implemented. |
+| Inventory adjustment that changes value/quantity | Not accounting-complete | Inventory event only | None | Blocking: generic adjustment changes stock but does not post an adjustment journal. |
+| Inventory count | Draft-only | — | None | Count approval/posting and variance journal are not implemented. |
+| Fixed-asset acquisition | Supported | `fixed_asset_acquisition` | Fixed-assets integration test | Operational correction/disposal; posted journal remains immutable. |
+| Monthly depreciation | Supported | `fixed_asset_depreciation` | Fixed-assets integration test | Reversal/correction uses journal controls; dedicated depreciation reversal E2E pending. |
+| Asset disposal/sale/write-off | Supported | `fixed_asset_*` | Fixed-assets integration test | Correct the originating disposal transaction; dedicated reversal E2E pending. |
+| Payroll run | Supported | `payroll_run` | Source/build verified; no dedicated integration test | Controlled payroll reversal is not proven by an automated integration test. |
+| Payroll payment | Supported | `payroll_payment` | Source/build verified; no dedicated integration test | Payment reversal is not proven by an automated integration test. |
+| Cash/bank transfer | Supported | `cash_bank_transfer` | Operational-contract integration test | Posted transfer correction must reverse; dedicated reversal E2E pending. |
+| Manual journal | Supported | `manual_journal` | Journal deletion unit tests and correction integration test | Only manual DRAFT may be deleted. Posted entries require reversal/correction. |
+| Journal reversal / correction | Supported | `journal_reversal`, `journal_correction` | Journal-delete unit and journal-correction integration tests | Original, reversal, and corrected journals are preserved and linked. |
 
 ## Reconciliation checks
 
@@ -29,4 +33,4 @@ The account ledger now applies the configured opening balance, prior posted move
 
 ## Required configuration
 
-The Chart of Accounts must contain active posting accounts for every referenced system key/mapping. Goods receipts specifically require `inventory-main`, `vat-input` when VAT is non-zero, and the selected supplier payable account. Missing mappings stop and roll back the complete operation with `ACCOUNT_MAPPING_MISSING`; they do not create partial stock or journals.
+The Chart of Accounts must contain active posting accounts for every referenced system key/mapping. Goods receipts specifically require `inventory-main`, `vat-input` when VAT is non-zero, and the selected supplier payable account. Missing mappings are checked before receipt/stock writes and stop the transaction with `ACCOUNT_MAPPING_MISSING`. The whole receipt, stock movement, stock balance, event, journal, lines, audit, and notification sequence is one serializable PostgreSQL transaction. A client-generated idempotency key produces a stable GRN, and a retry returns the existing receipt instead of duplicating stock or journals.

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { Actor } from "../dto/core.dto.js";
 import { AuditRepository } from "../repositories/audit.repository.js";
 import { PurchaseRepository } from "../repositories/purchase.repository.js";
@@ -133,7 +133,19 @@ export class PurchaseService {
     );
   }
   async goodsReceipt(input: any, actor: Actor = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const idempotencyKey = String(input.idempotencyKey || "").trim();
+    if (idempotencyKey.length < 8)
+      throw new ServiceError(
+        "A valid idempotency key is required for a goods receipt.",
+        422,
+        "IDEMPOTENCY_KEY_REQUIRED",
+      );
+    const grnNumber = String(input.grnNumber || `GRN-${idempotencyKey}`);
+    const existing = await new PurchaseRepository(this.prisma).receiptByNumber(grnNumber);
+    if (existing) return existing;
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const purchase = new PurchaseRepository(tx),
         stock = new StockRepository(tx),
         order = input.poId ? await purchase.findOrder(input.poId) : null;
@@ -195,7 +207,7 @@ export class PurchaseService {
       if (vatTotal > 0 && (!inputVatAccount?.active || inputVatAccount.deletedAt || !inputVatAccount.allowPosting))
         throw new ServiceError("Input VAT account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
       const receipt = await purchase.createReceipt({
-        grnNumber: input.grnNumber || `GRN-${Date.now()}`,
+        grnNumber,
         purchaseOrderId: input.poId,
         supplierId: supplier.id,
         warehouseId: input.warehouseId,
@@ -280,9 +292,18 @@ export class PurchaseService {
         `Goods receipt posted: ${receipt.grnNumber}`,
         `goods-receipt:${receipt.id}`,
       );
-      return purchase
-        .receipts()
-        .then((rows) => rows.find((row) => row.id === receipt.id));
-    });
+        return purchase.receiptByNumber(receipt.grnNumber);
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 30_000,
+      });
+    } catch (error: any) {
+      if (String(error?.code || "") === "P2002") {
+        const duplicate = await new PurchaseRepository(this.prisma).receiptByNumber(grnNumber);
+        if (duplicate) return duplicate;
+      }
+      throw error;
+    }
   }
 }

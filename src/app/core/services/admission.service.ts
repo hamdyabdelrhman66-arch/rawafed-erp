@@ -273,6 +273,7 @@ export class AdmissionService {
       registration,
       y: 0
     };
+    this.installStudentFileFont(context.pdf, await this.fetchAssetBytes('fonts/Cairo.ttf'));
 
     await this.addStudentFilePage(context, 'Registration Information / Student File');
     await this.studentFileSection(context, 'Student Information', [
@@ -386,32 +387,6 @@ export class AdmissionService {
     pdf.setFillColor(174, 45, 43);
     pdf.triangle(395, 842, 595, 842, 595, 824, 'F');
     return pdf;
-  }
-
-  private async createStudentFileTextImage(value: string, width: number, height: number, align: CanvasTextAlign, fontSize?: number, color = '#111111', bold = false, multiline = false, lineGap = 3): Promise<string> {
-    await document.fonts?.load(`${fontSize || 12}px Cairo`);
-    const scale = 3;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(width * scale);
-    canvas.height = Math.ceil(height * scale);
-    const context = canvas.getContext('2d');
-    if (!context) return 'data:image/png;base64,';
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = color;
-    context.font = `${bold ? 700 : 500} ${Math.max(8, fontSize || height * 0.72) * scale}px Cairo, Arial, Tahoma, sans-serif`;
-    context.textAlign = align;
-    context.textBaseline = 'middle';
-    context.direction = this.hasArabic(value) ? 'rtl' : 'ltr';
-    const textX = align === 'center' ? canvas.width / 2 : align === 'right' ? canvas.width - 3 * scale : 3 * scale;
-    if (multiline) {
-      const lines = this.wrapCanvasText(value, Math.max(20, Math.floor(width / Math.max(4.8, fontSize || 12))));
-      const lineHeight = ((fontSize || 12) + lineGap) * scale;
-      const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
-      lines.forEach((line, index) => context.fillText(line, textX, startY + index * lineHeight, canvas.width - 8 * scale));
-    } else {
-      context.fillText(value, textX, canvas.height / 2, canvas.width - 6 * scale);
-    }
-    return canvas.toDataURL('image/png');
   }
 
   private async fetchAssetBytes(path: string): Promise<Uint8Array> {
@@ -529,8 +504,26 @@ export class AdmissionService {
   }
 
   private async drawStudentFileText(context: StudentFileContext, value: string, x: number, y: number, width: number, height: number, align: CanvasTextAlign, fontSize: number, bold = false, color = '#111111'): Promise<void> {
-    const dataUrl = await this.createStudentFileTextImage(value || '-', width, height, align, fontSize, color, bold, false);
-    context.pdf.addImage(dataUrl, 'PNG', x, y, width, height);
+    const raw = value || '-';
+    const rendered = this.hasArabic(raw) ? context.pdf.processArabic(raw) : raw;
+    const textX = align === 'center' ? x + width / 2 : align === 'right' ? x + width : x;
+    context.pdf.setFont('Cairo', 'normal');
+    context.pdf.setFontSize(fontSize + (bold ? 0.25 : 0));
+    context.pdf.setTextColor(color);
+    context.pdf.text(rendered, textX, y + Math.min(height - 2, fontSize + 2), {
+      align: align === 'center' ? 'center' : align === 'right' ? 'right' : 'left',
+      maxWidth: width,
+    });
+  }
+
+  private installStudentFileFont(pdf: jsPDF, bytes: Uint8Array): void {
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    }
+    pdf.addFileToVFS('Cairo.ttf', btoa(binary));
+    pdf.addFont('Cairo.ttf', 'Cairo', 'normal');
+    pdf.setFont('Cairo', 'normal');
   }
 
   private async drawStudentFileFooters(context: StudentFileContext): Promise<void> {

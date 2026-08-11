@@ -263,7 +263,15 @@ export class InventoryErp implements OnInit {
   }
 
   private emptyGoodsReceipt(): any {
-    return { poId: '', supplierId: '', warehouseId: '', receivedDate: new Date().toISOString().slice(0, 10), supplierInvoiceNo: '', items: [{ itemId: '', quantity: 1, unitPrice: 0, vatRate: 15 }] };
+    return {
+      idempotencyKey: crypto.randomUUID(),
+      poId: '',
+      supplierId: '',
+      warehouseId: '',
+      receivedDate: new Date().toISOString().slice(0, 10),
+      supplierInvoiceNo: '',
+      items: [{ itemId: '', quantity: 1, unitPrice: 0, vatRate: 15 }]
+    };
   }
 
   private emptyIssue(): any {
