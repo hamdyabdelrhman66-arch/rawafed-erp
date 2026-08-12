@@ -66,7 +66,7 @@ export class InvoicePdfService {
     suppliedLogo?: Uint8Array | null,
   ): Promise<Uint8Array> {
     const [font, logo] = await Promise.all([
-      suppliedFont ? Promise.resolve(suppliedFont) : this.asset('/fonts/Amiri-Regular.ttf'),
+      suppliedFont ? Promise.resolve(suppliedFont) : this.asset('/fonts/Cairo.ttf'),
       suppliedLogo !== undefined
         ? Promise.resolve(suppliedLogo)
         : this.asset('/assets/rawafed-logo.png').catch(() => null),
@@ -175,7 +175,7 @@ export class InvoicePdfService {
   }
   private installFont(pdf: jsPDF, bytes: Uint8Array): void {
     let binary = ''; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    pdf.addFileToVFS('Amiri-Regular.ttf', btoa(binary)); pdf.addFont('Amiri-Regular.ttf', 'Amiri', 'normal'); pdf.setFont('Amiri');
+    pdf.addFileToVFS('Cairo.ttf', btoa(binary)); pdf.addFont('Cairo.ttf', 'Cairo', 'normal'); pdf.setFont('Cairo');
   }
   private text(pdf: jsPDF, value: unknown, x: number, y: number, rtl: boolean): void {
     pdf.text(this.prepared(pdf, value), x, y, { align: rtl ? 'right' : 'left' });

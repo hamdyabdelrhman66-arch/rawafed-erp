@@ -116,7 +116,7 @@
   background: #fff;
   color: #111;
   direction: rtl;
-  font-family: Arial, Tahoma, sans-serif;
+  font-family: Cairo, sans-serif;
   overflow: hidden;
 }
 
@@ -393,7 +393,7 @@
 .clean-invoice {
   padding: 24mm;
   direction: ltr;
-  font-family: Arial, Tahoma, sans-serif;
+  font-family: Cairo, sans-serif;
 }
 
 .invoice-header {

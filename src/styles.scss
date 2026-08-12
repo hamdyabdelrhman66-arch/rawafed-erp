@@ -134,6 +134,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+@media print {
+  body,
+  body * {
+    font-family: 'Cairo', sans-serif !important;
+  }
+}
+
 button,
 input,
 textarea,

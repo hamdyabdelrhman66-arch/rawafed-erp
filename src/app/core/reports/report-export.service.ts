@@ -65,7 +65,7 @@ export class ReportExportService {
     reportSheet.getCell("A1").value =
       report.locale === "ar" && report.titleAr ? report.titleAr : report.title;
     reportSheet.getCell("A1").font = {
-      name: "Arial",
+      name: "Cairo",
       size: 20,
       bold: true,
       color: { argb: "FFFFFFFF" },
@@ -191,13 +191,20 @@ export class ReportExportService {
       { width: 14 },
       { width: 34 },
     ];
+    workbook.worksheets.forEach((sheet) => {
+      sheet.eachRow({ includeEmpty: true }, (row) => {
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.font = { ...cell.font, name: "Cairo" };
+        });
+      });
+    });
     const buffer = await workbook.xlsx.writeBuffer();
     return new Uint8Array(buffer as ArrayBuffer);
   }
 
   async downloadPdf(report: ReportTable): Promise<void> {
     const [fontResponse, logoResponse] = await Promise.all([
-      fetch("/fonts/Amiri-Regular.ttf"),
+      fetch("/fonts/Cairo.ttf"),
       fetch("/assets/rawafed-logo.png"),
     ]);
     if (!fontResponse.ok)
@@ -212,7 +219,7 @@ export class ReportExportService {
 
   async printPdf(report: ReportTable): Promise<void> {
     const [fontResponse, logoResponse] = await Promise.all([
-      fetch("/fonts/Amiri-Regular.ttf"),
+      fetch("/fonts/Cairo.ttf"),
       fetch("/assets/rawafed-logo.png"),
     ]);
     if (!fontResponse.ok)
@@ -255,9 +262,9 @@ export class ReportExportService {
     for (let offset = 0; offset < bytes.length; offset += chunkSize) {
       binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
     }
-    pdf.addFileToVFS("Amiri-Regular.ttf", btoa(binary));
-    pdf.addFont("Amiri-Regular.ttf", "Amiri", "normal");
-    pdf.setFont("Amiri", "normal");
+    pdf.addFileToVFS("Cairo.ttf", btoa(binary));
+    pdf.addFont("Cairo.ttf", "Cairo", "normal");
+    pdf.setFont("Cairo", "normal");
   }
 
   private drawVectorReport(
@@ -533,7 +540,7 @@ export class ReportExportService {
     const rtl = report.direction === "rtl";
     const root = document.createElement("section");
     root.dir = rtl ? "rtl" : "ltr";
-    root.style.cssText = `position:fixed;left:-10000px;top:0;width:794px;height:1123px;padding:42px 48px;box-sizing:border-box;background:#fff;color:#0f172a;font-family:Arial,"Noto Sans Arabic",sans-serif;overflow:hidden;`;
+    root.style.cssText = `position:fixed;left:-10000px;top:0;width:794px;height:1123px;padding:42px 48px;box-sizing:border-box;background:#fff;color:#0f172a;font-family:Cairo,sans-serif;overflow:hidden;`;
     root.innerHTML = this.pdfPageHtml(report, rows, page, pages);
     return root;
   }

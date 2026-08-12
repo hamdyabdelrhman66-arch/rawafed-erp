@@ -213,13 +213,13 @@ export class AdmissionService {
     }, { once: true });
   }
 
-  previewAdmissionLetter(request: AdmissionLetterRequest): void {
-    window.open(this.buildAdmissionLetterPdf(request).output('bloburl'), '_blank');
+  async previewAdmissionLetter(request: AdmissionLetterRequest): Promise<void> {
+    window.open((await this.buildAdmissionLetterPdf(request)).output('bloburl'), '_blank');
   }
 
-  downloadAdmissionLetter(request: AdmissionLetterRequest): void {
+  async downloadAdmissionLetter(request: AdmissionLetterRequest): Promise<void> {
     const safeName = (request.studentName || 'student').trim().replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '').toLowerCase();
-    this.buildAdmissionLetterPdf(request).save(`admission-letter-${safeName || 'student'}.pdf`);
+    (await this.buildAdmissionLetterPdf(request)).save(`admission-letter-${safeName || 'student'}.pdf`);
   }
 
   createAdmissionLetterEmailText(request: AdmissionLetterRequest): string {
@@ -287,7 +287,7 @@ export class AdmissionService {
       registration,
       y: 0
     };
-    this.installStudentFileFont(context.pdf, await this.fetchAssetBytes('fonts/Amiri-Regular.ttf'));
+    this.installStudentFileFont(context.pdf, await this.fetchAssetBytes('fonts/Cairo.ttf'));
 
     await this.addStudentFilePage(context, 'Registration Information / Student File');
     await this.studentFileSection(context, 'Student Information', [
@@ -361,15 +361,16 @@ export class AdmissionService {
     return context.pdf.output('datauristring');
   }
 
-  private buildAdmissionLetterPdf(request: AdmissionLetterRequest): jsPDF {
+  private async buildAdmissionLetterPdf(request: AdmissionLetterRequest): Promise<jsPDF> {
     const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+    this.installStudentFileFont(pdf, await this.fetchAssetBytes('fonts/Cairo.ttf'));
     const settings = this.storage.settings();
     pdf.setFillColor(29, 28, 80);
     pdf.triangle(0, 0, 595, 0, 565, 34, 'F');
     pdf.setFillColor(174, 45, 43);
     pdf.triangle(0, 0, 190, 0, 0, 24, 'F');
     pdf.setTextColor('#1d1c50');
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Cairo', 'normal');
     pdf.setFontSize(22);
     pdf.text('RAWAFED', 297.5, 82, { align: 'center' });
     pdf.setFontSize(20);
@@ -378,7 +379,7 @@ export class AdmissionService {
     pdf.setDrawColor(29, 28, 80);
     pdf.line(60, 152, 280, 152);
     pdf.line(315, 152, 535, 152);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Cairo', 'normal');
     pdf.setFontSize(13);
     pdf.setTextColor('#111111');
     const lines = [
@@ -535,9 +536,9 @@ export class AdmissionService {
     for (let offset = 0; offset < bytes.length; offset += 0x8000) {
       binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
     }
-    pdf.addFileToVFS('Amiri-Regular.ttf', btoa(binary));
-    pdf.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
-    pdf.setFont('Amiri', 'normal');
+    pdf.addFileToVFS('Cairo.ttf', btoa(binary));
+    pdf.addFont('Cairo.ttf', 'Cairo', 'normal');
+    pdf.setFont('Cairo', 'normal');
   }
 
   private async drawStudentFileFooters(context: StudentFileContext): Promise<void> {
@@ -588,12 +589,12 @@ export class AdmissionService {
     pdf.setFillColor(10, 87, 164);
     pdf.rect(0, 0, 595, 92, 'F');
     pdf.setTextColor('#ffffff');
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Cairo', 'normal');
     pdf.setFontSize(18);
     pdf.text(settings.schoolName, 40, 34);
     pdf.setFontSize(12);
     pdf.text(title, 40, 58);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Cairo', 'normal');
     pdf.setFontSize(9);
     pdf.text(`Registration: ${registration.registrationNumber || 'Draft'}`, 390, 34);
     pdf.text(`Generated: ${new Date().toLocaleDateString()}`, 390, 52);
@@ -606,7 +607,7 @@ export class AdmissionService {
     pdf.setFillColor(238, 245, 255);
     pdf.roundedRect(40, y - 16, 515, 24, 6, 6, 'F');
     pdf.setTextColor('#0a57a4');
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Cairo', 'normal');
     pdf.setFontSize(12);
     pdf.text(title, 52, y);
     y += 24;
@@ -614,11 +615,11 @@ export class AdmissionService {
       y = this.ensureInfoSpace(pdf, y, 24);
       pdf.setDrawColor(228, 234, 244);
       pdf.line(40, y + 8, 555, y + 8);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('Cairo', 'normal');
       pdf.setFontSize(9);
       pdf.setTextColor('#172033');
       pdf.text(`${label}:`, 52, y);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('Cairo', 'normal');
       const lines = pdf.splitTextToSize(String(value || '-'), 350).slice(0, 2);
       pdf.text(lines, 190, y);
       y += Math.max(22, lines.length * 12);

@@ -8,7 +8,7 @@ import { drawCalibrationField, drawImageField, drawTextField } from './contract-
 import { arabicWeekday, bytesToDataUrl, formatFees, formatGregorianDate, parseContractDate, triggerDownload } from './contract-utils';
 
 const CONTRACT_TEMPLATE_PATH = 'templates/official-contract-template.pdf';
-const ARABIC_FONT_PATH = 'fonts/Amiri-Regular.ttf';
+const ARABIC_FONT_PATH = 'fonts/Cairo.ttf';
 
 @Injectable({ providedIn: 'root' })
 export class ContractService {
