@@ -43,6 +43,55 @@ l(en: string, ar: string): string { return this.i18n.label(en, ar); }
 
 money(value: unknown): string { return this.i18n.money(Number(value || 0)); }
 
+formatDate(value: unknown): string {
+  const raw = String(value || '').trim();
+  if (!raw) return this.l('Not specified', 'غير محدد');
+  const date = new Date(raw.length === 10 ? `${raw}T12:00:00` : raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat(this.i18n.language() === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+methodLabel(value: unknown): string {
+  const method = String(value || '').trim().toLowerCase();
+  if (method === 'cash') return this.l('Cash', 'نقدي');
+  if (['bank', 'bank transfer', 'transfer'].includes(method)) return this.l('Bank transfer', 'تحويل بنكي');
+  if (method === 'card') return this.l('Card', 'بطاقة');
+  if (method === 'cheque' || method === 'check') return this.l('Cheque', 'شيك');
+  return String(value || this.l('Not recorded', 'غير مسجل'));
+}
+
+statusLabel(value: unknown): string {
+  const status = String(value || '').trim().toLowerCase();
+  if (['paid', 'completed'].includes(status)) return this.l('Paid', 'مدفوع');
+  if (status === 'pending') return this.l('Pending', 'قيد الانتظار');
+  if (['cancelled', 'canceled'].includes(status)) return this.l('Cancelled', 'ملغي');
+  return this.i18n.status(String(value || ''));
+}
+
+paymentItemLabel(value: unknown): string {
+  const item = String(value || '').trim().toLowerCase();
+  const labels: Record<string, [string, string]> = {
+    tuition: ['Tuition', 'رسوم دراسية'],
+    'school fees': ['School fees', 'رسوم مدرسية'],
+    books: ['Books', 'كتب'],
+    uniform: ['Uniform', 'زي مدرسي'],
+    transportation: ['Transportation', 'نقل مدرسي'],
+    activities: ['Activities', 'أنشطة'],
+    registration: ['Registration', 'تسجيل'],
+  };
+  return labels[item] ? this.l(labels[item][0], labels[item][1]) : String(value || this.l('School fees', 'رسوم مدرسية'));
+}
+
+paymentAccountLabel(): string {
+  const account = this.payment?.paymentAccount;
+  if (!account) return this.l('Not recorded', 'غير مسجل');
+  const name = this.l(account.name || '', account.nameAr || account.name || '');
+  const code = String(account.code || '').trim();
+  return [code, name].filter(Boolean).join(' · ');
+}
+
 private receiptReport(): ReportTable {
   const amount = Number(this.payment?.amount || 0);
   return {

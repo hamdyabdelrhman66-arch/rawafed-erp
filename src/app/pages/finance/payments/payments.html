@@ -1,112 +1,112 @@
-<div class="page-header">
-
-    <div>
-        <h1>Payments</h1>
-        <p>Manage all patient payments</p>
+<section class="payments-page" [attr.dir]="i18n.direction()">
+  <header class="page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ l('DEBTORS · COLLECTIONS', 'المدينون · التحصيل') }}</span>
+      <h1>{{ l('Payment History', 'سجل المدفوعات') }}</h1>
+      <p>{{ l('Track payment receipts and every amount collected from student accounts.', 'متابعة سندات القبض وكل المبالغ المحصلة من حسابات الطلاب.') }}</p>
     </div>
 
-    <button
-        class="add-btn"
-        routerLink="/finance/add-payment">
+    <div class="header-actions">
+      <a class="add-btn" routerLink="/finance/add-payment">
+        <span aria-hidden="true">+</span>
+        {{ l('Record payment', 'تسجيل دفعة') }}
+      </a>
+    </div>
+  </header>
 
-        + Add Payment
+  <div class="stats" aria-label="Payment summary">
+    <article class="stat-card">
+      <span>{{ l("Today's collection", 'تحصيل اليوم') }}</span>
+      <strong>{{ money(todayCollection) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ l('Monthly collection', 'تحصيل الشهر') }}</span>
+      <strong>{{ money(monthlyCollection) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ l('Cash payments', 'المدفوعات النقدية') }}</span>
+      <strong>{{ money(cashPayments) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ l('Bank transfers', 'التحويلات البنكية') }}</span>
+      <strong>{{ money(bankTransfers) }}</strong>
+    </article>
+  </div>
 
-    </button>
-
-</div>
-
-
-<div class="stats">
-
-    <div class="stat-card">
-        <h3>Today's Collection</h3>
-        <h2>{{todayCollection}} SAR</h2>
+  <section class="table-card">
+    <div class="table-toolbar">
+      <div>
+        <h2>{{ l('Payment receipts', 'سندات القبض') }}</h2>
+        <p>{{ l('Search, review, or print a recorded receipt.', 'ابحث عن أي سند مسجل واعرضه أو اطبعه.') }}</p>
+      </div>
+      <label class="search-field">
+        <span class="sr-only">{{ l('Search payments', 'بحث في المدفوعات') }}</span>
+        <span aria-hidden="true">⌕</span>
+        <input
+          [(ngModel)]="search"
+          [placeholder]="l('Search by student, receipt, or payment item...', 'بحث بالطالب أو رقم السند أو بند الدفع...')"
+          type="search"
+        />
+      </label>
     </div>
 
-    <div class="stat-card">
-        <h3>Monthly Collection</h3>
-        <h2>{{monthlyCollection}} SAR</h2>
-    </div>
-
-    <div class="stat-card">
-        <h3>Cash Payments</h3>
-        <h2>{{cashPayments}} SAR</h2>
-    </div>
-
-    <div class="stat-card">
-        <h3>Bank Transfers</h3>
-        <h2>{{bankTransfers}} SAR</h2>
-    </div>
-
-</div>
-
-<div class="table-card">
-
-    <input
-      class="search-box"
-      placeholder="Search Student...">
-
-    <table>
-
+    <div class="table-scroll">
+      <table>
+        <colgroup>
+          <col class="receipt-col" />
+          <col class="student-col" />
+          <col class="package-col" />
+          <col class="amount-col" />
+          <col class="method-col" />
+          <col class="date-col" />
+          <col class="status-col" />
+          <col class="actions-col" />
+        </colgroup>
         <thead>
-
-            <tr>
-                <th>Receipt</th>
-                <th>Student</th>
-                <th>Package</th>
-                <th>Amount</th>
-                <th>Method</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-
+          <tr>
+            <th>{{ l('Receipt', 'رقم السند') }}</th>
+            <th>{{ l('Student', 'الطالب') }}</th>
+            <th>{{ l('Payment item', 'بند الدفع') }}</th>
+            <th>{{ l('Amount', 'المبلغ') }}</th>
+            <th>{{ l('Method', 'الطريقة') }}</th>
+            <th>{{ l('Date', 'التاريخ') }}</th>
+            <th>{{ l('Status', 'الحالة') }}</th>
+            <th>{{ l('Actions', 'الإجراءات') }}</th>
+          </tr>
         </thead>
-
         <tbody>
-
-            <tr *ngFor="let payment of payments">
-
-                <td>{{ payment.receipt }}</td>
-                <td>{{ payment.patient }}</td>
-                <td>{{ payment.package }}</td>
-                <td>{{ payment.amount }} SAR</td>
-                <td>{{ payment.method }}</td>
-                <td>{{ payment.date }}</td>
-
-                <td>
-                    <span class="completed">
-                        {{ payment.status }}
-                    </span>
-                </td>
-
-                <td class="actions">
-
-                    <button
-  class="view-btn"
-  [routerLink]="[
-    '/finance/payment-details',
-    payment.id
-  ]">
-
-  View
-
-</button>
-
-                    <button
-    class="print-btn"
-    (click)="printReceipt(payment)">
-
-    Print
-
-</button>
-
-                </td>
-
-            </tr>
-
+          <tr *ngFor="let payment of filteredPayments">
+            <td class="reference-cell" [title]="payment.receipt">
+              <bdi>{{ payment.receipt || '—' }}</bdi>
+            </td>
+            <td class="student-cell">
+              <strong>{{ payment.patient || l('Not recorded', 'غير مسجل') }}</strong>
+              <small *ngIf="payment.registrationNumber"><bdi>{{ payment.registrationNumber }}</bdi></small>
+            </td>
+            <td>{{ packageLabel(payment.package) }}</td>
+            <td class="money-cell">{{ money(payment.amount) }}</td>
+            <td>{{ methodLabel(payment.method) }}</td>
+            <td class="date-cell"><bdi>{{ formatDate(payment.date) }}</bdi></td>
+            <td><span class="status-badge" [class.is-pending]="payment.status === 'Pending'">{{ statusLabel(payment.status) }}</span></td>
+            <td>
+              <div class="row-actions">
+                <a class="table-action view-action" [routerLink]="['/finance/payment-details', payment.id]">
+                  {{ l('View', 'عرض') }}
+                </a>
+                <button class="table-action print-action" type="button" (click)="printReceipt(payment)">
+                  {{ l('Print', 'طباعة') }}
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="loading">
+            <td colspan="8" class="state-cell">{{ l('Loading payments...', 'جارٍ تحميل المدفوعات...') }}</td>
+          </tr>
+          <tr *ngIf="!loading && !filteredPayments.length">
+            <td colspan="8" class="state-cell">{{ search ? l('No matching payments found.', 'لا توجد مدفوعات مطابقة للبحث.') : l('No payments have been recorded yet.', 'لم يتم تسجيل أي مدفوعات بعد.') }}</td>
+          </tr>
         </tbody>
-
-    </table>
-
-</div>
+      </table>
+    </div>
+  </section>
+</section>

@@ -1,59 +1,64 @@
 <div class="receipt-state" *ngIf="loading">{{ l('Loading receipt...', 'جارٍ تحميل سند القبض...') }}</div>
 <div class="receipt-state error" *ngIf="error">{{ error }}</div>
-<section class="payment-receipt" *ngIf="payment">
-<div class="page-header">
-  <div><span class="eyebrow">RAWAFED INTERNATIONAL SCHOOL</span><h1>{{ l('Payment Receipt', 'سند قبض') }}</h1><bdi>{{ payment.receiptNumber }}</bdi></div>
+<section class="payment-receipt" *ngIf="payment" [attr.dir]="i18n.direction()">
+<header class="receipt-header">
+  <div class="header-copy">
+    <span class="eyebrow">RAWAFED INTERNATIONAL SCHOOL</span>
+    <div class="title-line">
+      <h1>{{ l('Payment Receipt', 'سند قبض') }}</h1>
+      <span class="status-chip">{{ statusLabel(payment?.status) }}</span>
+    </div>
+    <bdi class="receipt-number">{{ payment.receiptNumber }}</bdi>
+  </div>
 
-  <button
-    class="print-btn"
-    type="button"
-    (click)="printReceipt()">
-
+  <button class="print-btn" type="button" (click)="printReceipt()">
+    <span aria-hidden="true">▣</span>
     {{ l('Print Receipt', 'طباعة السند') }}
-
   </button>
+</header>
 
-</div>
-
-<div class="details-card">
-
-  <div class="detail-item">
-    <span>{{ l('Student', 'الطالب') }}</span>
-    <h3>{{payment?.studentName}}</h3>
+<section class="receipt-overview" aria-label="Receipt overview">
+  <div class="student-summary">
+    <span class="section-label">{{ l('Received from', 'استلمنا من') }}</span>
+    <h2>{{ payment?.studentName || l('Not recorded', 'غير مسجل') }}</h2>
+    <div class="student-meta">
+      <span><small>{{ l('Registration no.', 'رقم التسجيل') }}</small><bdi>{{ payment?.registrationNumber || '—' }}</bdi></span>
+      <span><small>{{ l('Grade', 'الصف') }}</small><strong>{{ payment?.grade || l('Not recorded', 'غير مسجل') }}</strong></span>
+    </div>
   </div>
 
-  <div class="detail-item">
-    <span>{{ l('Registration / Grade', 'التسجيل / الصف') }}</span>
-    <h3><bdi>{{payment?.registrationNumber}}</bdi> · {{ payment?.grade || '—' }}</h3>
+  <div class="received-amount">
+    <span>{{ l('Amount received', 'المبلغ المستلم') }}</span>
+    <strong>{{ money(payment?.amount) }}</strong>
+    <small>{{ paymentItemLabel(payment?.paymentItem) }}</small>
   </div>
+</section>
 
+<section class="details-card">
   <div class="detail-item">
-    <span>{{ l('Payment Method', 'طريقة الدفع') }}</span>
-    <h3>{{payment?.method}}<ng-container *ngIf="payment?.paymentAccount"> · <bdi>{{ payment.paymentAccount.code }}</bdi> {{ l(payment.paymentAccount.name, payment.paymentAccount.nameAr || payment.paymentAccount.name) }}</ng-container></h3>
+    <span>{{ l('Payment date', 'تاريخ الدفع') }}</span>
+    <strong><bdi>{{ formatDate(payment?.paidAt) }}</bdi></strong>
   </div>
-
   <div class="detail-item">
-    <span>{{ l('Payment Date', 'تاريخ الدفع') }}</span>
-    <h3>{{payment?.paidAt | date:'yyyy-MM-dd'}}</h3>
+    <span>{{ l('Payment method', 'طريقة الدفع') }}</span>
+    <strong>{{ methodLabel(payment?.method) }}</strong>
   </div>
-
   <div class="detail-item">
-    <span>{{ l('Reference Number', 'الرقم المرجعي') }}</span>
-    <h3>{{payment?.referenceNumber || '—'}}</h3>
+    <span>{{ l('Receiving account', 'الحساب المستلم') }}</span>
+    <strong>{{ paymentAccountLabel() }}</strong>
   </div>
-
   <div class="detail-item">
-    <span>{{ l('Status', 'الحالة') }}</span>
-    <h3 class="status-paid">
-      {{payment?.status}}
-    </h3>
+    <span>{{ l('Reference number', 'الرقم المرجعي') }}</span>
+    <strong><bdi>{{ payment?.referenceNumber || l('Not recorded', 'غير مسجل') }}</bdi></strong>
   </div>
-
-</div>
+</section>
 
 <div class="receipt-card">
 
-  <h2>{{ l('Payment Summary', 'ملخص سند القبض') }}</h2>
+  <div class="section-heading">
+    <div><span>{{ l('FINANCIAL DETAILS', 'التفاصيل المالية') }}</span><h2>{{ l('Payment Summary', 'ملخص سند القبض') }}</h2></div>
+    <p>{{ l('The receipt amount represents the actual amount collected only.', 'قيمة السند تمثل المبلغ المحصل فعليًا فقط.') }}</p>
+  </div>
 
   <table class="receipt-table">
 
@@ -65,7 +70,7 @@
 
     <tbody>
       <tr>
-        <td>{{ payment?.paymentItem }}</td><td>{{ money(payment?.balanceBefore) }}</td><td>{{ money(payment?.amount) }}</td><td>{{ money(payment?.balanceAfter) }}</td>
+        <td>{{ paymentItemLabel(payment?.paymentItem) }}</td><td>{{ money(payment?.balanceBefore) }}</td><td>{{ money(payment?.amount) }}</td><td>{{ money(payment?.balanceAfter) }}</td>
       </tr>
     </tbody>
 

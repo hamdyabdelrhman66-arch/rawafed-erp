@@ -1,31 +1,34 @@
 <section class="finance-list-page" [attr.dir]="i18n.direction()">
   <header class="page-header finance-hero">
-    <div>
+    <div class="header-copy">
       <span class="page-eyebrow">{{ 'invoice.eyebrow' | t }}</span>
       <h1>{{ 'invoice.school_invoices' | t }}</h1>
       <p>{{ 'invoice.subtitle' | t }}</p>
     </div>
-    <a class="primary-action" routerLink="/finance/generate-invoice"
-      >{{ 'invoice.new' | t }}</a
-    >
+    <div class="header-actions">
+      <a class="primary-action" routerLink="/finance/generate-invoice">
+        <span aria-hidden="true">+</span>
+        <span>{{ 'invoice.new' | t }}</span>
+      </a>
+    </div>
   </header>
   <nav class="breadcrumb">{{ 'invoice.breadcrumb' | t }}</nav>
   <section class="stats-grid">
     <article class="stat-card">
-      <span>{{ 'invoice.total_count' | t }}</span
-      ><strong>{{ totalInvoices }}</strong>
+      <span>{{ 'invoice.total_count' | t }}</span>
+      <strong>{{ totalInvoices }}</strong>
     </article>
     <article class="stat-card">
-      <span>{{ 'invoice.total_revenue' | t }}</span
-      ><strong>{{ i18n.money(totalRevenue) }}</strong>
+      <span>{{ 'invoice.total_revenue' | t }}</span>
+      <strong>{{ i18n.money(totalRevenue) }}</strong>
     </article>
     <article class="stat-card">
-      <span>{{ 'customer.amount_paid' | t }}</span
-      ><strong>{{ i18n.money(paidInvoices) }}</strong>
+      <span>{{ 'customer.amount_paid' | t }}</span>
+      <strong>{{ i18n.money(paidInvoices) }}</strong>
     </article>
     <article class="stat-card">
-      <span>{{ 'customer.remaining' | t }}</span
-      ><strong>{{ i18n.money(pendingInvoices) }}</strong>
+      <span>{{ 'customer.remaining' | t }}</span>
+      <strong>{{ i18n.money(pendingInvoices) }}</strong>
     </article>
   </section>
   <section class="info-card">

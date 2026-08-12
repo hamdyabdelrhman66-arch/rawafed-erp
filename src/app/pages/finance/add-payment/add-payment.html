@@ -1,11 +1,14 @@
 <header class="page-header">
-  <div>
-    <button class="back-link" type="button" (click)="goBack()" [disabled]="saving" [attr.aria-label]="l('Back', 'رجوع')">
-      <span aria-hidden="true">→</span><span>{{ l('Back', 'رجوع') }}</span>
-    </button>
+  <div class="header-copy">
     <span>{{ l('Payments & Receipts', 'المدفوعات والإيصالات') }}</span>
     <h1>{{ l('Add Student Payment', 'إضافة دفعة طالب') }}</h1>
     <p>{{ l('Select a student, review the grade fees, then record one or more paid items in the same receipt.', 'اختر طالبًا وراجع رسوم الصف، ثم سجّل بندًا واحدًا أو أكثر في الإيصال نفسه.') }}</p>
+  </div>
+  <div class="header-actions">
+    <button class="back-link" type="button" (click)="goBack()" [disabled]="saving" [attr.aria-label]="l('Back', 'رجوع')">
+      <span aria-hidden="true">{{ i18n.direction() === 'rtl' ? '→' : '←' }}</span>
+      <span>{{ l('Back', 'رجوع') }}</span>
+    </button>
   </div>
 </header>
 
