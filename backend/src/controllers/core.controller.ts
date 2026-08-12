@@ -222,6 +222,29 @@ export class CoreController {
   payments = asyncController(async (req, res) =>
     res.json(await this.finance.payments(page(req).skip, page(req).take)),
   );
+  paymentPreview = asyncController(async (req, res) =>
+    res.json(await this.finance.paymentPreview(req.body)),
+  );
+  paymentReceipt = asyncController(async (req, res) =>
+    res.json(await this.finance.paymentReceipt(req.params.id)),
+  );
+  feeAgreements = asyncController(async (req, res) =>
+    res.json(await this.finance.feeAgreements(req.params.accountId)),
+  );
+  vatConfiguration = asyncController(async (_req, res) =>
+    res.json(await this.finance.vatConfiguration()),
+  );
+  updateVatConfiguration = asyncController(async (req, res) =>
+    res.json(await this.finance.updateVatConfiguration(req.body, actor(req))),
+  );
+  vatEvents = asyncController(async (req, res) =>
+    res.json(await this.finance.vatEvents({
+      from: req.query.from ? String(req.query.from) : undefined,
+      to: req.query.to ? String(req.query.to) : undefined,
+      branchId: req.query.branchId ? String(req.query.branchId) : undefined,
+      taxTreatment: req.query.taxTreatment ? String(req.query.taxTreatment) : undefined,
+    })),
+  );
   createInvoice = asyncController(async (req, res) =>
     res
       .status(201)

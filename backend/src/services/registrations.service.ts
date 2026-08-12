@@ -8,6 +8,7 @@ import { RegistrationsRepository } from "../repositories/registrations.repositor
 import { StudentsRepository } from "../repositories/students.repository.js";
 import { ServiceError } from "./service.error.js";
 import { authoritativeFeePreviewUsing, money, type FeePreview } from "./student-vat.js";
+import { ensureFeeAgreementUsing } from "./tuition-tax.service.js";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const unpack = (row: any) => ({
@@ -265,12 +266,15 @@ export class RegistrationsService {
         );
         const preview = await authoritativeFeePreviewUsing(tx, data);
         const mappedFees = feesFromPreview(preview);
-        await new FinanceAccountsRepository(tx).upsert(
+        const financeAccount = await new FinanceAccountsRepository(tx).upsert(
           id,
           student.id,
           preview.parentPayableTotal,
           mappedFees,
         );
+        // Registration creates the contractual fee schedule. It is deliberately
+        // not an invoice, payment, receipt, or VAT-recognition event.
+        await ensureFeeAgreementUsing(tx, financeAccount.id, actor);
         let customer = await tx.accountingCustomer.findUnique({
           where: { studentId: student.id },
         });

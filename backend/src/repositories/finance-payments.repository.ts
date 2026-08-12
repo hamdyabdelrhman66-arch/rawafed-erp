@@ -9,6 +9,8 @@ export class FinancePaymentsRepository {
         account: { include: { student: true, registration: true } },
         allocations: { include: { invoice: { include: { lines: true } } } },
         feeAllocations: { include: { feeItem: true } },
+        receipt: true,
+        taxEvents: true,
       },
       orderBy: { paidAt: "desc" },
       skip,
@@ -18,6 +20,18 @@ export class FinancePaymentsRepository {
   findByReceipt(receiptNumber: string) {
     return this.db.financePayment.findUnique({ where: { receiptNumber } });
   }
+  findByIdempotencyKey(idempotencyKey: string) {
+    return this.db.financePayment.findUnique({
+      where: { idempotencyKey },
+      include: {
+        account: { include: { student: true, registration: true } },
+        allocations: { include: { invoice: { include: { lines: true } } } },
+        feeAllocations: { include: { feeItem: true } },
+        receipt: true,
+        taxEvents: true,
+      },
+    });
+  }
   findById(id: string) {
     return this.db.financePayment.findFirst({
       where: { id, deletedAt: null },
@@ -25,7 +39,12 @@ export class FinancePaymentsRepository {
         account: { include: { student: true, registration: true } },
         allocations: { include: { invoice: { include: { lines: true } } } },
         feeAllocations: { include: { feeItem: true } },
-        journalEntries: { where: { deletedAt: null }, include: { lines: true } },
+        journalEntries: {
+          where: { deletedAt: null },
+          include: { lines: { include: { account: true } } },
+        },
+        receipt: { include: { feeAgreement: { include: { lines: true, installments: true } } } },
+        taxEvents: true,
       },
     });
   }
@@ -39,9 +58,11 @@ export class FinancePaymentsRepository {
     notes?: string;
     paidAt: Date;
     collectedBy?: string;
+    idempotencyKey?: string;
+    installmentId?: string;
     invoiceId?: string;
-    invoiceAllocations?: Array<{ invoiceId: string; amount: number }>;
-    feeAllocations?: Array<{ feeItemId: string; amount: number }>;
+    invoiceAllocations?: Array<{ invoiceId: string; amount: number; netAmount?: number; vatAmount?: number; governmentBorneVat?: number; discountAmount?: number }>;
+    feeAllocations?: Array<{ feeItemId: string; amount: number; netAmount?: number; vatAmount?: number; governmentBorneVat?: number; discountAmount?: number }>;
   }) {
     const { invoiceId, invoiceAllocations, feeAllocations = [], ...payment } = data;
     const allocations = invoiceAllocations || (invoiceId ? [{ invoiceId, amount: payment.amount }] : []);
@@ -55,6 +76,8 @@ export class FinancePaymentsRepository {
         account: { include: { student: true, registration: true } },
         allocations: { include: { invoice: { include: { lines: true } } } },
         feeAllocations: { include: { feeItem: true } },
+        receipt: true,
+        taxEvents: true,
       },
     });
   }

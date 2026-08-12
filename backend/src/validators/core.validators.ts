@@ -112,12 +112,14 @@ export const status = z.object({
 export const payment = z
   .object({
     accountId: z.string().uuid(),
+    idempotencyKey: z.string().uuid().optional(),
     invoiceId: z.string().uuid().optional(),
     installmentId: z.string().uuid().optional(),
     receiptNumber: z.string().max(80).optional(),
     paymentItem: z.string().max(160).default("School Fees"),
     amount: z.coerce.number().positive().max(10000000),
     method: z.string().max(60).default("Cash"),
+    paymentAccountId: z.string().uuid().optional(),
     paidAt: z
       .union([z.string().date(), z.string().datetime()])
       .optional(),
@@ -146,6 +148,19 @@ export const payment = z
     }).strict().optional(),
   })
   .strict();
+export const paymentPreview = payment.pick({
+  accountId: true,
+  invoiceId: true,
+  installmentId: true,
+  amount: true,
+  lines: true,
+});
+
+export const vatConfiguration = z.object({
+  basis: z.enum(["INVOICE_ACCRUAL", "CASH"]),
+  confirmation: z.literal(true),
+  reason: z.string().trim().min(10).max(1000),
+}).strict();
 export const studentDiscount = z.object({
   invoiceId: z.string().uuid().optional(),
   discountType: z.enum(["FIXED", "PERCENTAGE"]),

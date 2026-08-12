@@ -94,6 +94,7 @@ export class EnterpriseReportService {
         "paymentMethod",
         "serviceCategory",
         "status",
+        "taxTreatment",
         "quarter",
         "month",
         "year",
@@ -244,12 +245,27 @@ export class EnterpriseReportService {
       const vat = await new VatService(this.prisma).summary(
         filters.from,
         filters.to,
+        filters.branchId,
+        filters.taxTreatment,
       );
-      return [
-        { metric: "Output VAT", amount: vat.outputVat },
-        { metric: "Input VAT", amount: vat.inputVat },
-        { metric: "VAT payable", amount: vat.vatPayable },
-      ];
+      return vat.sourceDocuments.length
+        ? vat.sourceDocuments.map((document) => ({
+            date: iso(new Date(document.date)),
+            sourceDocument: document.source,
+            sourceType: document.sourceType,
+            taxTreatment: document.taxTreatment,
+            taxableSales: document.taxableAmount,
+            parentVat: document.parentVat,
+            governmentBorneVat: document.governmentBorneVat,
+            totalVat: document.totalVat,
+            journalEntry: document.journalEntryId || "",
+          }))
+        : [
+            { metric: "Output VAT", amount: vat.outputVat },
+            { metric: "Input VAT", amount: vat.inputVat },
+            { metric: "VAT payable", amount: vat.vatPayable },
+            { metric: "VAT reconciliation difference", amount: vat.reconciliationDifference },
+          ];
     }
     if (type === "payables" || type === "suppliers")
       return (

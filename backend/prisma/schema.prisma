@@ -39,6 +39,42 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum VatAccountingBasis {
+  INVOICE_ACCRUAL
+  CASH
+}
+
+enum FinanceDocumentType {
+  FEE_AGREEMENT
+  TAX_INVOICE
+  PAYMENT_RECEIPT
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum FinanceDocumentStatus {
+  DRAFT
+  ISSUED
+  VOID
+  SUPERSEDED
+}
+
+enum TaxEventType {
+  INVOICE_ISSUED
+  PAYMENT_COLLECTED
+  CREDIT_NOTE
+  DEBIT_NOTE
+  REFUND
+  VOID
+}
+
+enum TaxEventStatus {
+  INFORMATIONAL
+  RECOGNIZED
+  REVERSED
+  VOID
+}
+
 enum StudentDiscountType {
   FIXED
   PERCENTAGE
@@ -105,6 +141,9 @@ model User {
   approvedStudentDiscounts  StudentDiscount[] @relation("StudentDiscountApprover")
   rejectedStudentDiscounts  StudentDiscount[] @relation("StudentDiscountRejecter")
   cancelledStudentDiscounts StudentDiscount[] @relation("StudentDiscountCanceller")
+  createdFeeAgreements FeeAgreement[] @relation("FeeAgreementCreator")
+  issuedPaymentReceipts PaymentReceipt[] @relation("PaymentReceiptIssuer")
+  createdTaxEvents TaxEvent[] @relation("TaxEventCreator")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   deletedAt           DateTime?            @map("deleted_at")
@@ -268,6 +307,10 @@ model FinanceAccount {
   payments       FinancePayment[]
   feeItems       FinanceAccountFeeItem[]
   discounts      StudentDiscount[]
+  feeAgreements  FeeAgreement[]
+  paymentReceipts PaymentReceipt[]
+  taxEvents      TaxEvent[]
+  installments   Installment[]
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
   deletedAt      DateTime?               @map("deleted_at")
@@ -318,6 +361,10 @@ model FinanceInvoice {
   costCenterId    String?             @map("cost_center_id") @db.Uuid
   branchId        String?             @map("branch_id") @db.Uuid
   legacyCombined  Boolean             @default(true) @map("legacy_combined")
+  documentType    FinanceDocumentType @default(TAX_INVOICE) @map("document_type")
+  workflowVersion Int                 @default(1) @map("workflow_version")
+  feeAgreementId  String?             @map("fee_agreement_id") @db.Uuid
+  feeAgreement    FeeAgreement?       @relation(fields: [feeAgreementId], references: [id], onDelete: Restrict)
   status          InvoiceStatus       @default(ISSUED)
   issuedAt        DateTime            @map("issued_at")
   dueAt           DateTime?           @map("due_at")
@@ -325,12 +372,14 @@ model FinanceInvoice {
   payments        PaymentAllocation[]
   journalEntries  JournalEntry[]
   studentDiscounts StudentDiscount[]
+  taxEvents       TaxEvent[]
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
   deletedAt       DateTime?           @map("deleted_at")
 
   @@index([accountId, status])
   @@index([issuedAt])
+  @@index([feeAgreementId])
   @@map("finance_invoices")
 }
 
@@ -344,6 +393,73 @@ model InvoiceSequence {
 
   @@unique([category, year])
   @@map("invoice_sequences")
+}
+
+model FinanceDocumentSequence {
+  id           String              @id @default(uuid()) @db.Uuid
+  documentType FinanceDocumentType @map("document_type")
+  year         Int
+  nextNumber   Int                 @default(1) @map("next_number")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  @@unique([documentType, year])
+  @@map("finance_document_sequences")
+}
+
+model FeeAgreement {
+  id                 String                @id @default(uuid()) @db.Uuid
+  agreementNumber    String                @unique @map("agreement_number")
+  accountId          String                @map("account_id") @db.Uuid
+  account            FinanceAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  academicYearId     String?               @map("academic_year_id") @db.Uuid
+  branchId           String?               @map("branch_id") @db.Uuid
+  baseFees           Decimal               @map("base_fees") @db.Decimal(14, 2)
+  discountAmount     Decimal               @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  expectedVat        Decimal               @default(0) @map("expected_vat") @db.Decimal(14, 2)
+  governmentBorneVat Decimal               @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  parentVat          Decimal               @default(0) @map("parent_vat") @db.Decimal(14, 2)
+  contractTotal      Decimal               @map("contract_total") @db.Decimal(14, 2)
+  taxTreatment       String                @default("STANDARD") @map("tax_treatment")
+  status             FinanceDocumentStatus @default(ISSUED)
+  version            Int                   @default(1)
+  terms              String?
+  snapshot           Json                  @default("{}")
+  issuedAt           DateTime              @default(now()) @map("issued_at")
+  createdById        String?               @map("created_by_id") @db.Uuid
+  createdBy          User?                 @relation("FeeAgreementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lines              FeeAgreementLine[]
+  invoices           FinanceInvoice[]
+  receipts           PaymentReceipt[]
+  taxEvents          TaxEvent[]
+  installments       Installment[]
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  @@index([accountId, status])
+  @@index([academicYearId, branchId])
+  @@map("fee_agreements")
+}
+
+model FeeAgreementLine {
+  id                 String          @id @default(uuid()) @db.Uuid
+  agreementId        String          @map("agreement_id") @db.Uuid
+  agreement          FeeAgreement    @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  feeItemId          String?         @map("fee_item_id") @db.Uuid
+  description        String
+  serviceCategory    String          @map("service_category")
+  baseAmount         Decimal         @map("base_amount") @db.Decimal(14, 2)
+  discountAmount     Decimal         @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  vatRate            Decimal         @default(0) @map("vat_rate") @db.Decimal(5, 2)
+  expectedVat        Decimal         @default(0) @map("expected_vat") @db.Decimal(14, 2)
+  governmentBorneVat Decimal         @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  parentPayable      Decimal         @map("parent_payable") @db.Decimal(14, 2)
+  taxTreatment       String          @default("STANDARD") @map("tax_treatment")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  @@index([agreementId])
+  @@map("fee_agreement_lines")
 }
 
 model RevenueCategoryMapping {
@@ -423,16 +539,22 @@ model FinancePayment {
   notes           String?
   paidAt          DateTime               @map("paid_at")
   collectedBy     String?                @map("collected_by")
+  idempotencyKey  String?                @unique @map("idempotency_key")
+  installmentId   String?                @map("installment_id") @db.Uuid
+  installment     Installment?           @relation(fields: [installmentId], references: [id], onDelete: Restrict)
   allocations     PaymentAllocation[]
   feeAllocations  PaymentFeeAllocation[]
   journalEntries  JournalEntry[]
   studentDiscounts StudentDiscount[]
+  receipt         PaymentReceipt?
+  taxEvents       TaxEvent[]
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @updatedAt @map("updated_at")
   deletedAt       DateTime?              @map("deleted_at")
 
   @@index([accountId, paidAt])
   @@index([status, paidAt])
+  @@index([installmentId])
   @@map("finance_payments")
 }
 
@@ -443,6 +565,10 @@ model PaymentFeeAllocation {
   feeItemId String                @map("fee_item_id") @db.Uuid
   feeItem   FinanceAccountFeeItem @relation(fields: [feeItemId], references: [id], onDelete: Restrict)
   amount    Decimal               @db.Decimal(14, 2)
+  netAmount Decimal               @default(0) @map("net_amount") @db.Decimal(14, 2)
+  vatAmount Decimal               @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  governmentBorneVat Decimal      @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  discountAmount Decimal          @default(0) @map("discount_amount") @db.Decimal(14, 2)
   createdAt DateTime              @default(now()) @map("created_at")
 
   @@unique([paymentId, feeItemId])
@@ -457,12 +583,89 @@ model PaymentAllocation {
   invoiceId String         @map("invoice_id") @db.Uuid
   invoice   FinanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   amount    Decimal        @db.Decimal(14, 2)
+  netAmount Decimal        @default(0) @map("net_amount") @db.Decimal(14, 2)
+  vatAmount Decimal        @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  governmentBorneVat Decimal @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  discountAmount Decimal   @default(0) @map("discount_amount") @db.Decimal(14, 2)
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
   @@unique([paymentId, invoiceId])
   @@index([invoiceId])
   @@map("payment_allocations")
+}
+
+model PaymentReceipt {
+  id                 String                @id @default(uuid()) @db.Uuid
+  receiptNumber      String                @unique @map("receipt_number")
+  paymentId          String                @unique @map("payment_id") @db.Uuid
+  payment            FinancePayment        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  accountId          String                @map("account_id") @db.Uuid
+  account            FinanceAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  feeAgreementId     String?               @map("fee_agreement_id") @db.Uuid
+  feeAgreement       FeeAgreement?         @relation(fields: [feeAgreementId], references: [id], onDelete: Restrict)
+  amountReceived     Decimal               @map("amount_received") @db.Decimal(14, 2)
+  netAmount          Decimal               @default(0) @map("net_amount") @db.Decimal(14, 2)
+  parentVat          Decimal               @default(0) @map("parent_vat") @db.Decimal(14, 2)
+  governmentBorneVat Decimal               @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  balanceBefore      Decimal               @map("balance_before") @db.Decimal(14, 2)
+  balanceAfter       Decimal               @map("balance_after") @db.Decimal(14, 2)
+  totalPaidBefore    Decimal               @map("total_paid_before") @db.Decimal(14, 2)
+  totalPaidAfter     Decimal               @map("total_paid_after") @db.Decimal(14, 2)
+  status             FinanceDocumentStatus @default(ISSUED)
+  snapshot           Json                  @default("{}")
+  issuedAt           DateTime              @default(now()) @map("issued_at")
+  issuedById         String?               @map("issued_by_id") @db.Uuid
+  issuedBy           User?                 @relation("PaymentReceiptIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  taxEvents          TaxEvent[]
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  @@index([accountId, issuedAt])
+  @@map("payment_receipts")
+}
+
+model TaxEvent {
+  id                 String             @id @default(uuid()) @db.Uuid
+  eventNumber        String             @unique @map("event_number")
+  accountId          String             @map("account_id") @db.Uuid
+  account            FinanceAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  feeAgreementId     String?            @map("fee_agreement_id") @db.Uuid
+  feeAgreement       FeeAgreement?      @relation(fields: [feeAgreementId], references: [id], onDelete: Restrict)
+  invoiceId          String?            @map("invoice_id") @db.Uuid
+  invoice            FinanceInvoice?    @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  paymentId          String?            @map("payment_id") @db.Uuid
+  payment            FinancePayment?    @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  receiptId          String?            @map("receipt_id") @db.Uuid
+  receipt            PaymentReceipt?    @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  accountingBasis    VatAccountingBasis @map("accounting_basis")
+  eventType          TaxEventType       @map("event_type")
+  status             TaxEventStatus     @default(RECOGNIZED)
+  recognitionDate    DateTime           @map("recognition_date") @db.Date
+  taxableAmount      Decimal            @map("taxable_amount") @db.Decimal(14, 2)
+  parentVat          Decimal            @default(0) @map("parent_vat") @db.Decimal(14, 2)
+  governmentBorneVat Decimal            @default(0) @map("government_borne_vat") @db.Decimal(14, 2)
+  totalVat           Decimal            @default(0) @map("total_vat") @db.Decimal(14, 2)
+  grossAmount        Decimal            @map("gross_amount") @db.Decimal(14, 2)
+  taxTreatment       String             @default("STANDARD") @map("tax_treatment")
+  sourceVersion      Int                @default(2) @map("source_version")
+  journalEntryId     String?            @map("journal_entry_id") @db.Uuid
+  journalEntry       JournalEntry?      @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  reversalOfId       String?            @map("reversal_of_id") @db.Uuid
+  reversalOf         TaxEvent?          @relation("TaxEventReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals          TaxEvent[]         @relation("TaxEventReversal")
+  snapshot           Json               @default("{}")
+  createdById        String?            @map("created_by_id") @db.Uuid
+  createdBy          User?              @relation("TaxEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  @@unique([eventType, invoiceId, paymentId])
+  @@index([recognitionDate, status, accountingBasis])
+  @@index([accountId, recognitionDate])
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@map("tax_events")
 }
 
 model StudentDiscount {
@@ -647,6 +850,7 @@ model JournalEntry {
   approvedStudentDiscount StudentDiscount?         @relation("StudentDiscountApprovalJournal")
   reversedStudentDiscount StudentDiscount?         @relation("StudentDiscountReversalJournal")
   lines                   JournalLine[]
+  taxEvents               TaxEvent[]
   createdAt               DateTime                @default(now()) @map("created_at")
   updatedAt               DateTime                @updatedAt @map("updated_at")
   deletedAt               DateTime?               @map("deleted_at")
@@ -969,13 +1173,22 @@ model Installment {
   customer   AccountingCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   dueDate    DateTime           @map("due_date") @db.Date
   amount     Decimal            @db.Decimal(14, 2)
+  financeAccountId String?      @map("finance_account_id") @db.Uuid
+  financeAccount FinanceAccount? @relation(fields: [financeAccountId], references: [id], onDelete: Restrict)
+  feeAgreementId String?        @map("fee_agreement_id") @db.Uuid
+  feeAgreement FeeAgreement?    @relation(fields: [feeAgreementId], references: [id], onDelete: Restrict)
+  baseAmount Decimal            @default(0) @map("base_amount") @db.Decimal(14, 2)
+  vatAmount Decimal             @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  grossAmount Decimal           @default(0) @map("gross_amount") @db.Decimal(14, 2)
   paidAmount Decimal            @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  financePayments FinancePayment[]
   status     String             @default("unpaid")
   notes      String?
   createdAt  DateTime           @default(now()) @map("created_at")
   updatedAt  DateTime           @updatedAt @map("updated_at")
 
   @@index([customerId, dueDate, status])
+  @@index([financeAccountId, dueDate, status])
   @@map("installments")
 }
 

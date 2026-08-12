@@ -16,6 +16,7 @@ import {
 } from "../../../core/feedback/feedback.service";
 import { SearchableSelectComponent } from "../../../shared/components/searchable-select/searchable-select.component";
 import { I18nService } from "../../../core/i18n/i18n.service";
+import { AccountingService } from "../../../core/finance/accounting.service";
 
 interface PaymentLine {
   feeItem: string;
@@ -35,6 +36,8 @@ export class AddPayment implements OnInit {
   accounts: any[] = [];
   selectedAccount: any = null;
   paymentMethod = "Cash";
+  paymentAccounts: any[] = [];
+  paymentAccountId = "";
   paymentDate = new Date().toISOString().split("T")[0];
   collectedBy = "Finance";
   referenceNumber = "";
@@ -55,7 +58,10 @@ export class AddPayment implements OnInit {
   discountEffectiveDate = this.paymentDate;
   approvalReference = "";
   private discountIdempotencyKey = "";
-  private pendingReceiptNumber = "";
+  paymentPreview: any = null;
+  previewLoading = false;
+  private paymentIdempotencyKey = "";
+  private previewTimer?: ReturnType<typeof setTimeout>;
   readonly accountLabel = (account: any) =>
     account
       ? `${account.patient} - ${account.registrationNumber || account.fileNo || "-"} - ${this.l('Grade', 'الصف')} ${account.grade || "-"} - ${this.l('Remaining', 'المتبقي')} ${Number(account.remaining || 0).toLocaleString(this.i18n.language() === 'ar' ? 'ar-SA' : 'en-US')} ${this.currency()}`
@@ -67,6 +73,7 @@ export class AddPayment implements OnInit {
     private readonly accountService: PatientPackagesService,
     private readonly paymentsService: PaymentsService,
     private readonly invoicesService: InvoicesService,
+    private readonly accountingService: AccountingService,
     private readonly feedback: FeedbackService,
     public readonly i18n: I18nService,
   ) {}
@@ -98,7 +105,17 @@ export class AddPayment implements OnInit {
     // A direct visit must always start clean. Never reuse a previously viewed student.
     this.clearSelectedStudent();
     try {
-      this.accounts = await firstValueFrom(this.accountService.getPackages());
+      const [accounts, cashboxes, banks] = await Promise.all([
+        firstValueFrom(this.accountService.getPackages()),
+        this.accountingService.getCashboxes(),
+        this.accountingService.getBanks(),
+      ]);
+      this.accounts = accounts;
+      this.paymentAccounts = [
+        ...cashboxes.filter((row: any) => row.status === 'active').map((row: any) => ({ ...row, kind: 'Cash', label: `${row.name} · ${row.accountCode}` })),
+        ...banks.filter((row: any) => row.status === 'active').map((row: any) => ({ ...row, kind: 'Bank', label: `${row.bankName} · ${row.accountCode}` })),
+      ];
+      this.syncPaymentAccount();
     } catch (error) {
       this.contextError = safeErrorMessage(error);
     } finally {
@@ -116,6 +133,19 @@ export class AddPayment implements OnInit {
       this.route.snapshot.queryParamMap.get("invoiceId") || undefined,
       this.route.snapshot.queryParamMap.get("installmentId") || undefined,
     );
+  }
+
+  paymentMethodChanged(): void {
+    this.paymentAccountId = '';
+    this.syncPaymentAccount();
+  }
+
+  private syncPaymentAccount(): void {
+    const kind = this.paymentMethod === 'Cash' ? 'Cash' : 'Bank';
+    const eligible = this.paymentAccounts.filter((row) => row.kind === kind);
+    if (!eligible.some((row) => row.accountId === this.paymentAccountId)) {
+      this.paymentAccountId = eligible.length === 1 ? eligible[0].accountId : '';
+    }
   }
 
   get outstanding(): number {
@@ -147,7 +177,8 @@ export class AddPayment implements OnInit {
   }
 
   private applyAccount(account: any): void {
-    this.pendingReceiptNumber = "";
+    this.paymentIdempotencyKey = "";
+    this.paymentPreview = null;
     this.contextError = "";
     this.selectedAccount = account;
     this.resetDiscount();
@@ -195,6 +226,7 @@ export class AddPayment implements OnInit {
       ...line,
       amount: allocation[index],
     }));
+    this.schedulePreview();
   }
 
   payRemaining(): void {
@@ -203,6 +235,7 @@ export class AddPayment implements OnInit {
       ...line,
       amount: allocation[index],
     }));
+    this.schedulePreview();
   }
 
   clearPaymentLines(): void {
@@ -210,6 +243,31 @@ export class AddPayment implements OnInit {
       ...line,
       amount: 0,
     }));
+    this.schedulePreview();
+  }
+
+  schedulePreview(): void {
+    clearTimeout(this.previewTimer);
+    this.previewTimer = setTimeout(() => void this.refreshPaymentPreview(), 300);
+  }
+
+  async refreshPaymentPreview(): Promise<void> {
+    if (!this.selectedAccount || this.totalPaymentAmount <= 0) { this.paymentPreview = null; return; }
+    const lines = this.paymentLines.filter((line) => Number(line.amount || 0) > 0)
+      .map((line) => ({ feeItem: line.feeItem, amount: Number(line.amount) }));
+    this.previewLoading = true;
+    try {
+      this.paymentPreview = await this.paymentsService.previewPayment({
+        accountId: this.selectedAccount.backendId || this.selectedAccount.id,
+        ...(this.selectedInvoice?.id ? { invoiceId: this.selectedInvoice.id } : {}),
+        ...(this.selectedInstallment?.id ? { installmentId: this.selectedInstallment.id } : {}),
+        amount: this.totalPaymentAmount,
+        lines,
+      });
+    } catch (error) {
+      this.paymentPreview = null;
+      this.contextError = safeErrorMessage(error);
+    } finally { this.previewLoading = false; }
   }
 
   async savePayment(): Promise<void> {
@@ -224,8 +282,14 @@ export class AddPayment implements OnInit {
       );
       return;
     }
+    if (!this.paymentAccountId) {
+      this.feedback.validation(this.l('Please select the receiving cashbox or bank.', 'يرجى اختيار الصندوق أو البنك المستلم.'));
+      return;
+    }
 
     const amount = this.totalPaymentAmount;
+    await this.refreshPaymentPreview();
+    if (!this.paymentPreview) return;
     if (this.additionalDiscountEnabled) {
       if (!this.discountValue || this.discountValue <= 0) {
         this.feedback.validation(this.l("Discount value is required.", "يجب إدخال قيمة الخصم.")); return;
@@ -253,18 +317,17 @@ export class AddPayment implements OnInit {
     if (!confirmed) return;
 
     this.saving = true;
-    const receiptNumber = this.pendingReceiptNumber || `REC-${crypto.randomUUID()}`;
-    this.pendingReceiptNumber = receiptNumber;
-    const studentName = this.selectedAccount.patient;
+    const idempotencyKey = this.paymentIdempotencyKey || (this.paymentIdempotencyKey = crypto.randomUUID());
 
     try {
       const result = await this.paymentsService.recordPayment({
         accountId: this.selectedAccount.backendId || this.selectedAccount.id,
-        receiptNumber,
+        idempotencyKey,
         ...(this.selectedInvoice?.id ? { invoiceId: this.selectedInvoice.id } : {}),
         ...(this.selectedInstallment?.id ? { installmentId: this.selectedInstallment.id } : {}),
         amount,
         method: this.paymentMethod,
+        paymentAccountId: this.paymentAccountId,
         paidAt: this.paymentDate,
         referenceNumber: this.referenceNumber,
         notes: this.notes,
@@ -293,21 +356,16 @@ export class AddPayment implements OnInit {
       this.paymentLines = this.buildPaymentLines();
       this.loadPreviousPayments();
       const discountPending = result?.discount?.status === "PENDING_APPROVAL";
+      const receiptNumber = result?.payment?.receiptNumber || result?.receipt?.receiptNumber;
       this.feedback.success(
         this.l(`Payment ${receiptNumber} recorded successfully.`, `تم تسجيل الدفعة ${receiptNumber} بنجاح.`),
         discountPending
           ? this.l("The discount request is pending approval and has not reduced the balance yet.", "طلب الخصم قيد الاعتماد ولم يُخفض الرصيد حتى الآن.")
           : this.l("Receipt, approved discount, and student balance were updated from PostgreSQL.", "تم تحديث الإيصال والخصم المعتمد ورصيد الطالب من PostgreSQL."),
       );
-      this.pendingReceiptNumber = "";
+      this.paymentIdempotencyKey = "";
       this.resetDiscount();
-      const invoices = await firstValueFrom(this.invoicesService.getInvoices());
-      const invoiceId = result?.payment?.invoiceId || result?.payment?.invoiceIds?.[0] || this.selectedInvoice?.id;
-      const invoice = invoices.find((item: any) => (item.backendId || item.id) === invoiceId);
-      if (invoice)
-        void this.router.navigate(["/finance/invoices", invoice.backendId || invoice.id], {
-          queryParams: { receipt: result?.payment?.receiptNumber || receiptNumber },
-        });
+      if (result?.payment?.id) void this.router.navigate(["/finance/payment-details", result.payment.id]);
     } catch (error) {
       this.feedback.error(this.l("Payment was not recorded.", "لم يتم تسجيل الدفعة."), safeErrorMessage(error));
     } finally {
@@ -396,7 +454,8 @@ export class AddPayment implements OnInit {
     this.selectedInstallment = null;
     this.paymentLines = [];
     this.previousPayments = [];
-    this.pendingReceiptNumber = "";
+    this.paymentIdempotencyKey = "";
+    this.paymentPreview = null;
     this.resetDiscount();
     if (clearError) this.contextError = "";
   }

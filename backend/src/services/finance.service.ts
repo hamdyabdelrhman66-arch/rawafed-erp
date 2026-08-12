@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { Actor, PaymentInput } from "../dto/core.dto.js";
+import type { Actor, PaymentInput, PaymentPreviewInput } from "../dto/core.dto.js";
 import { AuditRepository } from "../repositories/audit.repository.js";
 import { FinanceAccountsRepository } from "../repositories/finance-accounts.repository.js";
 import { FinanceInvoicesRepository } from "../repositories/finance-invoices.repository.js";
@@ -20,6 +20,16 @@ import { allocateInstallmentPayment, installmentStatus } from "./installment-all
 import { classifyPaymentError } from "./payment-error.js";
 import { schoolProfileUsing } from "./school-settings.service.js";
 import { createStudentDiscountUsing, shapeStudentDiscount } from "./student-discount.service.js";
+import {
+  calculateInclusivePaymentTax,
+  ensureFeeAgreementUsing,
+  issuePaymentReceiptUsing,
+  nextFinanceDocumentNumber,
+  recordInvoiceTaxEventUsing,
+  reverseTaxEventsUsing,
+  vatAccountingBasisUsing,
+  vatEventReportUsing,
+} from "./tuition-tax.service.js";
 
 const paidForAccount = (account: any) =>
   money(
@@ -85,6 +95,12 @@ const accountShape = (a: any) => {
   const subtotal = money(feeItems.reduce((sum: number, item: any) => sum + item.subtotal, 0));
   const vat = money(feeItems.reduce((sum: number, item: any) => sum + item.vat, 0));
   const governmentBorneVat = money(feeItems.reduce((sum: number, item: any) => sum + item.governmentBorneVat, 0));
+  const expectedVat = money(vat + governmentBorneVat);
+  const contractTotal = money(subtotal + vat);
+  const invoicedAmount = money((a.invoices || []).reduce((sum: number, invoice: any) => sum + Number(invoice.total), 0));
+  const taxInvoiced = money((a.invoices || []).reduce((sum: number, invoice: any) => sum + Number(invoice.vatAmount || 0), 0));
+  const collectedNetAmount = money((a.payments || []).reduce((sum: number, payment: any) => sum + Number(payment.receipt?.netAmount || payment.amount || 0), 0));
+  const collectedVatAmount = money((a.payments || []).reduce((sum: number, payment: any) => sum + Number(payment.receipt?.parentVat || 0), 0));
   const plan = a.student?.customer?.installmentPlans?.[0];
   const installments = (plan?.installments || []).map((row: any) => ({ ...row, computedStatus: installmentStatus({ ...row, plan }) }));
   const paidInstallments = installments.filter((row: any) => row.computedStatus === "paid").length;
@@ -105,6 +121,22 @@ const accountShape = (a: any) => {
     vat,
     totalVat: money(vat + governmentBorneVat),
     governmentBorneVat,
+    contractedFees: subtotal,
+    expectedVat,
+    expectedParentVat: vat,
+    expectedGovernmentBorneVat: governmentBorneVat,
+    contractTotal,
+    amountDue: remaining,
+    collectedAmount: paid,
+    collectedNetAmount,
+    collectedVatAmount,
+    invoicedAmount,
+    taxInvoiced,
+    outstandingInvoicedBalance: money(Math.max((a.invoices || []).reduce((sum: number, invoice: any) => {
+      const invoicePaid = (invoice.payments || []).reduce((n: number, allocation: any) => n + Number(allocation.amount), 0);
+      return sum + Number(invoice.total) - invoicePaid;
+    }, 0), 0)),
+    remainingContractBalance: remaining,
     grossFees,
     previousDiscounts: totalDiscounts,
     totalDiscounts,
@@ -219,15 +251,35 @@ const paymentShape = (p: any) => ({
   accountId: p.accountId,
   registrationId: p.registrationId,
   registrationNumber: p.account.registration.registrationNumber,
-  receiptNumber: p.receiptNumber,
+  studentName: p.account.student.arabicName || p.account.student.englishName,
+  studentNameEn: p.account.student.englishName,
+  grade: p.account.student.grade,
+  guardianName: p.account.student.parentName,
+  receiptNumber: p.receipt?.receiptNumber || p.receiptNumber,
+  receiptId: p.receipt?.id || null,
   paymentItem: p.feeAllocations?.length
     ? p.feeAllocations.map((allocation: any) => allocation.feeItem?.name).filter(Boolean).join(" + ")
     : "School Fees",
   feeItems: (p.feeAllocations || []).map((allocation: any) => ({
     name: allocation.feeItem?.name || "School Fees",
     amount: money(allocation.amount),
+    netAmount: money(allocation.netAmount),
+    vatAmount: money(allocation.vatAmount),
+    governmentBorneVat: money(allocation.governmentBorneVat),
+    discountAmount: money(allocation.discountAmount),
   })),
   amount: money(p.amount),
+  netAmount: money(p.receipt?.netAmount),
+  vatAmount: money(p.receipt?.parentVat),
+  governmentBorneVat: money(p.receipt?.governmentBorneVat),
+  balanceBefore: p.receipt ? money(p.receipt.balanceBefore) : null,
+  balanceAfter: p.receipt ? money(p.receipt.balanceAfter) : null,
+  totalPaidBefore: p.receipt ? money(p.receipt.totalPaidBefore) : null,
+  totalPaidAfter: p.receipt ? money(p.receipt.totalPaidAfter) : null,
+  contractTotal: p.receipt?.feeAgreement ? money(p.receipt.feeAgreement.contractTotal) : null,
+  contractedFees: p.receipt?.feeAgreement ? money(p.receipt.feeAgreement.baseFees) : null,
+  expectedVat: p.receipt?.feeAgreement ? money(p.receipt.feeAgreement.expectedVat) : null,
+  taxRecognition: p.taxEvents?.[0]?.status || "LEGACY",
   method: p.method,
   status: p.status,
   paidAt: p.paidAt.toISOString(),
@@ -246,6 +298,22 @@ const paymentShape = (p: any) => ({
     total: money(allocation.invoice?.total),
     amount: money(allocation.amount),
   })),
+  journalEntries: (p.journalEntries || []).map((journal: any) => ({
+    id: journal.id,
+    entryNumber: journal.entryNumber,
+    status: journal.status,
+  })),
+  paymentAccount: (() => {
+    const line = (p.journalEntries || [])
+      .flatMap((journal: any) => journal.lines || [])
+      .find((journalLine: any) =>
+        Number(journalLine.debit) > 0 &&
+        (journalLine.account?.isCashAccount || journalLine.account?.isBankAccount),
+      );
+    return line?.account
+      ? { id: line.account.id, code: line.account.code, name: line.account.name, nameAr: line.account.nameAr }
+      : null;
+  })(),
   nationalId: p.account.student.nationalId,
   vatExempt: isSaudiNationalId(p.account.student.nationalId),
   createdAt: p.createdAt.toISOString(),
@@ -537,6 +605,125 @@ export class FinanceService {
       await new FinancePaymentsRepository(this.prisma).list(skip, take)
     ).map(paymentShape);
   }
+  async paymentPreview(input: PaymentPreviewInput) {
+    const account = await new FinanceAccountsRepository(this.prisma).findById(input.accountId);
+    if (!account) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
+    const shaped = accountShape(account) as any;
+    const amount = new Prisma.Decimal(input.amount || 0).toDecimalPlaces(2);
+    if (amount.lte(0)) throw new ServiceError("Payment amount must be greater than zero.", 422, "INVALID_PAYMENT_AMOUNT");
+    if (amount.gt(shaped.remaining)) throw new ServiceError("Payment exceeds the outstanding student balance.", 422, "INVALID_PAYMENT_ALLOCATION");
+
+    const requested = input.lines?.length ? input.lines : [];
+    const selected = requested.length
+      ? requested.map((line) => {
+          const feeItem = account.feeItems.find((item: any) => item.name === line.feeItem);
+          if (!feeItem) throw new ServiceError(`Fee item ${line.feeItem} was not found.`, 422, "INVALID_PAYMENT_ALLOCATION");
+          return { feeItem, amount: new Prisma.Decimal(line.amount).toDecimalPlaces(2) };
+        })
+      : [{
+          feeItem: account.feeItems.find((item: any) => Number((shaped.feeItems.find((s: any) => s.id === item.id)?.remaining) || 0) > 0)
+            || account.feeItems[0],
+          amount,
+        }];
+    if (!selected[0]?.feeItem) throw new ServiceError("No payable fee item was found.", 422, "INVALID_PAYMENT_ALLOCATION");
+    const selectedTotal = selected.reduce((sum, line) => sum.plus(line.amount), new Prisma.Decimal(0));
+    if (!selectedTotal.equals(amount)) throw new ServiceError("Payment lines do not equal the payment total.", 422, "INVALID_PAYMENT_ALLOCATION");
+    const breakdowns = selected.map(({ feeItem, amount: lineAmount }) => ({
+      feeItem,
+      ...calculateInclusivePaymentTax({
+        grossAmount: lineAmount,
+        vatRate: feeItem.vatRate || 0,
+        taxTreatment: feeItem.taxTreatment || "STANDARD",
+      }),
+    }));
+    const taxableAmount = breakdowns.reduce((sum, row) => sum.plus(row.taxableAmount), new Prisma.Decimal(0)).toDecimalPlaces(2);
+    const parentVat = breakdowns.reduce((sum, row) => sum.plus(row.parentVat), new Prisma.Decimal(0)).toDecimalPlaces(2);
+    const governmentBorneVat = breakdowns.reduce((sum, row) => sum.plus(row.governmentBorneVat), new Prisma.Decimal(0)).toDecimalPlaces(2);
+    return {
+      accountingBasis: await vatAccountingBasisUsing(this.prisma),
+      amountReceived: Number(amount),
+      allocatedBase: Number(taxableAmount),
+      parentVat: Number(parentVat),
+      governmentBorneVat: Number(governmentBorneVat),
+      totalVat: Number(parentVat.plus(governmentBorneVat)),
+      balanceBefore: shaped.remaining,
+      balanceAfter: Number(new Prisma.Decimal(shaped.remaining).minus(amount).toDecimalPlaces(2)),
+      allocations: breakdowns.map((row) => ({
+        feeItemId: row.feeItem.id,
+        feeItem: row.feeItem.name,
+        grossAmount: Number(row.grossAmount),
+        netAmount: Number(row.taxableAmount),
+        vatAmount: Number(row.parentVat),
+        governmentBorneVat: Number(row.governmentBorneVat),
+        taxTreatment: row.taxTreatment,
+      })),
+    };
+  }
+
+  async paymentReceipt(id: string) {
+    const payment = await new FinancePaymentsRepository(this.prisma).findById(id);
+    if (!payment) throw new ServiceError("Payment not found.", 404, "PAYMENT_NOT_FOUND");
+    if (!payment.receipt) throw new ServiceError("This historical payment does not have a version 2 receipt document.", 404, "PAYMENT_RECEIPT_NOT_FOUND");
+    const school = await schoolProfileUsing(this.prisma);
+    return { school, payment: paymentShape(payment), receipt: payment.receipt, taxEvents: payment.taxEvents };
+  }
+
+  async feeAgreements(accountId: string) {
+    return this.prisma.feeAgreement.findMany({
+      where: { accountId }, include: { lines: true, installments: { orderBy: { dueDate: "asc" } } }, orderBy: { issuedAt: "desc" },
+    });
+  }
+
+  async vatConfiguration() {
+    return {
+      basis: await vatAccountingBasisUsing(this.prisma),
+      warningAr: "يجب أن يعكس الأساس المختار المعالجة المعتمدة فعليًا لدى المنشأة والأنظمة ذات الصلة.",
+      warningEn: "The selected basis must reflect the organization's actually approved VAT treatment.",
+    };
+  }
+
+  async updateVatConfiguration(input: { basis: "INVOICE_ACCRUAL" | "CASH"; confirmation: true; reason: string }, actor: Actor) {
+    const previous = await this.vatConfiguration();
+    if (previous.basis !== input.basis) {
+      const recognizedEvents = await this.prisma.taxEvent.count({ where: { status: "RECOGNIZED" } });
+      if (recognizedEvents > 0) {
+        throw new ServiceError(
+          "VAT accounting basis cannot be changed after recognized version 2 tax events exist. Use a controlled finance migration.",
+          409,
+          "VAT_BASIS_CHANGE_REQUIRES_MIGRATION",
+        );
+      }
+    }
+    if (input.basis === "CASH") {
+      const required = await this.prisma.chartOfAccount.findMany({
+        where: { systemKey: { in: ["vat-payable", "deferred-output-vat"] }, active: true, deletedAt: null },
+        select: { systemKey: true },
+      });
+      if (required.length !== 2) throw new ServiceError("Cash-basis VAT requires configured VAT payable and deferred output VAT accounts.", 422, "ACCOUNT_MAPPING_MISSING");
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.setting.upsert({
+        where: { key: "vat_accounting_basis" },
+        create: { key: "vat_accounting_basis", value: { basis: input.basis } },
+        update: { value: { basis: input.basis } },
+      });
+      await new AuditRepository(tx).create({
+        actorId: actor.id, actorRole: actor.role, action: "VAT_ACCOUNTING_BASIS_CHANGED",
+        entityType: "Setting", entityId: "vat_accounting_basis",
+        details: { oldValue: previous.basis, newValue: input.basis, reason: input.reason },
+      });
+    });
+    return this.vatConfiguration();
+  }
+
+  async vatEvents(filters: { from?: string; to?: string; branchId?: string; taxTreatment?: string }) {
+    return vatEventReportUsing(this.prisma, {
+      from: filters.from ? new Date(`${filters.from}T00:00:00.000Z`) : undefined,
+      to: filters.to ? new Date(`${filters.to}T23:59:59.999Z`) : undefined,
+      branchId: filters.branchId,
+      taxTreatment: filters.taxTreatment,
+    });
+  }
   async createInvoice(input: Record<string, any>, actor: Actor) {
     return this.prisma.$transaction(async (tx) => {
       const accounts = new FinanceAccountsRepository(tx);
@@ -587,6 +774,7 @@ export class FinanceService {
         );
       }
       const schoolSnapshot = await schoolProfileUsing(tx);
+      const feeAgreement = await ensureFeeAgreementUsing(tx, account.id, actor);
       const row = await new FinanceInvoicesRepository(tx).create(
         {
           id: input.id ? String(input.id) : randomUUID(),
@@ -603,6 +791,9 @@ export class FinanceService {
           discount,
           total,
           serviceCategory: category,
+          feeAgreementId: feeAgreement.id,
+          documentType: "TAX_INVOICE",
+          workflowVersion: 2,
           legacyCombined: false,
           dueAt: input.dueAt ? new Date(input.dueAt) : null,
           issuedAt,
@@ -631,15 +822,19 @@ export class FinanceService {
       const customer = await tx.accountingCustomer.findUnique({
         where: { studentId: account.studentId },
       });
-      const vatAccount = totalVat
+      const accountingBasis = await vatAccountingBasisUsing(tx);
+      const parentVatAccount = vat
         ? await tx.chartOfAccount.findUnique({
-            where: { systemKey: "vat-payable" },
+            where: { systemKey: accountingBasis === "CASH" ? "deferred-output-vat" : "vat-payable" },
           })
+        : null;
+      const governmentVatPayableAccount = governmentBorneVat
+        ? await tx.chartOfAccount.findUnique({ where: { systemKey: "vat-payable" } })
         : null;
       const governmentVatAccount = governmentBorneVat
         ? await tx.chartOfAccount.findUnique({ where: { systemKey: "government-vat-receivable" } })
         : null;
-      if (!customer || (totalVat && !vatAccount) || (governmentBorneVat && !governmentVatAccount))
+      if (!customer || (vat && !parentVatAccount) || (governmentBorneVat && (!governmentVatAccount || !governmentVatPayableAccount)))
         throw new ServiceError(
           "Required VAT accounting accounts are not configured.",
           422,
@@ -653,7 +848,7 @@ export class FinanceService {
           payload: { invoiceId: row.id },
         },
       });
-      await JournalService.postUsing(
+      const invoiceJournal = await JournalService.postUsing(
         tx,
         {
           postingDate: row.issuedAt,
@@ -669,7 +864,8 @@ export class FinanceService {
             { accountId: customer.receivableAccountId, debit: total },
             ...(governmentBorneVat ? [{ accountId: governmentVatAccount!.id, debit: governmentBorneVat }] : []),
             { accountId: mapping.revenue.id, credit: taxableAmount },
-            ...(totalVat ? [{ accountId: vatAccount!.id, credit: totalVat }] : []),
+            ...(vat ? [{ accountId: parentVatAccount!.id, credit: vat }] : []),
+            ...(governmentBorneVat ? [{ accountId: governmentVatPayableAccount!.id, credit: governmentBorneVat }] : []),
           ],
         },
         actor,
@@ -678,12 +874,17 @@ export class FinanceService {
         where: { id: outbox.id },
         data: { processedAt: new Date() },
       });
+      await recordInvoiceTaxEventUsing(tx, { invoice: row, actor, journalEntryId: invoiceJournal.id });
       return invoiceShape(row);
     });
   }
   async createPayment(input: PaymentInput, actor: Actor) {
     let transactionStep = "ACCOUNT_LOAD";
     try {
+      if (input.idempotencyKey) {
+        const existingPayment = await new FinancePaymentsRepository(this.prisma).findByIdempotencyKey(input.idempotencyKey);
+        if (existingPayment) return { payment: paymentShape(existingPayment), idempotentReplay: true };
+      }
       const preview = await new FinanceAccountsRepository(this.prisma).findById(input.accountId);
       if (!preview) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
       if (input.installmentId && !(accountShape(preview) as any).installments.some((row: any) => row.id === input.installmentId))
@@ -695,6 +896,7 @@ export class FinanceService {
       transactionStep = "ACCOUNT_LOAD";
       const account = await new FinanceAccountsRepository(tx).findById(input.accountId);
       if (!account) throw new ServiceError("Finance account not found.", 404, "NOT_FOUND");
+      const feeAgreement = await ensureFeeAgreementUsing(tx, account.id, actor);
       const customer = await tx.accountingCustomer.findUnique({ where: { studentId: account.studentId } });
       if (!customer) throw new ServiceError("Student receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
 
@@ -705,7 +907,7 @@ export class FinanceService {
       const submitted = input.lines?.length ? input.lines : [{ feeItem: input.paymentItem || "School Fees", amount }];
       const names = new Set<string>();
       let submittedTotal = 0;
-      const feeAllocations: Array<{ feeItemId: string; amount: number }> = [];
+      const feeAllocations: Array<{ feeItemId: string; amount: number; netAmount: number; vatAmount: number; governmentBorneVat: number; discountAmount: number }> = [];
       const resolvedLines: Array<{ feeItem: any; amount: number }> = [];
       for (const line of submitted) {
         const name = String(line.feeItem || "").trim();
@@ -716,7 +918,16 @@ export class FinanceService {
           throw new ServiceError(`Payment exceeds the outstanding amount for ${name || "fee item"}.`, 422, "FEE_ITEM_OVERPAYMENT");
         names.add(name);
         submittedTotal = money(submittedTotal + lineAmount);
-        feeAllocations.push({ feeItemId: feeItem.id, amount: lineAmount });
+        const taxBreakdown = calculateInclusivePaymentTax({
+          grossAmount: lineAmount,
+          vatRate: feeItem.vatRate || 0,
+          taxTreatment: feeItem.taxTreatment || "STANDARD",
+        });
+        feeAllocations.push({
+          feeItemId: feeItem.id, amount: lineAmount,
+          netAmount: Number(taxBreakdown.taxableAmount), vatAmount: Number(taxBreakdown.parentVat),
+          governmentBorneVat: Number(taxBreakdown.governmentBorneVat), discountAmount: 0,
+        });
         resolvedLines.push({ feeItem, amount: lineAmount });
       }
       if (submittedTotal !== amount) throw new ServiceError("Payment lines do not equal the payment total.", 422, "INVALID_PAYMENT_ALLOCATION");
@@ -724,9 +935,10 @@ export class FinanceService {
       const invoiceRepo = new FinanceInvoicesRepository(tx);
       transactionStep = "INVOICE_ALLOCATION";
       const openInvoices = await invoiceRepo.findOpenAllForAccount(account.id);
-      const invoiceAllocations: Array<{ invoiceId: string; amount: number }> = [];
+      const invoiceAllocations: Array<{ invoiceId: string; amount: number; netAmount: number; vatAmount: number; governmentBorneVat: number; discountAmount: number }> = [];
       const affected = new Map<string, { invoice: any; previousPaid: number; allocated: number; receivableAccountId: string }>();
-      const vatAccount = await tx.chartOfAccount.findUnique({ where: { systemKey: "vat-payable" } });
+      const accountingBasis = await vatAccountingBasisUsing(tx);
+      const parentVatAccount = await tx.chartOfAccount.findUnique({ where: { systemKey: accountingBasis === "CASH" ? "deferred-output-vat" : "vat-payable" } });
 
       const selectedByCategory = new Map<string, number>();
       for (const line of resolvedLines) {
@@ -748,25 +960,38 @@ export class FinanceService {
           const categoryItems = account.feeItems.filter(
             (item: any) => revenueCategory(item.serviceCategory || item.name) === category,
           );
-          const invoiceSubtotal = money(categoryItems.reduce(
+          const contractualSubtotal = money(categoryItems.reduce(
             (sum: number, item: any) => sum + Number(item.subtotal ?? item.amount),
             0,
           ));
-          const invoiceTaxPreview = calculateFeePreview(
+          const contractualTaxPreview = calculateFeePreview(
             studentTaxIdentity(account.student),
-            [{ name: categoryItems.map((item: any) => item.name).join(", ") || categoryLabel(category), category, amount: invoiceSubtotal }],
+            [{ name: categoryItems.map((item: any) => item.name).join(", ") || categoryLabel(category), category, amount: contractualSubtotal }],
             [mapping],
           );
-          const invoiceTaxLine = invoiceTaxPreview.lines[0];
-          const invoiceVat = invoiceTaxLine.chargedVat;
-          const invoiceGovernmentVat = invoiceTaxLine.governmentBorneAmount;
-          const invoiceTotalVat = invoiceTaxLine.vatAmount;
-          const invoiceTotal = invoiceTaxLine.parentPayable;
-          if (invoiceTotalVat && !vatAccount) throw new ServiceError("VAT payable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
+          const contractualTaxLine = contractualTaxPreview.lines[0];
+          const cashTax = calculateInclusivePaymentTax({
+            grossAmount: selectedAmount,
+            vatRate: contractualTaxLine.vatRate,
+            taxTreatment: contractualTaxLine.treatment,
+          });
+          const invoiceSubtotal = accountingBasis === "CASH" ? Number(cashTax.taxableAmount) : contractualSubtotal;
+          const invoiceVat = accountingBasis === "CASH" ? Number(cashTax.parentVat) : contractualTaxLine.chargedVat;
+          const invoiceGovernmentVat = accountingBasis === "CASH" ? Number(cashTax.governmentBorneVat) : contractualTaxLine.governmentBorneAmount;
+          const invoiceTotalVat = money(invoiceVat + invoiceGovernmentVat);
+          const invoiceTotal = accountingBasis === "CASH" ? selectedAmount : contractualTaxLine.parentPayable;
+          const invoiceTaxLine = { ...contractualTaxLine, chargedVat: invoiceVat, governmentBorneAmount: invoiceGovernmentVat, vatAmount: invoiceTotalVat, parentPayable: invoiceTotal };
+          const invoiceTaxPreview = accountingBasis === "CASH"
+            ? { ...contractualTaxPreview, subtotal: invoiceSubtotal, chargedVat: invoiceVat, governmentBorneAmount: invoiceGovernmentVat, totalVat: invoiceTotalVat, parentPayableTotal: invoiceTotal, lines: [invoiceTaxLine] }
+            : contractualTaxPreview;
+          const governmentVatPayableAccount = invoiceGovernmentVat
+            ? await tx.chartOfAccount.findUnique({ where: { systemKey: "vat-payable" } })
+            : null;
+          if (invoiceVat && !parentVatAccount) throw new ServiceError("VAT payable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
           const governmentVatAccount = invoiceGovernmentVat
             ? await tx.chartOfAccount.findUnique({ where: { systemKey: "government-vat-receivable" } })
             : null;
-          if (invoiceGovernmentVat && !governmentVatAccount)
+          if (invoiceGovernmentVat && (!governmentVatAccount || !governmentVatPayableAccount))
             throw new ServiceError("Government VAT receivable account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
           const issuedAt = new Date(input.paidAt || Date.now());
           const schoolSnapshot = await schoolProfileUsing(tx);
@@ -787,6 +1012,9 @@ export class FinanceService {
               serviceCategory: category,
               costCenterId: mapping.costCenterId,
               branchId: mapping.branchId || account.registration.branchId,
+              feeAgreementId: feeAgreement.id,
+              documentType: "TAX_INVOICE",
+              workflowVersion: 2,
               legacyCombined: false,
               issuedAt,
             },
@@ -810,7 +1038,7 @@ export class FinanceService {
             data: { eventType: "INVOICE_CREATED", aggregateType: "finance_invoice", aggregateId: invoice.id, payload: { invoiceId: invoice.id, category } },
           });
           transactionStep = "AUTOMATIC_JOURNAL";
-          await JournalService.postUsing(tx, {
+          const invoiceJournal = await JournalService.postUsing(tx, {
             postingDate: invoice.issuedAt,
             description: `${categoryLabel(category)} invoice ${invoice.invoiceNumber}`,
             referenceNumber: invoice.invoiceNumber,
@@ -821,9 +1049,11 @@ export class FinanceService {
               { accountId: receivableAccountId, debit: invoiceTotal, costCenterId: mapping.costCenterId || undefined },
               ...(invoiceGovernmentVat ? [{ accountId: governmentVatAccount!.id, debit: invoiceGovernmentVat, costCenterId: mapping.costCenterId || undefined }] : []),
               { accountId: mapping.revenue.id, credit: invoiceSubtotal, costCenterId: mapping.costCenterId || undefined },
-              ...(invoiceTotalVat ? [{ accountId: vatAccount!.id, credit: invoiceTotalVat, costCenterId: mapping.costCenterId || undefined }] : []),
+              ...(invoiceVat ? [{ accountId: parentVatAccount!.id, credit: invoiceVat, costCenterId: mapping.costCenterId || undefined }] : []),
+              ...(invoiceGovernmentVat ? [{ accountId: governmentVatPayableAccount!.id, credit: invoiceGovernmentVat, costCenterId: mapping.costCenterId || undefined }] : []),
             ],
           }, actor);
+          await recordInvoiceTaxEventUsing(tx, { invoice, actor, journalEntryId: invoiceJournal.id });
           await tx.accountingOutbox.update({ where: { id: outbox.id }, data: { processedAt: new Date() } });
           transactionStep = "AUDIT_LOG";
           await new AuditRepository(tx).create({
@@ -865,10 +1095,22 @@ export class FinanceService {
         const invoiceDiscounts = money((value.invoice.studentDiscounts || []).reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
         if (value.allocated > money(Number(value.invoice.total) - invoiceDiscounts - value.previousPaid))
           throw new ServiceError(`Payment exceeds the ${categoryLabel(value.invoice.serviceCategory)} invoice balance.`, 422, "INVOICE_OVERPAYMENT");
-        invoiceAllocations.push({ invoiceId: value.invoice.id, amount: value.allocated });
+          const invoiceTax = calculateInclusivePaymentTax({
+            grossAmount: value.allocated,
+            vatRate: value.invoice.lines?.[0]?.vatRate || 0,
+            taxTreatment: value.invoice.taxTreatment || "STANDARD",
+          });
+          invoiceAllocations.push({
+            invoiceId: value.invoice.id,
+            amount: value.allocated,
+            netAmount: Number(invoiceTax.taxableAmount),
+            vatAmount: Number(invoiceTax.parentVat),
+            governmentBorneVat: Number(invoiceTax.governmentBorneVat),
+            discountAmount: 0,
+          });
       }
 
-      const receiptNumber = input.receiptNumber || `REC-${Date.now()}-${randomUUID().slice(0, 8)}`;
+      const receiptNumber = await nextFinanceDocumentNumber(tx, "PAYMENT_RECEIPT", new Date(input.paidAt || Date.now()));
       if (await new FinancePaymentsRepository(tx).findByReceipt(receiptNumber))
         throw new ServiceError("Receipt number has already been posted.", 409, "DUPLICATE_RECEIPT");
       transactionStep = "PAYMENT_CREATION";
@@ -880,6 +1122,8 @@ export class FinanceService {
         method: input.method || "Cash",
         referenceNumber: input.referenceNumber,
         notes: input.notes,
+        idempotencyKey: input.idempotencyKey,
+        installmentId: input.installmentId,
         paidAt: new Date(input.paidAt || Date.now()),
         collectedBy: actor.displayName || "Finance",
         invoiceAllocations,
@@ -887,7 +1131,7 @@ export class FinanceService {
       });
       if (discount) await tx.studentDiscount.update({ where: { id: discount.id }, data: { paymentId: payment.id } });
       transactionStep = "INSTALLMENT_UPDATE";
-      await allocateInstallmentPayment(tx, customer.id, amount);
+      await allocateInstallmentPayment(tx, customer.id, amount, input.installmentId);
       transactionStep = "STUDENT_BALANCE_UPDATE";
       for (const value of affected.values()) {
         const paidAfter = money(value.previousPaid + value.allocated);
@@ -898,13 +1142,29 @@ export class FinanceService {
 
       const cashKey = /bank|transfer|card|online/i.test(input.method || "") ? "bank-main" : "cash-main";
       transactionStep = "ACCOUNT_MAPPING";
-      const cash = await tx.chartOfAccount.findUnique({ where: { systemKey: cashKey } });
+      const cash = input.paymentAccountId
+        ? await tx.chartOfAccount.findFirst({
+            where: {
+              id: input.paymentAccountId, active: true, deletedAt: null,
+              ...(cashKey === "bank-main" ? { isBankAccount: true } : { isCashAccount: true }),
+            },
+          })
+        : await tx.chartOfAccount.findUnique({ where: { systemKey: cashKey } });
       if (!cash) throw new ServiceError("Cash or bank account is not configured.", 422, "ACCOUNT_MAPPING_MISSING");
+      const recognizedVat = feeAllocations.reduce((sum, row) => sum + row.vatAmount, 0);
+      const deferredVat = accountingBasis === "CASH" && recognizedVat
+        ? await tx.chartOfAccount.findUnique({ where: { systemKey: "deferred-output-vat" } })
+        : null;
+      const payableVat = accountingBasis === "CASH" && recognizedVat
+        ? await tx.chartOfAccount.findUnique({ where: { systemKey: "vat-payable" } })
+        : null;
+      if (accountingBasis === "CASH" && recognizedVat && (!deferredVat || !payableVat))
+        throw new ServiceError("Cash-basis VAT accounts are not configured.", 422, "ACCOUNT_MAPPING_MISSING");
       const paymentOutbox = await tx.accountingOutbox.create({
         data: { eventType: "PAYMENT_CREATED", aggregateType: "finance_payment", aggregateId: payment.id, payload: { paymentId: payment.id, invoiceIds: invoiceAllocations.map((item) => item.invoiceId) } },
       });
       transactionStep = "AUTOMATIC_JOURNAL";
-      await JournalService.postUsing(tx, {
+      const paymentJournal = await JournalService.postUsing(tx, {
         postingDate: payment.paidAt,
         description: `Consolidated receipt ${payment.receiptNumber}`,
         referenceNumber: payment.receiptNumber,
@@ -917,8 +1177,33 @@ export class FinanceService {
             accountId: value.receivableAccountId,
             credit: value.allocated,
           })),
+          ...(recognizedVat && deferredVat && payableVat ? [
+            { accountId: deferredVat.id, debit: recognizedVat },
+            { accountId: payableVat.id, credit: recognizedVat },
+          ] : []),
         ],
       }, actor);
+      const totalPaidBefore = account.payments.reduce((sum: Prisma.Decimal, row: any) => sum.plus(row.amount), new Prisma.Decimal(0));
+      const totalTax = feeAllocations.reduce((sum, row) => ({
+        grossAmount: sum.grossAmount.plus(row.amount), taxableAmount: sum.taxableAmount.plus(row.netAmount),
+        parentVat: sum.parentVat.plus(row.vatAmount), governmentBorneVat: sum.governmentBorneVat.plus(row.governmentBorneVat),
+        totalVat: sum.totalVat.plus(row.vatAmount).plus(row.governmentBorneVat),
+      }), {
+        grossAmount: new Prisma.Decimal(0), taxableAmount: new Prisma.Decimal(0), parentVat: new Prisma.Decimal(0),
+        governmentBorneVat: new Prisma.Decimal(0), totalVat: new Prisma.Decimal(0),
+      });
+      await issuePaymentReceiptUsing(tx, {
+        payment, feeAgreementId: feeAgreement.id,
+        breakdown: {
+          ...totalTax, vatRate: totalTax.taxableAmount.gt(0)
+            ? totalTax.totalVat.mul(100).div(totalTax.taxableAmount).toDecimalPlaces(4)
+            : new Prisma.Decimal(0),
+          taxTreatment: resolvedLines.length === 1 ? resolvedLines[0].feeItem.taxTreatment : "MIXED",
+        },
+        balanceBefore: shaped.remaining, totalPaidBefore, actor,
+        allocations: feeAllocations.map((row) => ({ ...row })),
+        journalEntryId: paymentJournal.id,
+      });
       await tx.accountingOutbox.update({ where: { id: paymentOutbox.id }, data: { processedAt: new Date() } });
       transactionStep = "AUDIT_LOG";
       await new AuditRepository(tx).create({
@@ -929,12 +1214,14 @@ export class FinanceService {
         ...value.invoice,
         payments: [...value.invoice.payments, { amount: value.allocated }],
       }));
+      const completedPayment = await new FinancePaymentsRepository(tx).findById(payment.id);
       return {
-        payment: paymentShape(payment),
+        payment: paymentShape(completedPayment || payment),
         discount: discount ? shapeStudentDiscount(discount) : null,
         account: accountShape({ ...account, payments: [...account.payments, payment] }),
         invoice: invoiceResults[0],
         invoices: invoiceResults,
+        receipt: completedPayment?.receipt || null,
         consolidatedReceipt: { receiptNumber, total: amount, invoices: invoiceAllocations },
       };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
@@ -957,6 +1244,7 @@ export class FinanceService {
             404,
             "NOT_FOUND",
           );
+        const feeAgreement = await ensureFeeAgreementUsing(tx, account.id, actor);
         const invoices = new FinanceInvoicesRepository(tx);
         let invoice = input.invoiceId
           ? await invoices.findById(input.invoiceId)
@@ -964,6 +1252,9 @@ export class FinanceService {
         if (input.invoiceId && !invoice)
           throw new ServiceError("Invoice not found.", 404, "NOT_FOUND");
         const paidAt = new Date(input.paidAt || Date.now());
+        const amount = money(input.amount);
+        if (amount <= 0)
+          throw new ServiceError("Payment amount must be greater than zero.", 422, "INVALID_PAYMENT_AMOUNT");
         const customer = await tx.accountingCustomer.findUnique({
           where: { studentId: account.studentId },
         });
@@ -974,8 +1265,8 @@ export class FinanceService {
           );
         if (!invoice) {
           const shapedAccount = accountShape(account);
-          const invoiceTotal = money(shapedAccount.remaining);
-          if (invoiceTotal <= 0)
+          const contractOutstanding = money(shapedAccount.remaining);
+          if (contractOutstanding <= 0)
             throw new ServiceError(
               "Student account has no outstanding balance to invoice.",
               422,
@@ -988,19 +1279,25 @@ export class FinanceService {
             throw new ServiceError(
               "Tuition revenue account is not configured.", 422, "ACCOUNT_MAPPING_MISSING",
             );
-          const invoiceSubtotal = money(shapedAccount.subtotal);
-          const invoiceVat = vatForSubtotal(
-            invoiceSubtotal,
-            account.student.nationalId,
-          );
-          if (money(invoiceSubtotal + invoiceVat) !== invoiceTotal)
+          const legacyAccountingBasis = await vatAccountingBasisUsing(tx);
+          const contractualSubtotal = money(shapedAccount.subtotal);
+          const contractualVat = vatForSubtotal(contractualSubtotal, account.student.nationalId);
+          const paymentTax = calculateInclusivePaymentTax({
+            grossAmount: amount,
+            vatRate: vatRateForStudent(account.student.nationalId),
+            taxTreatment: contractualVat ? "STANDARD" : "ZERO_RATE",
+          });
+          const invoiceSubtotal = legacyAccountingBasis === "CASH" ? money(paymentTax.taxableAmount) : contractualSubtotal;
+          const invoiceVat = legacyAccountingBasis === "CASH" ? money(paymentTax.parentVat) : contractualVat;
+          const invoiceTotal = legacyAccountingBasis === "CASH" ? amount : contractOutstanding;
+          if (legacyAccountingBasis === "INVOICE_ACCRUAL" && money(invoiceSubtotal + invoiceVat) !== invoiceTotal)
             throw new ServiceError(
               "Student finance account VAT totals are inconsistent.",
               422,
             );
           const vatAccount = invoiceVat
             ? await tx.chartOfAccount.findUnique({
-                where: { systemKey: "vat-payable" },
+                where: { systemKey: legacyAccountingBasis === "CASH" ? "deferred-output-vat" : "vat-payable" },
               })
             : null;
           if (invoiceVat && !vatAccount)
@@ -1017,6 +1314,9 @@ export class FinanceService {
               vatAmount: invoiceVat,
               taxDecision: { schoolSnapshot } as unknown as Prisma.InputJsonValue,
               total: invoiceTotal,
+              feeAgreementId: feeAgreement.id,
+              documentType: "TAX_INVOICE",
+              workflowVersion: 2,
               issuedAt: paidAt,
             },
             {
@@ -1047,7 +1347,7 @@ export class FinanceService {
             },
           });
           transactionStep = "AUTOMATIC_JOURNAL";
-          await JournalService.postUsing(
+          const invoiceJournal = await JournalService.postUsing(
             tx,
             {
               postingDate: invoice.issuedAt,
@@ -1073,6 +1373,7 @@ export class FinanceService {
             where: { id: invoiceOutbox.id },
             data: { processedAt: new Date() },
           });
+          await recordInvoiceTaxEventUsing(tx, { invoice, actor, journalEntryId: invoiceJournal.id });
         }
         if (invoice.accountId !== account.id)
           throw new ServiceError(
@@ -1098,13 +1399,7 @@ export class FinanceService {
         );
         const approvedInvoiceDiscounts = money((invoice.studentDiscounts || []).filter((row: any) => row.status === "APPROVED").reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0));
         const remaining = money(Number(invoice.total) - approvedInvoiceDiscounts - already);
-        const amount = money(input.amount);
-        if (amount <= 0)
-          throw new ServiceError(
-            "Payment amount must be greater than zero.",
-            422,
-          );
-        let feeAllocations: Array<{ feeItemId: string; amount: number }> = [];
+        let feeAllocations: Array<{ feeItemId: string; amount: number; netAmount: number; vatAmount: number; governmentBorneVat: number; discountAmount: number }> = [];
         if (input.lines?.length) {
           const authoritative = accountShape(account).feeItems as Array<{
             name: string;
@@ -1137,7 +1432,8 @@ export class FinanceService {
                 "FEE_ITEM_OVERPAYMENT",
               );
             submittedTotal = money(submittedTotal + lineAmount);
-            feeAllocations.push({ feeItemId: feeItem.id, amount: lineAmount });
+            const tax = calculateInclusivePaymentTax({ grossAmount: lineAmount, vatRate: feeItem.vatRate || 0, taxTreatment: feeItem.taxTreatment || invoice.taxTreatment || "STANDARD" });
+            feeAllocations.push({ feeItemId: feeItem.id, amount: lineAmount, netAmount: Number(tax.taxableAmount), vatAmount: Number(tax.parentVat), governmentBorneVat: Number(tax.governmentBorneVat), discountAmount: 0 });
           }
           if (submittedTotal !== amount)
             throw new ServiceError(
@@ -1150,9 +1446,7 @@ export class FinanceService {
             "Payment exceeds the outstanding invoice balance.",
             422,
           );
-        const receiptNumber =
-          input.receiptNumber ||
-          `REC-${Date.now()}-${randomUUID().slice(0, 8)}`;
+        const receiptNumber = await nextFinanceDocumentNumber(tx, "PAYMENT_RECEIPT", paidAt);
         if (
           await new FinancePaymentsRepository(tx).findByReceipt(receiptNumber)
         )
@@ -1172,6 +1466,8 @@ export class FinanceService {
           method: input.method || "Cash",
           referenceNumber: input.referenceNumber,
           notes: input.notes,
+          idempotencyKey: input.idempotencyKey,
+          installmentId: input.installmentId,
           paidAt,
           collectedBy: actor.displayName || "Finance",
           invoiceId: invoice.id,
@@ -1179,7 +1475,7 @@ export class FinanceService {
         });
         if (discount) await tx.studentDiscount.update({ where: { id: discount.id }, data: { paymentId: payment.id } });
         transactionStep = "INSTALLMENT_UPDATE";
-        await allocateInstallmentPayment(tx, customer.id, amount);
+        await allocateInstallmentPayment(tx, customer.id, amount, input.installmentId);
         transactionStep = "STUDENT_BALANCE_UPDATE";
         await invoices.updateStatus(
           invoice.id,
@@ -1198,13 +1494,28 @@ export class FinanceService {
           ? "bank-main"
           : "cash-main";
         transactionStep = "ACCOUNT_MAPPING";
-        const cash = await tx.chartOfAccount.findUnique({
-          where: { systemKey: cashKey },
-        });
+        const cash = input.paymentAccountId
+          ? await tx.chartOfAccount.findFirst({
+              where: {
+                id: input.paymentAccountId, active: true, deletedAt: null,
+                ...(cashKey === "bank-main" ? { isBankAccount: true } : { isCashAccount: true }),
+              },
+            })
+          : await tx.chartOfAccount.findUnique({ where: { systemKey: cashKey } });
         if (!cash)
           throw new ServiceError(
             "Cash or bank account is not configured.", 422, "ACCOUNT_MAPPING_MISSING",
           );
+        const paymentAccountingBasis = await vatAccountingBasisUsing(tx);
+        const recognizedParentVat = feeAllocations.length
+          ? feeAllocations.reduce((sum, row) => sum + row.vatAmount, 0)
+          : Number(calculateInclusivePaymentTax({ grossAmount: amount, vatRate: invoice.lines?.[0]?.vatRate || 0, taxTreatment: invoice.taxTreatment || "STANDARD" }).parentVat);
+        const deferredVatAccount = paymentAccountingBasis === "CASH" && recognizedParentVat
+          ? await tx.chartOfAccount.findUnique({ where: { systemKey: "deferred-output-vat" } }) : null;
+        const payableVatAccount = paymentAccountingBasis === "CASH" && recognizedParentVat
+          ? await tx.chartOfAccount.findUnique({ where: { systemKey: "vat-payable" } }) : null;
+        if (paymentAccountingBasis === "CASH" && recognizedParentVat && (!deferredVatAccount || !payableVatAccount))
+          throw new ServiceError("Cash-basis VAT accounts are not configured.", 422, "ACCOUNT_MAPPING_MISSING");
         const paymentOutbox = await tx.accountingOutbox.create({
           data: {
             eventType: "PAYMENT_CREATED",
@@ -1214,7 +1525,7 @@ export class FinanceService {
           },
         });
         transactionStep = "AUTOMATIC_JOURNAL";
-        await JournalService.postUsing(
+        const paymentJournal = await JournalService.postUsing(
           tx,
           {
             postingDate: payment.paidAt,
@@ -1226,6 +1537,10 @@ export class FinanceService {
             lines: [
               { accountId: cash.id, debit: amount },
               { accountId: customer.receivableAccountId, credit: amount },
+              ...(recognizedParentVat && deferredVatAccount && payableVatAccount ? [
+                { accountId: deferredVatAccount.id, debit: recognizedParentVat },
+                { accountId: payableVatAccount.id, credit: recognizedParentVat },
+              ] : []),
             ],
           },
           actor,
@@ -1234,8 +1549,31 @@ export class FinanceService {
           where: { id: paymentOutbox.id },
           data: { processedAt: new Date() },
         });
+        const fallbackTax = calculateInclusivePaymentTax({
+          grossAmount: amount,
+          vatRate: invoice.lines?.[0]?.vatRate || 0,
+          taxTreatment: invoice.taxTreatment || "STANDARD",
+        });
+        const breakdown = feeAllocations.length ? {
+          grossAmount: new Prisma.Decimal(amount),
+          taxableAmount: feeAllocations.reduce((sum, row) => sum.plus(row.netAmount), new Prisma.Decimal(0)),
+          parentVat: feeAllocations.reduce((sum, row) => sum.plus(row.vatAmount), new Prisma.Decimal(0)),
+          governmentBorneVat: feeAllocations.reduce((sum, row) => sum.plus(row.governmentBorneVat), new Prisma.Decimal(0)),
+          totalVat: feeAllocations.reduce((sum, row) => sum.plus(row.vatAmount).plus(row.governmentBorneVat), new Prisma.Decimal(0)),
+          vatRate: new Prisma.Decimal(invoice.lines?.[0]?.vatRate || 0),
+          taxTreatment: invoice.taxTreatment || "STANDARD",
+        } : fallbackTax;
+        const totalPaidBefore = account.payments.reduce((sum: Prisma.Decimal, row: any) => sum.plus(row.amount), new Prisma.Decimal(0));
+        await issuePaymentReceiptUsing(tx, {
+          payment, feeAgreementId: feeAgreement.id, breakdown,
+          balanceBefore: accountShape(account).remaining, totalPaidBefore, actor,
+          allocations: feeAllocations.length ? feeAllocations : [{ invoiceId: invoice.id, grossAmount: amount }],
+          journalEntryId: paymentJournal.id,
+        });
+        const completedPayment = await new FinancePaymentsRepository(tx).findById(payment.id);
         return {
-          payment: paymentShape(payment),
+          payment: paymentShape(completedPayment || payment),
+          receipt: completedPayment?.receipt || null,
           discount: discount ? shapeStudentDiscount(discount) : null,
           account: accountShape({
             ...account,
@@ -1286,7 +1624,7 @@ export class FinanceService {
             409,
             "PAYMENT_JOURNAL_MISSING",
           );
-        await JournalService.reverseUsing(
+        const reversalJournal = await JournalService.reverseUsing(
           tx,
           journal.id,
           actor,
@@ -1294,6 +1632,17 @@ export class FinanceService {
             ? "finance_payment_refund"
             : "finance_payment_void",
         );
+        await reverseTaxEventsUsing(tx, {
+          paymentId: id,
+          eventType: status === "REFUNDED" ? "REFUND" : "VOID",
+          recognitionDate: new Date(),
+          reversalJournalEntryId: reversalJournal.id,
+          actor,
+        });
+        await tx.paymentReceipt.updateMany({
+          where: { paymentId: id, status: "ISSUED" },
+          data: { status: "VOID" },
+        });
         const updated = await tx.financePayment.update({
           where: { id },
           data: { status },
@@ -1372,12 +1721,19 @@ export class FinanceService {
             409,
             "INVOICE_JOURNAL_MISSING",
           );
-        await JournalService.reverseUsing(
+        const reversalJournal = await JournalService.reverseUsing(
           tx,
           journal.id,
           actor,
           "finance_invoice_void",
         );
+        await reverseTaxEventsUsing(tx, {
+          invoiceId: id,
+          eventType: "VOID",
+          recognitionDate: new Date(),
+          reversalJournalEntryId: reversalJournal.id,
+          actor,
+        });
         const updated = await tx.financeInvoice.update({
           where: { id },
           data: { status: "VOID" },

@@ -3,7 +3,12 @@
   justify-content:space-between;
   align-items:center;
   margin-bottom:25px;
+  padding:24px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#102f67,#1d5da1);
+  color:#fff;
 }
+.page-header h1{margin:4px 0;font-size:34px}.page-header bdi{font-weight:800}.eyebrow{font-size:12px;letter-spacing:.14em;color:#d7e8ff}
 
 .print-btn{
   background:var(--raw-brand-primary);
@@ -33,7 +38,7 @@
   background:#f8f8f8;
   padding:20px;
   border-radius:12px;
-  border-left:4px solid var(--raw-brand-primary);
+  border-inline-start:4px solid var(--raw-brand-primary);
 }
 
 .detail-item span{
@@ -98,6 +103,7 @@
   padding:20px;
   text-align:center;
 }
+.amount-box>div{display:flex;justify-content:space-between;gap:18px;padding:10px 0;border-bottom:1px solid #e5e7eb}.amount-box>div span{color:#64748b}.receipt-state{padding:18px;border-radius:12px;background:#eef6ff;color:#07336b;font-weight:700}.receipt-state.error{background:#fff1f2;color:#b42318}
 
 .amount-box h4{
   margin:0;
@@ -151,4 +157,21 @@
     box-shadow: none !important;
     break-inside: avoid;
   }
+}
+.allocation-list,
+.document-links {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #dce6f3;
+}
+
+.document-links p {
+  display: inline-flex;
+  gap: 8px;
+  margin: 6px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #eef5ff;
+  color: #173f76;
+  font-weight: 700;
 }

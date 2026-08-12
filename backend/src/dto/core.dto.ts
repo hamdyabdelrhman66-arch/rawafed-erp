@@ -19,12 +19,14 @@ export interface RegistrationInput {
 }
 export interface PaymentInput {
   accountId: string;
+  idempotencyKey?: string;
   invoiceId?: string;
   installmentId?: string;
   receiptNumber?: string;
   paymentItem?: string;
   amount: number;
   method?: string;
+  paymentAccountId?: string;
   paidAt?: string;
   referenceNumber?: string;
   notes?: string;
@@ -39,4 +41,12 @@ export interface PaymentInput {
     approvalReference?: string;
     idempotencyKey: string;
   };
+}
+
+export interface PaymentPreviewInput {
+  accountId: string;
+  invoiceId?: string;
+  installmentId?: string;
+  amount: number;
+  lines?: Array<{ feeItem: string; amount: number }>;
 }

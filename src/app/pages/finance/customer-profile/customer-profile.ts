@@ -19,6 +19,7 @@ export class CustomerProfile implements OnInit {
   customer: any;
   statement: any;
   installments: any = { plans: [], installments: [] };
+  feeAgreements: any[] = [];
   tab = 'overview';
   planForm = {
     planType: 'CUSTOM',
@@ -61,6 +62,9 @@ export class CustomerProfile implements OnInit {
       this.accounting.getCustomerStatement(id),
       this.accounting.getCustomerInstallments(id)
     ]);
+    this.feeAgreements = this.customer?.financeAccountId
+      ? await this.accounting.getFeeAgreements(this.customer.financeAccountId)
+      : [];
     this.planForm.totalAmount = Number(this.customer?.summary?.outstanding || 0);
     this.buildInstallments();
   }
@@ -99,6 +103,44 @@ export class CustomerProfile implements OnInit {
 
   async printStatement(): Promise<void> {
     await this.reportExport.printPdf(this.statementReport());
+  }
+
+  async printFeeAgreement(): Promise<void> {
+    const agreement = this.feeAgreements[0];
+    if (!agreement) {
+      this.feedback.error(this.i18n.language() === 'ar' ? 'لا يوجد بيان رسوم صادر لهذا الطالب.' : 'No issued fee agreement exists for this student.');
+      return;
+    }
+    const feeRows = (agreement.lines || []).map((line: any) => [
+      'بند رسوم', line.description, Number(line.baseAmount), Number(line.discountAmount),
+      Number(line.expectedVat), Number(line.governmentBorneVat), Number(line.parentPayable),
+    ]);
+    const installmentRows = (agreement.installments || []).map((item: any, index: number) => [
+      `القسط ${index + 1}`,
+      `${String(item.dueDate || '').slice(0, 10)} · ${this.i18n.status(item.status)}`,
+      Number(item.baseAmount || 0),
+      Number(item.paidAmount || 0),
+      Number(item.vatAmount || 0),
+      0,
+      Number(item.grossAmount || item.amount || 0),
+    ]);
+    await this.reportExport.printPdf({
+      title: 'Tuition Fee Agreement / Fee Schedule',
+      titleAr: 'بيان الرسوم الدراسية',
+      subtitle: `${this.customer?.nameAr || this.customer?.nameEn || ''} · ${this.customer?.registrationNumber || ''}`,
+      description: `${this.i18n.language() === 'ar' ? 'السنة الدراسية' : 'Academic year'}: ${agreement.academicYearId || '—'} · ${this.i18n.language() === 'ar' ? 'هذا المستند ليس سند قبض أو فاتورة ضريبية.' : 'This document is not a payment receipt or tax invoice.'}`,
+      columns: ['القسم', 'البند / تاريخ الاستحقاق', 'المبلغ الأساسي', 'الخصم / المدفوع', 'الضريبة', 'ضريبة تتحملها الدولة', 'الإجمالي'],
+      rows: [...feeRows, ...installmentRows],
+      summary: [
+        { label: 'إجمالي الرسوم الأساسية', value: this.money(agreement.baseFees) },
+        { label: 'إجمالي الخصومات', value: this.money(agreement.discountAmount) },
+        { label: 'الضريبة المتوقعة', value: this.money(Number(agreement.parentVat || 0) + Number(agreement.governmentBorneVat || 0)) },
+        { label: 'إجمالي العقد', value: this.money(agreement.contractTotal) },
+      ],
+      fileName: `fee-agreement-${agreement.agreementNumber}`,
+      direction: 'rtl',
+      locale: 'ar',
+    });
   }
 
   private statementReport(): ReportTable {

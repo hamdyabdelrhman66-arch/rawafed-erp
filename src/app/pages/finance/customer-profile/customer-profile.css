@@ -34,3 +34,64 @@ td { border-bottom: 1px solid #e5e7eb; padding: 12px; color: #0f172a; }
 @media print { .tabs, .page-header button, .form-grid, footer { display: none; } }
 @media (max-width: 1000px) { .summary-grid, .info-grid, .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .summary-grid, .info-grid, .form-grid { grid-template-columns: 1fr; } .page-header { flex-direction: column; } }
+.transaction-timeline {
+  display: grid;
+  gap: 0;
+  margin-top: 1rem;
+}
+
+.transaction-timeline article {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.85rem;
+  padding-bottom: 1.25rem;
+}
+
+.transaction-timeline article:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.4375rem;
+  top: 1rem;
+  bottom: 0;
+  width: 2px;
+  background: #dce7f5;
+}
+
+.timeline-marker {
+  z-index: 1;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.25rem;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #1f5fa8;
+  box-shadow: 0 0 0 1px #b9cce4;
+}
+
+.timeline-content {
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #dce7f5;
+  border-radius: 0.85rem;
+  background: #fbfdff;
+}
+
+.timeline-content header,
+.timeline-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.timeline-content time,
+.timeline-content p {
+  color: #64748b;
+}
+
+.timeline-values {
+  justify-content: flex-start;
+  margin: 0.75rem 0;
+}

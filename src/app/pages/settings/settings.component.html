@@ -5,6 +5,34 @@
   </header>
 
   <form class="settings-grid" (ngSubmit)="save()">
+    <section class="wide vat-accounting-settings" dir="rtl">
+      <div class="section-heading">
+        <div>
+          <h2>أساس محاسبة ضريبة القيمة المضافة</h2>
+          <p class="note">هذا الإعداد يحدد توقيت الاعتراف الضريبي للمعاملات الجديدة فقط، ولا يعيد تفسير المستندات التاريخية.</p>
+        </div>
+      </div>
+      <div class="vat-setting-grid">
+        <label>
+          <span>الأساس المعتمد</span>
+          <select [(ngModel)]="vatBasis" name="vatBasis">
+            <option value="INVOICE_ACCRUAL">أساس الفاتورة / الاستحقاق</option>
+            <option value="CASH">الأساس النقدي</option>
+          </select>
+        </label>
+        <label>
+          <span>سبب الاختيار أو التغيير</span>
+          <input [(ngModel)]="vatBasisReason" name="vatBasisReason" autocomplete="off" />
+        </label>
+      </div>
+      <p class="vat-warning">{{ vatWarning }}</p>
+      <label class="vat-confirmation">
+        <input type="checkbox" [(ngModel)]="vatBasisConfirmed" name="vatBasisConfirmed" />
+        <span>أؤكد أن هذا الأساس يعكس المعالجة المعتمدة فعليًا لدى المنشأة.</span>
+      </label>
+      <div><button mat-flat-button color="primary" type="button" [disabled]="vatSaving" (click)="saveVatBasis()">{{ vatSaving ? 'جارٍ الحفظ...' : 'حفظ إعداد الضريبة' }}</button></div>
+    </section>
+
     <section>
       <h2>School Information</h2>
       <mat-form-field><mat-label>School Logo URL/Data</mat-label><input matInput [(ngModel)]="settings.logoDataUrl" name="logoDataUrl" /></mat-form-field>

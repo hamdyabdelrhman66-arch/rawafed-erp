@@ -8,16 +8,22 @@
     </div>
     <div class="header-actions">
       <a class="secondary-action" [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, source: 'student-profile', customerId: customer.id, returnTab: tab }">{{ 'finance_accounts.record_payment' | t }}</a>
+      <button type="button" (click)="printFeeAgreement()">{{ i18n.language() === 'ar' ? 'بيان الرسوم' : 'Fee Agreement' }}</button>
       <button type="button" (click)="printStatement()">{{ 'common.print' | t }}</button>
     </div>
   </header>
 
   <section class="summary-grid">
     <article><span>{{ 'coa.current_balance' | t }}</span><strong>{{ money(customer.summary?.currentBalance) }}</strong></article>
-    <article><span>{{ 'customer.expected_total' | t }}</span><strong>{{ money(customer.summary?.grossFees) }}</strong><small>{{ i18n.language() === 'ar' ? 'إجمالي الرسوم الأصلية' : 'Original gross fees' }}</small></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'الرسوم المتعاقد عليها' : 'Contracted Fees' }}</span><strong>{{ money(customer.summary?.contractedFees) }}</strong><small>{{ customer.summary?.feeAgreementNumber || (i18n.language() === 'ar' ? 'بيان الرسوم' : 'Fee schedule') }}</small></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'الضريبة المتوقعة' : 'Expected VAT' }}</span><strong>{{ money(customer.summary?.expectedVat) }}</strong><small>{{ i18n.language() === 'ar' ? 'ليست ضريبة مستحقة تلقائيًا' : 'Not automatically recognized VAT' }}</small></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'إجمالي العقد' : 'Contract Total' }}</span><strong>{{ money(customer.summary?.contractTotal) }}</strong></article>
     <article><span>{{ i18n.language() === 'ar' ? 'إجمالي الخصومات' : 'Total discounts' }}</span><strong>{{ money(customer.summary?.totalDiscounts) }}</strong><small>{{ i18n.language() === 'ar' ? 'خصومات معتمدة فقط' : 'Approved only' }}</small></article>
     <article><span>{{ i18n.language() === 'ar' ? 'صافي الرسوم' : 'Net fees' }}</span><strong>{{ money(customer.summary?.netFees) }}</strong></article>
     <article><span>{{ 'customer.amount_paid' | t }}</span><strong>{{ money(customer.summary?.paymentTotal) }}</strong></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'صافي المبالغ المحصلة' : 'Collected Net' }}</span><strong>{{ money(customer.summary?.collectedNetAmount) }}</strong></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'ضريبة محصلة/منسوبة' : 'Collected VAT' }}</span><strong>{{ money(customer.summary?.collectedVatAmount) }}</strong></article>
+    <article><span>{{ i18n.language() === 'ar' ? 'إجمالي الفواتير الضريبية' : 'Tax Invoiced' }}</span><strong>{{ money(customer.summary?.invoicedAmount) }}</strong><small>{{ i18n.language() === 'ar' ? 'الضريبة داخلها: ' : 'VAT within: ' }}{{ money(customer.summary?.taxInvoiced) }}</small></article>
     <article><span>{{ 'customer.remaining' | t }}</span><strong>{{ money(customer.summary?.outstanding) }}</strong></article>
     <article><span>{{ 'customer.overdue' | t }}</span><strong>{{ money(customer.summary?.overdue) }}</strong></article>
     <article><span>{{ 'customer.invoice_count' | t }}</span><strong>{{ customer.summary?.invoicesCount || 0 }}</strong></article>
@@ -53,14 +59,14 @@
   </section>
 
   <section class="panel" *ngIf="tab === 'invoices'">
-    <h2>{{ 'nav.invoices' | t }}</h2>
+    <h2>{{ i18n.language() === 'ar' ? 'الفواتير الضريبية' : 'Tax Invoices' }}</h2>
     <div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'invoice.number' | t }}</th><th>{{ 'common.item' | t }}</th><th>{{ 'common.total' | t }}</th><th>{{ 'common.status' | t }}</th><th>{{ 'common.action' | t }}</th></tr></thead>
       <tbody><tr class="clickable-row" *ngFor="let invoice of customer.invoices" (click)="openInvoice(invoice, $event)" tabindex="0" (keydown.enter)="openInvoice(invoice)"><td>{{ invoice.issuedAt }}</td><td class="reference-text"><a [routerLink]="['/finance/invoices', invoice.id]"><bdi>{{ invoice.invoiceNumber }}</bdi></a></td><td>{{ invoice.feeItem }}</td><td>{{ money(invoice.total) }}</td><td><span class="status">{{ i18n.status(invoice.status) }}</span></td><td class="row-actions"><a [routerLink]="['/finance/invoices', invoice.id]">{{ 'coa.view' | t }}</a><a [routerLink]="['/finance/add-payment']" [queryParams]="{ studentId: customer.studentId, invoiceId: invoice.id, source: 'student-profile', customerId: customer.id, returnTab: 'invoices' }">{{ 'finance_accounts.record_payment' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ print: 1 }">{{ 'common.print' | t }}</a><a [routerLink]="['/finance/invoices', invoice.id]" [queryParams]="{ pdf: 1 }">{{ 'invoice.pdf' | t }}</a></td></tr>
       <tr *ngIf="!customer.invoices.length"><td colspan="6" class="empty-cell">{{ 'customer.no_rows' | t }}</td></tr></tbody></table></div>
   </section>
 
   <section class="panel" *ngIf="tab === 'payments'">
-    <h2>{{ 'customer.payments' | t }}</h2>
+    <h2>{{ i18n.language() === 'ar' ? 'الدفعات وسندات القبض' : 'Payments & Receipts' }}</h2>
     <ng-container *ngTemplateOutlet="tableTpl; context: { rows: customer.payments }"></ng-container>
   </section>
 
@@ -91,9 +97,29 @@
       <tr *ngIf="!installments.installments.length"><td colspan="4" class="empty-cell">{{ 'installment.none' | t }}</td></tr></tbody></table></div>
   </section>
 
-  <section class="panel" *ngIf="tab === 'activity'"><h2>{{ 'customer.activity' | t }}</h2><p class="muted">{{ 'customer.activity_help' | t }}</p></section>
+  <section class="panel" *ngIf="tab === 'activity'">
+    <h2>{{ 'customer.activity' | t }}</h2>
+    <div class="transaction-timeline" *ngIf="customer.activity?.length; else noActivity">
+      <article *ngFor="let item of customer.activity">
+        <div class="timeline-marker" aria-hidden="true"></div>
+        <div class="timeline-content">
+          <header><strong>{{ i18n.language() === 'ar' ? item.descriptionAr : item.descriptionEn }}</strong><time>{{ item.date }}</time></header>
+          <p class="reference-text"><bdi>{{ item.reference }}</bdi></p>
+          <div class="timeline-values">
+            <span>{{ 'common.amount' | t }}: <b>{{ money(item.amount) }}</b></span>
+            <span *ngIf="item.netAmount !== undefined">{{ i18n.language() === 'ar' ? 'الصافي' : 'Net' }}: <b>{{ money(item.netAmount) }}</b></span>
+            <span *ngIf="item.vatAmount !== undefined">{{ i18n.language() === 'ar' ? 'الضريبة' : 'VAT' }}: <b>{{ money(item.vatAmount) }}</b></span>
+            <span *ngIf="item.balanceAfter !== null && item.balanceAfter !== undefined">{{ i18n.language() === 'ar' ? 'الرصيد المتبقي' : 'Remaining' }}: <b>{{ money(item.balanceAfter) }}</b></span>
+          </div>
+          <a *ngIf="item.type === 'PAYMENT_RECEIPT' && item.documentId" [routerLink]="['/finance/payment-details', item.documentId]">{{ i18n.language() === 'ar' ? 'فتح سند القبض' : 'Open receipt' }}</a>
+          <a *ngIf="item.type === 'TAX_INVOICE' && item.documentId" [routerLink]="['/finance/invoices', item.documentId]">{{ i18n.language() === 'ar' ? 'فتح الفاتورة الضريبية' : 'Open tax invoice' }}</a>
+        </div>
+      </article>
+    </div>
+    <ng-template #noActivity><p class="muted">{{ 'customer.activity_help' | t }}</p></ng-template>
+  </section>
 </section>
 
-<ng-template #tableTpl let-rows="rows"><div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ 'common.no' | t }}</th><th>{{ 'common.item' | t }}</th><th>{{ 'common.method' | t }}</th><th>{{ 'common.amount' | t }}</th><th>{{ 'common.status' | t }}</th></tr></thead>
-  <tbody><tr *ngFor="let row of rows"><td>{{ row.issuedAt || row.paidAt }}</td><td class="reference-text"><bdi>{{ row.invoiceNumber || row.receiptNumber }}</bdi></td><td>{{ row.feeItem || row.paymentItem }}</td><td>{{ row.paymentMethod || row.method || '-' }}</td><td>{{ money(row.total || row.amount) }}</td><td>{{ i18n.status(row.status || 'paid') }}</td></tr>
-  <tr *ngIf="!rows.length"><td colspan="6" class="empty-cell">{{ 'customer.no_rows' | t }}</td></tr></tbody></table></div></ng-template>
+<ng-template #tableTpl let-rows="rows"><div class="table-scroll"><table><thead><tr><th>{{ 'common.date' | t }}</th><th>{{ i18n.language() === 'ar' ? 'سند القبض' : 'Receipt' }}</th><th>{{ 'common.method' | t }}</th><th>{{ i18n.language() === 'ar' ? 'صافي' : 'Net' }}</th><th>{{ i18n.language() === 'ar' ? 'ضريبة' : 'VAT' }}</th><th>{{ 'common.amount' | t }}</th><th>{{ i18n.language() === 'ar' ? 'الرصيد بعد الدفعة' : 'Balance After' }}</th></tr></thead>
+  <tbody><tr *ngFor="let row of rows"><td>{{ row.issuedAt || row.paidAt }}</td><td class="reference-text"><a *ngIf="row.id" [routerLink]="['/finance/payment-details', row.id]"><bdi>{{ row.receiptNumber }}</bdi></a></td><td>{{ row.paymentMethod || row.method || '-' }}</td><td>{{ money(row.netAmount) }}</td><td>{{ money(row.vatAmount) }}</td><td>{{ money(row.amount) }}</td><td>{{ row.balanceAfter === null ? '—' : money(row.balanceAfter) }}</td></tr>
+  <tr *ngIf="!rows.length"><td colspan="7" class="empty-cell">{{ 'customer.no_rows' | t }}</td></tr></tbody></table></div></ng-template>

@@ -228,6 +228,10 @@ export class AccountingService {
     return this.api.get<any>(`/accounting/customers/${id}/installments`);
   }
 
+  getFeeAgreements(financeAccountId: string): Promise<any[]> {
+    return this.api.get<any[]>(`/finance/accounts/${financeAccountId}/fee-agreements`);
+  }
+
   getInvoiceDetails(id: string): Promise<InvoiceDetail> {
     return this.api.get<InvoiceDetail>(`/finance/invoices/${id}`);
   }

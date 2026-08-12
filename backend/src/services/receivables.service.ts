@@ -10,6 +10,7 @@ import { ServiceError } from "./service.error.js";
 import { allocateInstallmentPayment, installmentStatus } from "./installment-allocation.service.js";
 import { AuditRepository } from "../repositories/audit.repository.js";
 import { calculateFeePreview, normalizeManualTaxIdentity } from "./student-vat.js";
+import { ensureFeeAgreementUsing } from "./tuition-tax.service.js";
 
 export class ReceivablesService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -114,7 +115,7 @@ export class ReceivablesService {
           allowManualJournal: true,
         },
       });
-      await tx.financeAccount.create({
+      const financeAccount = await tx.financeAccount.create({
         data: {
           registrationId: registration.id,
           studentId: student.id,
@@ -134,6 +135,7 @@ export class ReceivablesService {
           },
         },
       });
+      await ensureFeeAgreementUsing(tx, financeAccount.id, actor);
       const customer = await tx.accountingCustomer.create({
         data: {
           customerCode: `CUS-${typePrefix}-${suffix}`,
@@ -241,6 +243,28 @@ export class ReceivablesService {
     if (uniqueDates.size !== rows.length && input.allowDuplicateDueDates !== true)
       throw new ServiceError("Duplicate installment due dates require explicit acceptance.", 422, "DUPLICATE_DUE_DATE");
     return this.prisma.$transaction(async (tx) => {
+      const financeAccount = customer.studentId
+        ? await tx.financeAccount.findUnique({ where: { studentId: customer.studentId } })
+        : null;
+      const feeAgreement = financeAccount
+        ? await ensureFeeAgreementUsing(tx, financeAccount.id, actor)
+        : null;
+      const contractTotal = new Prisma.Decimal(feeAgreement?.contractTotal || total);
+      const contractParentVat = new Prisma.Decimal(feeAgreement?.parentVat || 0);
+      const installmentRows = rows.map((row: { id: string; customerId: string; dueDate: Date; amount: number; notes: string | null }) => {
+        const grossAmount = new Prisma.Decimal(row.amount).toDecimalPlaces(2);
+        const vatAmount = contractTotal.gt(0)
+          ? grossAmount.mul(contractParentVat).div(contractTotal).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+          : new Prisma.Decimal(0);
+        return {
+          ...row,
+          financeAccountId: financeAccount?.id || null,
+          feeAgreementId: feeAgreement?.id || null,
+          baseAmount: grossAmount.minus(vatAmount),
+          vatAmount,
+          grossAmount,
+        };
+      });
       const existing = await tx.installmentPlan.findFirst({ where: { customerId, active: true, deletedAt: null }, include: { installments: true } });
       if (existing?.installments.some((row) => Number(row.paidAmount) > 0))
         throw new ServiceError("A paid installment plan cannot be replaced.", 409, "INSTALLMENT_PLAN_LOCKED");
@@ -260,7 +284,7 @@ export class ReceivablesService {
           duplicateDueDates: input.allowDuplicateDueDates === true,
           notes: input.notes,
         },
-        rows,
+        installmentRows,
       );
       await new AuditRepository(tx).create({ actorId: actor.id, actorRole: actor.role, action: existing ? "replace installment plan" : "create installment plan", entityType: "installment_plan", entityId: plan.id, details: { customerId, planType, total, count } });
       return plan;
@@ -311,6 +335,8 @@ export class ReceivablesService {
         receivableAccount: true,
         student: { include: { financeAccount: { select: {
           id: true, expectedTotal: true,
+          feeItems: { select: { subtotal: true, vatAmount: true, governmentBorneVat: true } },
+          feeAgreements: { where: { status: "ISSUED" }, include: { lines: true }, orderBy: { issuedAt: "desc" }, take: 1 },
           discounts: { where: { status: "APPROVED" }, select: { id: true, calculatedAmount: true, reason: true, effectiveDate: true, creditNoteNumber: true } },
         } } } },
         payments: {
@@ -321,11 +347,20 @@ export class ReceivablesService {
           include: {
             invoices: {
               where: { deletedAt: null, status: { not: "VOID" } },
-              include: { lines: true, studentDiscounts: { where: { status: "APPROVED" } } },
+              include: { lines: true, payments: { where: { payment: { status: "COMPLETED", deletedAt: null } } }, studentDiscounts: { where: { status: "APPROVED" } } },
               orderBy: { issuedAt: "desc" },
             },
             payments: {
               where: { deletedAt: null, status: "COMPLETED" },
+              include: {
+                receipt: true,
+                taxEvents: {
+                  include: {
+                    invoice: { select: { id: true, invoiceNumber: true } },
+                    journalEntry: { select: { id: true, entryNumber: true } },
+                  },
+                },
+              },
               orderBy: { paidAt: "desc" },
             },
           },
@@ -357,13 +392,25 @@ export class ReceivablesService {
       0,
     );
     const approvedDiscounts = customer.student?.financeAccount?.discounts || [];
-    const grossFees = Number(customer.student?.financeAccount?.expectedTotal ?? invoiceTotal);
+    const financeAccount = customer.student?.financeAccount;
+    const activeAgreement = financeAccount?.feeAgreements?.[0];
+    const contractedFees = Number(activeAgreement?.baseFees ?? (financeAccount?.feeItems || []).reduce((sum: number, row: any) => sum + Number(row.subtotal ?? 0), 0));
+    const expectedParentVat = Number(activeAgreement?.parentVat ?? (financeAccount?.feeItems || []).reduce((sum: number, row: any) => sum + Number(row.vatAmount ?? 0), 0));
+    const expectedGovernmentVat = Number(activeAgreement?.governmentBorneVat ?? (financeAccount?.feeItems || []).reduce((sum: number, row: any) => sum + Number(row.governmentBorneVat ?? 0), 0));
+    const grossFees = Number(financeAccount?.expectedTotal ?? invoiceTotal);
     const totalDiscounts = approvedDiscounts.reduce((sum: number, row: any) => sum + Number(row.calculatedAmount), 0);
     const netFees = Math.max(grossFees - totalDiscounts, 0);
     const paymentTotal = payments.reduce(
       (sum: number, payment: any) => sum + Number(payment.amount),
       0,
     );
+    const collectedNetAmount = financePayments.reduce((sum: number, payment: any) => sum + Number(payment.receipt?.netAmount ?? payment.amount), 0);
+    const collectedVatAmount = financePayments.reduce((sum: number, payment: any) => sum + Number(payment.receipt?.parentVat ?? 0), 0);
+    const taxInvoiced = invoices.reduce((sum: number, invoice: any) => sum + Number(invoice.vatAmount || 0), 0);
+    const outstandingInvoicedBalance = invoices.reduce((sum: number, invoice: any) => {
+      const allocated = (invoice.payments || []).reduce((paid: number, allocation: any) => paid + Number(allocation.amount || 0), 0);
+      return sum + Math.max(Number(invoice.total) - allocated, 0);
+    }, 0);
     const balance = Math.round((netFees - paymentTotal) * 100) / 100;
     const activePlan = customer.installmentPlans?.[0];
     const planInstallments = activePlan?.installments || [];
@@ -374,6 +421,48 @@ export class ReceivablesService {
     const nextInstallment = installmentStates.find((row: any) => row.computedStatus !== "paid");
     const storedProfile = (customer.student?.profile || {}) as Record<string, any>;
     const customerType = storedProfile.customerType || storedProfile.student?.manualCustomerType || "CHILD";
+    const activity = [
+      ...(activeAgreement ? [{
+        type: "FEE_AGREEMENT",
+        date: activeAgreement.issuedAt,
+        reference: activeAgreement.agreementNumber,
+        amount: Number(activeAgreement.contractTotal),
+        descriptionAr: "بيان الرسوم الدراسية",
+        descriptionEn: "Tuition Fee Agreement",
+      }] : []),
+      ...invoices.map((invoice: any) => ({
+        type: "TAX_INVOICE",
+        date: invoice.issuedAt,
+        reference: invoice.invoiceNumber,
+        documentId: invoice.id,
+        amount: Number(invoice.total),
+        descriptionAr: "فاتورة ضريبية",
+        descriptionEn: "Tax Invoice",
+      })),
+      ...financePayments.map((payment: any) => ({
+        type: "PAYMENT_RECEIPT",
+        date: payment.paidAt,
+        reference: payment.receipt?.receiptNumber || payment.receiptNumber,
+        documentId: payment.id,
+        amount: Number(payment.amount),
+        netAmount: Number(payment.receipt?.netAmount ?? payment.amount),
+        vatAmount: Number(payment.receipt?.parentVat ?? 0),
+        balanceAfter: payment.receipt ? Number(payment.receipt.balanceAfter) : null,
+        taxInvoices: (payment.taxEvents || []).map((event: any) => event.invoice?.invoiceNumber).filter(Boolean),
+        journalEntries: (payment.taxEvents || []).map((event: any) => event.journalEntry?.entryNumber).filter(Boolean),
+        descriptionAr: "دفعة وسند قبض",
+        descriptionEn: "Payment & Receipt",
+      })),
+      ...approvedDiscounts.map((discount: any) => ({
+        type: "DISCOUNT",
+        date: discount.effectiveDate,
+        reference: discount.creditNoteNumber || discount.id,
+        amount: Number(discount.calculatedAmount),
+        descriptionAr: `خصم معتمد: ${discount.reason}`,
+        descriptionEn: `Approved discount: ${discount.reason}`,
+      })),
+    ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .map((row: any) => ({ ...row, date: new Date(row.date).toISOString().slice(0, 10) }));
     return {
       id: customer.id,
       customerCode: customer.customerCode,
@@ -398,6 +487,12 @@ export class ReceivablesService {
       receivableNameEn: customer.receivableAccount.name,
       status: customer.active ? "active" : "inactive",
       summary: {
+        feeAgreementNumber: activeAgreement?.agreementNumber || null,
+        contractedFees,
+        expectedVat: expectedParentVat + expectedGovernmentVat,
+        expectedParentVat,
+        expectedGovernmentBorneVat: expectedGovernmentVat,
+        contractTotal: grossFees,
         grossFees,
         totalDiscounts,
         netFees,
@@ -407,6 +502,13 @@ export class ReceivablesService {
         overdue: installmentStates.filter((row: any) => row.computedStatus.includes("overdue")).reduce((sum: number, row: any) => sum + Number(row.amount) - Number(row.paidAmount), 0),
         invoiceTotal,
         paymentTotal,
+        collectedAmount: paymentTotal,
+        collectedNetAmount,
+        collectedVatAmount,
+        invoicedAmount: invoiceTotal,
+        taxInvoiced,
+        outstandingInvoicedBalance,
+        remainingContractBalance: Math.max(balance, 0),
         invoicesCount: invoices.length,
         paymentsCount: payments.length,
         paymentPlan: activePlan?.planType || "NONE",
@@ -436,7 +538,14 @@ export class ReceivablesService {
         method: payment.method,
         status: payment.status,
         paidAt: payment.paidAt.toISOString().slice(0, 10),
+        netAmount: Number(payment.receipt?.netAmount ?? payment.amount),
+        vatAmount: Number(payment.receipt?.parentVat ?? 0),
+        governmentBorneVat: Number(payment.receipt?.governmentBorneVat ?? 0),
+        balanceAfter: payment.receipt ? Number(payment.receipt.balanceAfter) : null,
+        taxInvoiceNumbers: (payment.taxEvents || []).map((event: any) => event.invoice?.invoiceNumber).filter(Boolean),
+        journalEntryNumbers: (payment.taxEvents || []).map((event: any) => event.journalEntry?.entryNumber).filter(Boolean),
       })),
+      activity,
     };
   }
 }

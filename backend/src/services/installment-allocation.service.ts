@@ -6,11 +6,17 @@ async function applyInstallmentTotal(
   tx: DatabaseClient,
   customerId: string,
   paymentAmount: number,
+  selectedInstallmentId?: string | null,
 ): Promise<void> {
   let remaining = money(paymentAmount);
   if (remaining <= 0) return;
   const installments = await tx.installment.findMany({
-    where: { customerId, plan: { active: true, deletedAt: null }, status: { not: "paid" } },
+    where: {
+      customerId,
+      plan: { active: true, deletedAt: null },
+      status: { not: "paid" },
+      ...(selectedInstallmentId ? { id: selectedInstallmentId } : {}),
+    },
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   });
   for (const installment of installments) {
@@ -55,10 +61,23 @@ export async function reconcileInstallmentPayments(
     where: { customerId, plan: { active: true, deletedAt: null } },
     data: { paidAmount: 0, status: "unpaid" },
   });
+  const linkedPayments = await tx.financePayment.findMany({
+    where: {
+      registrationId: customer.registrationId || undefined,
+      status: "COMPLETED",
+      deletedAt: null,
+      installmentId: { not: null },
+    },
+    select: { amount: true, installmentId: true },
+    orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
+  });
+  for (const payment of linkedPayments)
+    await applyInstallmentTotal(tx, customerId, money(payment.amount), payment.installmentId);
+  const linkedTotal = linkedPayments.reduce((sum, payment) => money(sum + money(payment.amount)), 0);
   await applyInstallmentTotal(
     tx,
     customerId,
-    money(financePayments._sum.amount) + money(customerPayments._sum.amount),
+    money(financePayments._sum.amount) - linkedTotal + money(customerPayments._sum.amount),
   );
 }
 
@@ -66,6 +85,7 @@ export async function allocateInstallmentPayment(
   tx: DatabaseClient,
   customerId: string,
   _paymentAmount?: number,
+  _selectedInstallmentId?: string,
 ): Promise<void> {
   await reconcileInstallmentPayments(tx, customerId);
 }

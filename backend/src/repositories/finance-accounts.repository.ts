@@ -29,7 +29,7 @@ export class FinanceAccountsRepository {
           },
           orderBy: { issuedAt: "asc" },
         },
-        payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        payments: { where: { deletedAt: null, status: "COMPLETED" }, include: { receipt: true } },
         discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
       orderBy: { createdAt: "desc" },
@@ -64,7 +64,7 @@ export class FinanceAccountsRepository {
           },
           orderBy: { issuedAt: "asc" },
         },
-        payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        payments: { where: { deletedAt: null, status: "COMPLETED" }, include: { receipt: true } },
         discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
     });
@@ -91,7 +91,7 @@ export class FinanceAccountsRepository {
           },
           orderBy: { issuedAt: "asc" },
         },
-        payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        payments: { where: { deletedAt: null, status: "COMPLETED" }, include: { receipt: true } },
         discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
     });
@@ -123,7 +123,7 @@ export class FinanceAccountsRepository {
           },
           orderBy: { issuedAt: "asc" },
         },
-        payments: { where: { deletedAt: null, status: "COMPLETED" } },
+        payments: { where: { deletedAt: null, status: "COMPLETED" }, include: { receipt: true } },
         discounts: { where: { status: "APPROVED" }, orderBy: { effectiveDate: "asc" } },
       },
     });

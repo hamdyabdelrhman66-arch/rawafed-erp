@@ -193,6 +193,44 @@ export function postgresCoreRoutes(
     c.payments,
   );
   r.post(
+    "/api/finance/payments/preview",
+    ...secured,
+    requirePermission(prisma, "finance.payments.record"),
+    validate(validators.paymentPreview),
+    c.paymentPreview,
+  );
+  r.get(
+    "/api/finance/payments/:id/receipt",
+    ...secured,
+    requirePermission(prisma, "finance.receipts.view"),
+    c.paymentReceipt,
+  );
+  r.get(
+    "/api/finance/accounts/:accountId/fee-agreements",
+    ...secured,
+    requirePermission(prisma, "finance.invoices.view"),
+    c.feeAgreements,
+  );
+  r.get(
+    "/api/finance/vat/configuration",
+    ...secured,
+    requirePermission(prisma, "finance.invoices.view"),
+    c.vatConfiguration,
+  );
+  r.put(
+    "/api/finance/vat/configuration",
+    ...secured,
+    requireRole(["Super Admin", "Finance Manager"]),
+    validate(validators.vatConfiguration),
+    c.updateVatConfiguration,
+  );
+  r.get(
+    "/api/finance/vat/events",
+    ...secured,
+    requirePermission(prisma, "finance.invoices.view"),
+    c.vatEvents,
+  );
+  r.post(
     "/api/finance/invoices",
     ...secured,
     requireRole(["Finance"]),

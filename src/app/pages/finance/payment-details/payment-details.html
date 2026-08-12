@@ -1,14 +1,15 @@
+<div class="receipt-state" *ngIf="loading">{{ l('Loading receipt...', 'جارٍ تحميل سند القبض...') }}</div>
+<div class="receipt-state error" *ngIf="error">{{ error }}</div>
 <section class="payment-receipt" *ngIf="payment">
 <div class="page-header">
-
-  <h1>Payment Details</h1>
+  <div><span class="eyebrow">RAWAFED INTERNATIONAL SCHOOL</span><h1>{{ l('Payment Receipt', 'سند قبض') }}</h1><bdi>{{ payment.receiptNumber }}</bdi></div>
 
   <button
     class="print-btn"
     type="button"
     (click)="printReceipt()">
 
-    Print Receipt
+    {{ l('Print Receipt', 'طباعة السند') }}
 
   </button>
 
@@ -17,32 +18,32 @@
 <div class="details-card">
 
   <div class="detail-item">
-    <span>Student</span>
-    <h3>{{payment?.patient}}</h3>
+    <span>{{ l('Student', 'الطالب') }}</span>
+    <h3>{{payment?.studentName}}</h3>
   </div>
 
   <div class="detail-item">
-    <span>Package</span>
-    <h3>{{payment?.package}}</h3>
+    <span>{{ l('Registration / Grade', 'التسجيل / الصف') }}</span>
+    <h3><bdi>{{payment?.registrationNumber}}</bdi> · {{ payment?.grade || '—' }}</h3>
   </div>
 
   <div class="detail-item">
-    <span>Payment Method</span>
-    <h3>{{payment?.method}}</h3>
+    <span>{{ l('Payment Method', 'طريقة الدفع') }}</span>
+    <h3>{{payment?.method}}<ng-container *ngIf="payment?.paymentAccount"> · <bdi>{{ payment.paymentAccount.code }}</bdi> {{ l(payment.paymentAccount.name, payment.paymentAccount.nameAr || payment.paymentAccount.name) }}</ng-container></h3>
   </div>
 
   <div class="detail-item">
-    <span>Payment Date</span>
-    <h3>{{payment?.date}}</h3>
+    <span>{{ l('Payment Date', 'تاريخ الدفع') }}</span>
+    <h3>{{payment?.paidAt | date:'yyyy-MM-dd'}}</h3>
   </div>
 
   <div class="detail-item">
-    <span>Receipt Number</span>
-    <h3>{{payment?.receipt}}</h3>
+    <span>{{ l('Reference Number', 'الرقم المرجعي') }}</span>
+    <h3>{{payment?.referenceNumber || '—'}}</h3>
   </div>
 
   <div class="detail-item">
-    <span>Status</span>
+    <span>{{ l('Status', 'الحالة') }}</span>
     <h3 class="status-paid">
       {{payment?.status}}
     </h3>
@@ -52,25 +53,19 @@
 
 <div class="receipt-card">
 
-  <h2>Payment Summary</h2>
+  <h2>{{ l('Payment Summary', 'ملخص سند القبض') }}</h2>
 
   <table class="receipt-table">
 
     <thead>
       <tr>
-        <th>Student</th>
-        <th>Package</th>
-        <th>Method</th>
-        <th>Date</th>
+        <th>{{ l('Description', 'البيان') }}</th><th>{{ l('Before payment', 'قبل الدفعة') }}</th><th>{{ l('Current', 'الحالي') }}</th><th>{{ l('After payment', 'بعد الدفعة') }}</th>
       </tr>
     </thead>
 
     <tbody>
       <tr>
-        <td>{{payment?.patient}}</td>
-        <td>{{payment?.package}}</td>
-        <td>{{payment?.method}}</td>
-        <td>{{payment?.date}}</td>
+        <td>{{ payment?.paymentItem }}</td><td>{{ money(payment?.balanceBefore) }}</td><td>{{ money(payment?.amount) }}</td><td>{{ money(payment?.balanceAfter) }}</td>
       </tr>
     </tbody>
 
@@ -78,13 +73,37 @@
 
   <div class="amount-box">
 
-    <h4>Total Amount</h4>
+    <div><span>{{ l('Annual contractual total', 'إجمالي التعاقد السنوي') }}</span><strong>{{ money(payment?.contractTotal) }}</strong></div>
+    <div><span>{{ l('Balance before payment', 'الرصيد قبل الدفعة') }}</span><strong>{{ money(payment?.balanceBefore) }}</strong></div>
+
+    <div><span>{{ l('Net taxable amount', 'القيمة قبل الضريبة') }}</span><strong>{{ money(payment?.netAmount) }}</strong></div>
+    <div><span>{{ l('Parent VAT', 'ضريبة ولي الأمر') }}</span><strong>{{ money(payment?.vatAmount) }}</strong></div>
+    <div *ngIf="payment?.governmentBorneVat"><span>{{ l('Government-borne VAT', 'الضريبة التي تتحملها الدولة') }}</span><strong>{{ money(payment?.governmentBorneVat) }}</strong></div>
+    <h4>{{ l('Actual amount received', 'المبلغ المستلم فعليًا') }}</h4>
 
     <h1>
-      {{payment?.amount}} SAR
+      {{ money(payment?.amount) }}
     </h1>
 
+    <div><span>{{ l('Total paid before', 'إجمالي المدفوع قبل هذه الدفعة') }}</span><strong>{{ money(payment?.totalPaidBefore) }}</strong></div>
+    <div><span>{{ l('Total paid after', 'إجمالي المدفوع بعد هذه الدفعة') }}</span><strong>{{ money(payment?.totalPaidAfter) }}</strong></div>
+    <div><span>{{ l('Remaining contractual balance', 'الرصيد التعاقدي المتبقي') }}</span><strong>{{ money(payment?.balanceAfter) }}</strong></div>
+
   </div>
+
+  <section class="allocation-list" *ngIf="payment?.feeItems?.length">
+    <h2>{{ l('Payment Allocations', 'توزيع مبلغ الدفعة') }}</h2>
+    <table class="receipt-table">
+      <thead><tr><th>{{ l('Fee item', 'بند الرسوم') }}</th><th>{{ l('Net', 'الصافي') }}</th><th>{{ l('VAT', 'الضريبة') }}</th><th>{{ l('Gross', 'الإجمالي') }}</th></tr></thead>
+      <tbody><tr *ngFor="let item of payment.feeItems"><td>{{ item.name }}</td><td>{{ money(item.netAmount) }}</td><td>{{ money(item.vatAmount) }}</td><td>{{ money(item.amount) }}</td></tr></tbody>
+    </table>
+  </section>
+
+  <section class="document-links" *ngIf="payment?.invoices?.length || payment?.journalEntries?.length">
+    <h2>{{ l('Related Documents', 'المستندات المرتبطة') }}</h2>
+    <p *ngFor="let invoice of payment.invoices">{{ l('Tax Invoice', 'الفاتورة الضريبية') }}: <bdi>{{ invoice.invoiceNumber }}</bdi></p>
+    <p *ngFor="let journal of payment.journalEntries">{{ l('Journal Entry', 'القيد المحاسبي') }}: <bdi>{{ journal.entryNumber }}</bdi> · {{ journal.status }}</p>
+  </section>
 
 </div>
 </section>

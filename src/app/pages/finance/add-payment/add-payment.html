@@ -48,10 +48,17 @@
 
     <div class="form-group">
       <label>{{ l('Payment Method', 'طريقة الدفع') }}</label>
-      <select [(ngModel)]="paymentMethod">
+      <select [(ngModel)]="paymentMethod" (ngModelChange)="paymentMethodChanged()">
         <option value="Cash">{{ paymentMethodLabel('Cash') }}</option>
         <option value="Card">{{ paymentMethodLabel('Card') }}</option>
         <option value="Bank Transfer">{{ paymentMethodLabel('Bank Transfer') }}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>{{ paymentMethod === 'Cash' ? l('Receiving Cashbox', 'الصندوق المستلم') : l('Receiving Bank', 'البنك المستلم') }}</label>
+      <select [(ngModel)]="paymentAccountId">
+        <option value="">{{ l('Select accounting account', 'اختر الحساب المحاسبي') }}</option>
+        <option *ngFor="let account of paymentAccounts" [hidden]="account.kind !== (paymentMethod === 'Cash' ? 'Cash' : 'Bank')" [value]="account.accountId">{{ account.label }}</option>
       </select>
     </div>
   </div>
@@ -164,11 +171,24 @@
         <td>{{ feeItemLabel(line.feeItem) }}</td>
         <td>{{ line.expected | number }} {{ currency() }}</td>
         <td>
-          <input class="amount-input" type="number" min="0" [(ngModel)]="line.amount" />
+          <input class="amount-input" type="number" min="0" [(ngModel)]="line.amount" (ngModelChange)="schedulePreview()" />
         </td>
       </tr>
     </tbody>
   </table>
+</section>
+
+<section class="info-card calculation-panel" *ngIf="selectedAccount && (paymentPreview || previewLoading)">
+  <h2>{{ l('Payment calculation', 'معاينة أثر الدفعة') }}</h2>
+  <p *ngIf="previewLoading">{{ l('Calculating from backend...', 'جارٍ الاحتساب من النظام المحاسبي...') }}</p>
+  <div class="discount-summary" *ngIf="paymentPreview && !previewLoading">
+    <div><span>{{ l('Amount received', 'المبلغ المستلم') }}</span><strong>{{ paymentPreview.amountReceived | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Allocated base', 'القيمة قبل الضريبة') }}</span><strong>{{ paymentPreview.allocatedBase | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Parent VAT', 'ضريبة ولي الأمر') }}</span><strong>{{ paymentPreview.parentVat | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Government-borne VAT', 'الضريبة التي تتحملها الدولة') }}</span><strong>{{ paymentPreview.governmentBorneVat | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div><span>{{ l('Balance before', 'الرصيد قبل الدفعة') }}</span><strong>{{ paymentPreview.balanceBefore | number:'1.2-2' }} {{ currency() }}</strong></div>
+    <div class="emphasis"><span>{{ l('Balance after', 'الرصيد بعد الدفعة') }}</span><strong>{{ paymentPreview.balanceAfter | number:'1.2-2' }} {{ currency() }}</strong></div>
+  </div>
 </section>
 
 <section class="info-card" #paymentDetails *ngIf="selectedAccount && !loadingStudent">
