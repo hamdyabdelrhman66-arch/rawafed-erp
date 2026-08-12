@@ -6,6 +6,7 @@ export interface LedgerFilter {
   to?: Date;
   accountId?: string;
   accountTypes?: AccountType[];
+  branch?: string;
 }
 export class LedgerRepository {
   constructor(private readonly db: DatabaseClient) {}
@@ -20,6 +21,11 @@ export class LedgerRepository {
           status: { in: ["POSTED", "REVERSED"] as JournalStatus[] },
           deletedAt: null,
           postingDate: { gte: filter.from, lte: filter.to },
+          ...(filter.branch
+            ? /^[0-9a-f-]{36}$/i.test(filter.branch)
+              ? { branchId: filter.branch }
+              : { branch: { code: { equals: filter.branch, mode: "insensitive" } } }
+            : {}),
         },
       },
       include: { account: true, journalEntry: true, costCenter: true },
@@ -38,6 +44,11 @@ export class LedgerRepository {
           status: { in: ["POSTED", "REVERSED"] },
           deletedAt: null,
           postingDate: { gte: filter.from, lte: filter.to },
+          ...(filter.branch
+            ? /^[0-9a-f-]{36}$/i.test(filter.branch)
+              ? { branchId: filter.branch }
+              : { branch: { code: { equals: filter.branch, mode: "insensitive" } } }
+            : {}),
         },
       },
       _sum: { debit: true, credit: true },

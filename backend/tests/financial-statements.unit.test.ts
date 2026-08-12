@@ -47,4 +47,27 @@ describe('posted journal financial statements', () => {
     expect(report.totals.periodCredit).toBe(500);
     expect(report.balanced).toBe(true);
   });
+
+  it('builds an account-statement summary from the same posted ledger aggregation', async () => {
+    const groupBy = vi.fn()
+      .mockResolvedValueOnce([
+        { accountId: 'cash', _sum: { debit: 40_000, credit: 2_010 }, _count: { journalEntryId: 8 } },
+      ])
+      .mockResolvedValueOnce([]);
+    const prisma = {
+      chartOfAccount: { findMany: vi.fn().mockResolvedValue([{
+        id: 'cash', code: '1100', name: 'Cash', nameAr: 'النقدية', type: 'ASSET',
+        parentId: null, openingBalance: 0, openingDate: null, normalBalance: 'DEBIT', currency: 'SAR',
+      }]) },
+      journalLine: { groupBy },
+    } as unknown as PrismaClient;
+
+    const statement = await new FinancialStatementsService(prisma).accountStatement({
+      accountIds: ['cash'], fromDate: '2026-08-01', toDate: '2026-08-31',
+    });
+
+    expect(statement.rows[0]).toMatchObject({ accountId: 'cash', closingBalance: 37_990, transactionCount: 8 });
+    expect(statement.summary).toMatchObject({ accountCount: 1, transactionCount: 8, periodDebit: 40_000, periodCredit: 2_010 });
+    expect(statement.integrity.applicable).toBe(false);
+  });
 });

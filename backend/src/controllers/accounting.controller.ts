@@ -159,8 +159,22 @@ export class AccountingController {
         req.params.accountId,
         String(req.query.fromDate || req.query.from || ""),
         String(req.query.toDate || req.query.to || ""),
+        String(req.query.branch || ""),
       ),
     ),
+  );
+  accountStatement = asyncController(async (req, res) =>
+    res.json(await this.statements.accountStatement({
+      fromDate: String(req.query.fromDate || req.query.from || ""),
+      toDate: String(req.query.toDate || req.query.to || ""),
+      accountIds: String(req.query.accountIds || "").split(",").filter(Boolean),
+      accountType: String(req.query.accountType || ""),
+      branch: String(req.query.branch || ""),
+      search: String(req.query.search || ""),
+      accountStatus: String(req.query.accountStatus || "active"),
+      sortBy: String(req.query.sortBy || "code") as any,
+      sortDirection: String(req.query.sortDirection || "asc") as any,
+    })),
   );
   trialBalance = asyncController(async (req, res) =>
     res.json(

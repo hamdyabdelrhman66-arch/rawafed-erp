@@ -49,11 +49,13 @@ export class AccountService {
     const map = new Map(balances.map((row) => [row.accountId, row]));
     return accounts.map((account) => {
       const activity = map.get(account.id);
+      const opening = Number(account.openingBalance || 0) *
+        (String(account.normalBalance || "DEBIT").toUpperCase() === "CREDIT" ? -1 : 1);
       return {
         ...shape(account),
         debit: Number(activity?._sum.debit || 0),
         credit: Number(activity?._sum.credit || 0),
-        currentBalance:
+        currentBalance: opening +
           Number(activity?._sum.debit || 0) -
           Number(activity?._sum.credit || 0),
         journalEntries: activity?._count.journalEntryId || 0,

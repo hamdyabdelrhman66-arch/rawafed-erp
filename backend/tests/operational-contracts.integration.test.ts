@@ -29,14 +29,20 @@ describe("frontend/backend operational contracts", () => {
           });
 
           const cashBank = new CashBankService(nestedClient);
+          const cashAccount = await tx.chartOfAccount.create({
+            data: { code: `CB-${suffix}`, name: `Test Cashbox ${suffix}`, type: "ASSET", isCashAccount: true, openingBalance: 1000 },
+          });
+          const bankAccount = await tx.chartOfAccount.create({
+            data: { code: `BK-${suffix}`, name: `Test Bank ${suffix}`, type: "ASSET", isBankAccount: true, openingBalance: 2000 },
+          });
           const cashbox = await cashBank.createCashbox({
             name: `Test Cashbox ${suffix}`,
-            openingBalance: 1000,
+            accountId: cashAccount.id,
             status: "active",
           });
           const bank = await cashBank.createBank({
             bankName: `Test Bank ${suffix}`,
-            openingBalance: 2000,
+            accountId: bankAccount.id,
             status: "active",
           });
           const paymentAccounts = await new AccountService(

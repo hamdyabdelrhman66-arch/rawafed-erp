@@ -6,14 +6,15 @@ import type { DatabaseClient } from "../repositories/repository.types.js";
 import { JournalService } from "./journal.service.js";
 import { ServiceError } from "./service.error.js";
 
-const balance = (account: any) => {
-  const activity = (account.journalLines || []).reduce(
-    (sum: number, line: any) =>
-      sum + Number(line.debit || 0) - Number(line.credit || 0),
-    0,
-  );
-  return Number(account.openingBalance || 0) + activity;
-};
+const round = (value: number) => Math.round(value * 100) / 100;
+const configuredOpening = (account: any) =>
+  Number(account.openingBalance || 0) *
+  (String(account.normalBalance || "DEBIT").toUpperCase() === "CREDIT" ? -1 : 1);
+const balancePresentation = (value: number) => ({
+  currentBalance: round(value),
+  balanceAmount: Math.abs(round(value)),
+  balanceSide: value > 0 ? "DEBIT" : value < 0 ? "CREDIT" : "ZERO",
+});
 
 const shapeCashbox = (row: any) => ({
   id: row.id,
@@ -25,7 +26,9 @@ const shapeCashbox = (row: any) => ({
   accountNameEn: row.account.name,
   accountNameAr: row.account.nameAr || row.account.name,
   openingBalance: Number(row.account.openingBalance || 0),
-  currentBalance: balance(row.account),
+  ...balancePresentation(configuredOpening(row.account) + Number(row.activityDebit || 0) - Number(row.activityCredit || 0)),
+  transactionCount: Number(row.transactionCount || 0),
+  masterRecord: row.masterRecord !== false,
 });
 
 const shapeBank = (row: any) => ({
@@ -40,15 +43,22 @@ const shapeBank = (row: any) => ({
   accountNameEn: row.account.name,
   accountNameAr: row.account.nameAr || row.account.name,
   openingBalance: Number(row.account.openingBalance || 0),
-  currentBalance: balance(row.account),
+  ...balancePresentation(configuredOpening(row.account) + Number(row.activityDebit || 0) - Number(row.activityCredit || 0)),
+  transactionCount: Number(row.transactionCount || 0),
+  masterRecord: row.masterRecord !== false,
 });
 
 export class CashBankService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async cashboxes() {
-    return (await new CashBankRepository(this.prisma).cashboxes()).map(
-      shapeCashbox,
+    const repository = new CashBankRepository(this.prisma);
+    const [registered, accounts] = await Promise.all([
+      repository.cashboxes(),
+      repository.cashAccounts(),
+    ]);
+    return this.projectAccounts(registered, accounts, "cashbox", repository).then(
+      (rows) => rows.map(shapeCashbox),
     );
   }
 
@@ -58,41 +68,21 @@ export class CashBankService {
       repository.banks(),
       repository.bankAccounts(),
     ]);
-    const registeredAccountIds = new Set(
-      registeredBanks.map((bank) => bank.accountId),
-    );
-    const accountBackedBanks = bankAccounts
-      .filter((account) => !registeredAccountIds.has(account.id))
-      .map((account) => ({
-        id: account.id,
-        accountId: account.id,
-        bankName: account.nameAr || account.name,
-        iban: null,
-        accountNumber: null,
-        active: account.active,
-        notes: account.notes,
-        account,
-      }));
-    return [...registeredBanks, ...accountBackedBanks].map(shapeBank);
+    return (await this.projectAccounts(registeredBanks, bankAccounts, "bank", repository)).map(shapeBank);
   }
 
   async createCashbox(input: any) {
     const name = String(input.name || "").trim();
     if (!name) throw new ServiceError("Cashbox name is required.", 400);
     return this.prisma.$transaction(async (tx) => {
-      const account = await this.resolvePaymentAccount(tx, input, {
-        name,
-        systemKey: "cash-main",
-        flag: "isCashAccount",
-        codePrefix: "CB",
-      });
+      const account = await this.resolvePaymentAccount(tx, input, "isCashAccount");
       const row = await new CashBankRepository(tx).createCashbox({
         accountId: account.id,
         name,
         active: input.status !== "inactive",
         notes: input.notes,
       });
-      return shapeCashbox({ ...row, account: { ...row.account, journalLines: [] } });
+      return shapeCashbox({ ...row, activityDebit: 0, activityCredit: 0, transactionCount: 0 });
     });
   }
 
@@ -100,12 +90,7 @@ export class CashBankService {
     const bankName = String(input.bankName || "").trim();
     if (!bankName) throw new ServiceError("Bank name is required.", 400);
     return this.prisma.$transaction(async (tx) => {
-      const account = await this.resolvePaymentAccount(tx, input, {
-        name: bankName,
-        systemKey: "bank-main",
-        flag: "isBankAccount",
-        codePrefix: "BK",
-      });
+      const account = await this.resolvePaymentAccount(tx, input, "isBankAccount");
       const row = await new CashBankRepository(tx).createBank({
         accountId: account.id,
         bankName,
@@ -114,7 +99,7 @@ export class CashBankService {
         active: input.status !== "inactive",
         notes: input.notes,
       });
-      return shapeBank({ ...row, account: { ...row.account, journalLines: [] } });
+      return shapeBank({ ...row, activityDebit: 0, activityCredit: 0, transactionCount: 0 });
     });
   }
 
@@ -126,7 +111,7 @@ export class CashBankService {
         notes: input.notes,
       })
       .then((row) =>
-        shapeCashbox({ ...row, account: { ...row.account, journalLines: [] } }),
+        shapeCashbox({ ...row, activityDebit: 0, activityCredit: 0, transactionCount: 0 }),
       );
   }
 
@@ -140,7 +125,7 @@ export class CashBankService {
         notes: input.notes,
       })
       .then((row) =>
-        shapeBank({ ...row, account: { ...row.account, journalLines: [] } }),
+        shapeBank({ ...row, activityDebit: 0, activityCredit: 0, transactionCount: 0 }),
       );
   }
 
@@ -199,47 +184,65 @@ export class CashBankService {
     });
   }
 
+  private async projectAccounts(
+    registered: any[],
+    accounts: any[],
+    kind: "cashbox" | "bank",
+    repository: CashBankRepository,
+  ) {
+    const registeredAccountIds = new Set(registered.map((row) => row.accountId));
+    const projected = accounts
+      .filter((account) => !registeredAccountIds.has(account.id))
+      .map((account) => kind === "cashbox" ? {
+        id: account.id,
+        accountId: account.id,
+        name: account.nameAr || account.name,
+        active: account.active,
+        notes: account.notes,
+        account,
+      } : {
+        id: account.id,
+        accountId: account.id,
+        bankName: account.nameAr || account.name,
+        iban: null,
+        accountNumber: null,
+        active: account.active,
+        notes: account.notes,
+        account,
+      });
+    const rows = [
+      ...registered.map((row) => ({ ...row, masterRecord: true })),
+      ...projected.map((row) => ({ ...row, masterRecord: false })),
+    ];
+    const balances = await repository.accountBalances(rows.map((row) => row.accountId));
+    const balanceMap = new Map(balances.map((row: any) => [row.accountId, row]));
+    return rows.map((row) => {
+      const activity: any = balanceMap.get(row.accountId);
+      return {
+        ...row,
+        activityDebit: Number(activity?._sum?.debit || 0),
+        activityCredit: Number(activity?._sum?.credit || 0),
+        transactionCount: Number(activity?._count?.journalEntryId || 0),
+      };
+    });
+  }
+
   private async resolvePaymentAccount(
     tx: DatabaseClient,
     input: any,
-    config: {
-      name: string;
-      systemKey: string;
-      flag: "isCashAccount" | "isBankAccount";
-      codePrefix: string;
-    },
+    flag: "isCashAccount" | "isBankAccount",
   ) {
-    if (input.accountId) {
-      const account = await tx.chartOfAccount.findFirst({
-        where: {
-          id: input.accountId,
-          active: true,
-          deletedAt: null,
-          [config.flag]: true,
-        },
-      });
-      if (!account)
-        throw new ServiceError("Cash or bank account not found.", 422);
-      return account;
-    }
-    const parent = await tx.chartOfAccount.findUnique({
-      where: { systemKey: config.systemKey },
+    const accountId = String(input.accountId || "");
+    if (!accountId)
+      throw new ServiceError("An accounting account must be selected.", 422, "ACCOUNT_MAPPING_REQUIRED");
+    const account = await tx.chartOfAccount.findFirst({
+      where: { id: accountId, active: true, deletedAt: null, allowPosting: true, [flag]: true },
     });
-    if (!parent)
-      throw new ServiceError("Cash or bank control account is not configured.", 422);
-    return tx.chartOfAccount.create({
-      data: {
-        code: `${config.codePrefix}-${randomUUID().slice(0, 8).toUpperCase()}`,
-        name: config.name,
-        nameAr: config.name,
-        type: "ASSET",
-        parentId: parent.id,
-        openingBalance: Number(input.openingBalance || 0),
-        active: input.status !== "inactive",
-        allowPosting: true,
-        normalBalance: "DEBIT",
-        [config.flag]: true,
-      },
-    });
+    if (!account)
+      throw new ServiceError("The selected cash or bank account is invalid.", 422, "INVALID_ACCOUNT_MAPPING");
+    const [cashbox, bank] = await new CashBankRepository(tx).findLiveMapping(accountId);
+    if (cashbox || bank)
+      throw new ServiceError("This accounting account is already linked.", 409, "DUPLICATE_ACCOUNT_MAPPING");
+    return account;
   }
 }

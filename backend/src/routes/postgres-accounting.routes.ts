@@ -124,6 +124,7 @@ export function postgresAccountingRoutes(prisma: PrismaClient): Router {
   r.get("/api/accounting/periods", ...secured, requirePermission(prisma, "journals.view"), c.accountingPeriods);
   r.patch("/api/accounting/periods/:id", ...secured, requirePermission(prisma, "accounting.periods.manage"), validate(validators.accountingPeriod), c.updateAccountingPeriod);
   r.get("/api/accounting/ledger/:accountId", ...secured, read, c.ledger);
+  r.get("/api/accounting/account-statement", ...secured, read, c.accountStatement);
   r.get("/api/accounting/trial-balance", ...secured, read, c.trialBalance);
   r.get("/api/accounting/dashboard", ...secured, read, c.dashboard);
   r.get(

@@ -326,6 +326,24 @@ export class AccountingService {
     return this.api.get<any>(`/accounting/trial-balance${params.toString() ? `?${params}` : ''}`);
   }
 
+  getAccountStatement(filters: {
+    fromDate?: string;
+    toDate?: string;
+    accountIds?: string[];
+    accountType?: string;
+    branch?: string;
+    search?: string;
+    sortBy?: string;
+    sortDirection?: string;
+  } = {}): Promise<any> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (Array.isArray(value) && value.length) params.set(key, value.join(','));
+      else if (value) params.set(key, String(value));
+    });
+    return this.api.get<any>(`/accounting/account-statement${params.toString() ? `?${params}` : ''}`);
+  }
+
   createJournalEntry(payload: {
     referenceNumber?: string;
     postingDate: string;

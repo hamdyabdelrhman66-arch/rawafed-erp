@@ -1,20 +1,22 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { AccountingAccount, AccountingService } from '../../../core/finance/accounting.service';
+import { formatAccountingBalance } from '../../../core/finance/accounting-balance';
 import { FeedbackService, safeErrorMessage } from '../../../core/feedback/feedback.service';
 
 @Component({
   selector: 'app-cashboxes',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './cashboxes.html',
   styleUrls: ['./cashboxes.css', '../../../shared/finance/finance-ui.scss']
 })
 export class Cashboxes implements OnInit {
   cashboxes: any[] = [];
   paymentAccounts: AccountingAccount[] = [];
-  form = { name: '', openingBalance: 0, notes: '', status: 'active' };
+  form = { name: '', accountId: '', notes: '', status: 'active' };
   transfer = { fromAccountId: '', toAccountId: '', amount: 0, date: new Date().toISOString().slice(0, 10), description: '' };
 
   constructor(private readonly accounting: AccountingService, private readonly feedback: FeedbackService) {}
@@ -24,7 +26,16 @@ export class Cashboxes implements OnInit {
   }
 
   get totalCurrent(): number {
-    return this.cashboxes.reduce((sum, item) => sum + Number(item.currentBalance || 0), 0);
+    return this.cashboxes.filter((item) => item.status === 'active').reduce((sum, item) => sum + Number(item.currentBalance || 0), 0);
+  }
+
+  get activeCashboxes(): number {
+    return this.cashboxes.filter((item) => item.status === 'active').length;
+  }
+
+  get availableCashAccounts(): AccountingAccount[] {
+    const linked = new Set(this.cashboxes.filter((item) => item.masterRecord).map((item) => item.accountId));
+    return this.paymentAccounts.filter((account) => account.isCashAccount && !linked.has(account.id));
   }
 
   get destinationAccounts(): AccountingAccount[] {
@@ -56,13 +67,13 @@ export class Cashboxes implements OnInit {
   }
 
   async saveCashbox(): Promise<void> {
-    if (!this.form.name.trim()) {
-      this.feedback.validation('Cashbox name is required.');
+    if (!this.form.name.trim() || !this.form.accountId) {
+      this.feedback.validation('يجب إدخال اسم الصندوق واختيار حساب النقد المرتبط.');
       return;
     }
     try {
       await this.accounting.createCashbox(this.form);
-      this.form = { name: '', openingBalance: 0, notes: '', status: 'active' };
+      this.form = { name: '', accountId: '', notes: '', status: 'active' };
       await this.load();
       this.feedback.success('Cashbox created successfully.');
     } catch (error) {
@@ -91,7 +102,12 @@ export class Cashboxes implements OnInit {
   }
 
   money(value: unknown): string {
-    return `${Number(value || 0).toLocaleString('en-US')} SAR`;
+    return `SAR ${Math.abs(Number(value || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  }
+
+  accountingBalance(itemOrValue: any): string {
+    const value = typeof itemOrValue === 'object' ? Number(itemOrValue.currentBalance || 0) : Number(itemOrValue || 0);
+    return formatAccountingBalance(value, 'ar');
   }
 
   private ensureDifferentDestination(): void {

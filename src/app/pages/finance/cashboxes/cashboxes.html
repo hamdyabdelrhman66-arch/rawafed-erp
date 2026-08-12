@@ -1,26 +1,26 @@
 <section class="master-page">
   <header class="page-header">
     <div>
-      <span>Cashbox Management</span>
-      <h1>Cashboxes</h1>
-      <p>Opening balance, current balance, cash in/out through journal entries, and daily cash statement.</p>
+      <span>إدارة النقدية</span>
+      <h1>الصناديق</h1>
+      <p>الأرصدة والحركات مستمدة مباشرةً من القيود المرحلة في الأستاذ العام.</p>
     </div>
   </header>
 
   <section class="stats-grid">
-    <article><span>Cashboxes</span><strong>{{ cashboxes.length }}</strong></article>
-    <article><span>Total Current Balance</span><strong>{{ money(totalCurrent) }}</strong></article>
+    <article><span>الصناديق النشطة</span><strong>{{ activeCashboxes }}</strong></article>
+    <article><span>إجمالي الرصيد الحالي</span><strong>{{ accountingBalance(totalCurrent) }}</strong></article>
   </section>
 
   <section class="form-card">
-    <h2>Add Cashbox</h2>
+    <h2>إضافة صندوق</h2>
     <div class="form-grid">
-      <label><span>Name</span><input [(ngModel)]="form.name" /></label>
-      <label><span>Opening Balance</span><input type="number" [(ngModel)]="form.openingBalance" /></label>
-      <label><span>Status</span><select [(ngModel)]="form.status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
-      <label class="wide"><span>Notes</span><input [(ngModel)]="form.notes" /></label>
+      <label><span>الاسم</span><input [(ngModel)]="form.name" /></label>
+      <label><span>حساب النقد في دليل الحسابات</span><select [(ngModel)]="form.accountId"><option value="">اختر الحساب</option><option *ngFor="let account of availableCashAccounts" [value]="account.id">{{ account.code }} - {{ account.nameAr || account.nameEn }}</option></select></label>
+      <label><span>الحالة</span><select [(ngModel)]="form.status"><option value="active">نشط</option><option value="inactive">غير نشط</option></select></label>
+      <label class="wide"><span>ملاحظات</span><input [(ngModel)]="form.notes" /></label>
     </div>
-    <footer><button class="primary" type="button" (click)="saveCashbox()">Save Cashbox</button></footer>
+    <footer><button class="primary" type="button" (click)="saveCashbox()">حفظ الصندوق</button></footer>
   </section>
 
   <section class="form-card">
@@ -40,14 +40,15 @@
     <h2>Cash Statement</h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Cashbox</th><th>Account</th><th>Opening</th><th>Current</th><th>Status</th></tr></thead>
+        <thead><tr><th>Cashbox</th><th>Account</th><th>Opening</th><th>Current</th><th>Status</th><th>الإجراء</th></tr></thead>
         <tbody>
           <tr *ngFor="let cashbox of cashboxes">
             <td>{{ cashbox.name }}</td>
             <td>{{ cashbox.accountCode }} - {{ cashbox.accountNameEn }}</td>
-            <td>{{ money(cashbox.openingBalance) }}</td>
-            <td>{{ money(cashbox.currentBalance) }}</td>
+            <td>{{ accountingBalance(cashbox.openingBalance) }}</td>
+            <td>{{ accountingBalance(cashbox) }}</td>
             <td>{{ cashbox.status }}</td>
+            <td><a [routerLink]="['/finance/account-statement']" [queryParams]="{ accountId: cashbox.accountId }">كشف الحساب</a></td>
           </tr>
         </tbody>
       </table>

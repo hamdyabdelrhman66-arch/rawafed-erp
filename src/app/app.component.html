@@ -191,6 +191,9 @@
               ><mat-icon>menu_book</mat-icon
               ><span>{{ "nav.general_ledger" | t }}</span></a
             >
+            <a routerLink="/finance/account-statement" routerLinkActive="active"
+              ><mat-icon>summarize</mat-icon><span>كشف الحساب</span></a
+            >
             <a
               routerLink="/finance/accounting"
               [queryParams]="{ tab: 'trial' }"

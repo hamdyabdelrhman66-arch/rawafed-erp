@@ -1,0 +1,36 @@
+<section class="statement-page">
+  <header class="statement-header">
+    <div><span>الحسابات · الأستاذ العام</span><h1>كشف الحساب</h1><p>أرصدة وحركات الحسابات من القيود المرحلة مباشرةً.</p></div>
+    <div class="actions"><button (click)="print()">طباعة</button><button (click)="exportPdf()">PDF</button><button (click)="exportExcel()">Excel</button></div>
+  </header>
+
+  <section class="filter-card">
+    <div class="filter-grid">
+      <label><span>من</span><input type="date" [(ngModel)]="filters.fromDate"></label>
+      <label><span>إلى</span><input type="date" [(ngModel)]="filters.toDate"></label>
+      <label><span>نوع الحساب</span><select [(ngModel)]="filters.accountType"><option value="">كل الأنواع</option><option value="asset">أصول</option><option value="liability">التزامات</option><option value="equity">حقوق ملكية</option><option value="revenue">إيرادات</option><option value="expense">مصروفات</option></select></label>
+      <label><span>الفرع / القسم</span><input [(ngModel)]="filters.branch" placeholder="كل الفروع"></label>
+      <label><span>ترتيب حسب</span><select [(ngModel)]="filters.sortBy"><option value="code">الكود</option><option value="name">الاسم</option><option value="opening">الافتتاحي</option><option value="debit">المدين</option><option value="credit">الدائن</option><option value="closing">الختامي</option></select></label>
+      <label class="wide"><span>بحث</span><input [(ngModel)]="filters.search" placeholder="الكود أو الاسم العربي أو الإنجليزي"></label>
+    </div>
+    <details class="account-picker"><summary>اختيار حسابات محددة ({{ selectedAccountIds.length || 'الكل' }})</summary><div><label *ngFor="let account of accounts"><input type="checkbox" [checked]="selectedAccountIds.includes(account.id)" (change)="toggleAccount(account.id, $any($event.target).checked)"><span>{{ account.code }} — {{ i18n.language() === 'ar' ? account.nameAr : account.nameEn }}</span></label></div></details>
+    <button class="primary" (click)="load()" [disabled]="loading">{{ loading ? 'جارٍ التحميل...' : 'تطبيق' }}</button>
+  </section>
+
+  <section class="summary-grid" *ngIf="statement">
+    <article><span>عدد الحسابات</span><strong>{{ statement.summary.accountCount }}</strong></article>
+    <article><span>عدد الحركات</span><strong>{{ statement.summary.transactionCount }}</strong></article>
+    <article><span>مدين الفترة</span><strong>{{ money(statement.summary.periodDebit) }}</strong></article>
+    <article><span>دائن الفترة</span><strong>{{ money(statement.summary.periodCredit) }}</strong></article>
+  </section>
+  <p class="integrity" *ngIf="statement?.integrity?.applicable" [class.error]="!statement.integrity.balanced">{{ statement.integrity.balanced ? 'القيود متوازنة' : 'تحذير: فرق القيود ' + money(statement.integrity.difference) }}</p>
+
+  <section class="table-card" *ngIf="statement">
+    <div class="table-scroll"><table><thead><tr><th>الكود</th><th>الحساب</th><th>الافتتاحي</th><th>مدين</th><th>دائن</th><th>الختامي</th><th>الحركات</th></tr></thead><tbody>
+      <tr *ngFor="let row of statement.rows" (click)="drillDown(row)" tabindex="0"><td>{{ row.code }}</td><td>{{ i18n.language() === 'ar' ? row.nameAr || row.nameEn : row.nameEn }}</td><td>{{ balance(row.openingBalance) }}</td><td>{{ money(row.periodDebit) }}</td><td>{{ money(row.periodCredit) }}</td><td><strong>{{ balance(row.closingBalance) }}</strong></td><td>{{ row.transactionCount }}</td></tr>
+      <tr *ngIf="!statement.rows.length"><td colspan="7" class="empty">لا توجد حركات ضمن عوامل التصفية.</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="details-card" *ngIf="details"><div><h2>{{ details.account.code }} — {{ details.account.nameAr || details.account.name }}</h2><button (click)="details = null">إغلاق</button></div><p>الافتتاحي: {{ balance(details.openingBalance) }} · الختامي: {{ balance(details.closingBalance) }}</p><div class="table-scroll"><table><thead><tr><th>التاريخ</th><th>القيد</th><th>المرجع</th><th>الوصف</th><th>مدين</th><th>دائن</th><th>الرصيد الجاري</th></tr></thead><tbody><tr *ngFor="let line of details.transactions"><td>{{ line.date }}</td><td>{{ line.entryNumber }}</td><td>{{ line.referenceNumber || '—' }}</td><td>{{ line.description }}</td><td>{{ money(line.debit) }}</td><td>{{ money(line.credit) }}</td><td>{{ balance(line.runningBalance) }}</td></tr></tbody></table></div></section>
+</section>

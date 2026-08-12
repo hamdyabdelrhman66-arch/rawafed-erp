@@ -16,7 +16,7 @@
   <section class="erp-stats">
     <article *ngFor="let card of kpiCards.slice(0, 4)">
       <span>{{ card.label }}</span>
-      <strong>{{ money(card.value) }}</strong>
+      <strong>{{ accountingBalance(card.value) }}</strong>
       <small>{{ card.note }}</small>
     </article>
   </section>
@@ -45,7 +45,7 @@
     <div class="type-grid kpi-grid">
       <article *ngFor="let card of kpiCards">
         <span>{{ card.label }}</span>
-        <strong>{{ money(card.value) }}</strong>
+        <strong>{{ accountingBalance(card.value) }}</strong>
         <small>{{ card.note }}</small>
       </article>
     </div>
@@ -544,8 +544,8 @@
 
     <div class="ledger-summary" *ngIf="ledger">
       <strong>{{ ledger.account.code }} - {{ i18n.label(ledger.account.nameEn, ledger.account.nameAr) }}</strong>
-      <span>{{ 'common.opening' | t }}: {{ money(ledger.openingBalance) }}</span>
-      <span>{{ 'common.closing' | t }}: {{ money(ledger.closingBalance) }}</span>
+      <span>{{ 'common.opening' | t }}: {{ accountingBalance(ledger.openingBalance) }}</span>
+      <span>{{ 'common.closing' | t }}: {{ accountingBalance(ledger.closingBalance) }}</span>
     </div>
 
     <div class="table-scroll">
@@ -567,7 +567,7 @@
             <td>{{ row.description }}</td>
             <td>{{ money(row.debit) }}</td>
             <td>{{ money(row.credit) }}</td>
-            <td>{{ money(row.balance) }}</td>
+            <td>{{ accountingBalance(row.balance) }}</td>
           </tr>
           <tr *ngIf="!(ledger?.transactions || []).length">
             <td colspan="6" class="empty-cell">{{ 'accounting.no_ledger' | t }}</td>

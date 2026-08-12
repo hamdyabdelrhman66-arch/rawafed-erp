@@ -8,17 +8,17 @@
   </header>
 
   <section class="stats-grid">
-    <article><span>Banks</span><strong>{{ banks.length }}</strong></article>
-    <article><span>Total Current Balance</span><strong>{{ money(totalCurrent) }}</strong></article>
+    <article><span>البنوك النشطة</span><strong>{{ activeBanks }}</strong></article>
+    <article><span>إجمالي الرصيد الحالي</span><strong>{{ accountingBalance(totalCurrent) }}</strong></article>
   </section>
 
   <section class="form-card">
     <h2>Add Bank</h2>
     <div class="form-grid">
       <label><span>Bank Name</span><input [(ngModel)]="form.bankName" /></label>
+      <label><span>حساب البنك في دليل الحسابات</span><select [(ngModel)]="form.accountId"><option value="">اختر الحساب</option><option *ngFor="let account of availableBankAccounts" [value]="account.id">{{ account.code }} - {{ account.nameAr || account.nameEn }}</option></select></label>
       <label><span>IBAN</span><input [(ngModel)]="form.iban" /></label>
       <label><span>Account Number</span><input [(ngModel)]="form.accountNumber" /></label>
-      <label><span>Opening Balance</span><input type="number" [(ngModel)]="form.openingBalance" /></label>
       <label><span>Status</span><select [(ngModel)]="form.status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
       <label class="wide"><span>Notes</span><input [(ngModel)]="form.notes" /></label>
     </div>
@@ -42,16 +42,17 @@
     <h2>Bank Statement</h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Bank</th><th>IBAN</th><th>Account No.</th><th>COA Account</th><th>Opening</th><th>Current</th><th>Status</th></tr></thead>
+        <thead><tr><th>Bank</th><th>IBAN</th><th>Account No.</th><th>COA Account</th><th>Opening</th><th>Current</th><th>Status</th><th>الإجراء</th></tr></thead>
         <tbody>
           <tr *ngFor="let bank of banks">
             <td>{{ bank.bankName }}</td>
             <td>{{ bank.iban || '-' }}</td>
             <td>{{ bank.accountNumber || '-' }}</td>
             <td>{{ bank.accountCode }} - {{ bank.accountNameEn }}</td>
-            <td>{{ money(bank.openingBalance) }}</td>
-            <td>{{ money(bank.currentBalance) }}</td>
+            <td>{{ accountingBalance(bank.openingBalance) }}</td>
+            <td>{{ accountingBalance(bank) }}</td>
             <td>{{ bank.status }}</td>
+            <td><a [routerLink]="['/finance/account-statement']" [queryParams]="{ accountId: bank.accountId }">كشف الحساب</a></td>
           </tr>
         </tbody>
       </table>

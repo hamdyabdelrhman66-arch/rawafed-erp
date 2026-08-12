@@ -25,6 +25,9 @@ export interface TrialBalanceFilters {
   search?: string;
   showZeroBalances?: boolean;
   showParentAccounts?: boolean;
+  accountIds?: string[];
+  sortBy?: "code" | "name" | "opening" | "debit" | "credit" | "closing";
+  sortDirection?: "asc" | "desc";
 }
 
 const splitBalance = (value: number) => ({
@@ -51,6 +54,7 @@ export class FinancialStatementsService {
     const from = dateBoundary(filters.fromDate);
     const to = dateBoundary(filters.toDate, true);
     const accountWhere: Prisma.ChartOfAccountWhereInput = {};
+    if (filters.accountIds?.length) accountWhere.id = { in: filters.accountIds };
     if (filters.accountType) {
       accountWhere.type = filters.accountType.toUpperCase() as AccountType;
     }
@@ -105,6 +109,7 @@ export class FinancialStatementsService {
         by: ["accountId"],
         where: periodWhere,
         _sum: { debit: true, credit: true },
+        _count: { journalEntryId: true },
       }),
       openingWhere
         ? this.prisma.journalLine.groupBy({
@@ -114,7 +119,7 @@ export class FinancialStatementsService {
           })
         : Promise.resolve([]),
     ]);
-    const periodMap = new Map(periodBalances.map((b) => [b.accountId, b._sum]));
+    const periodMap = new Map(periodBalances.map((b) => [b.accountId, b]));
     const priorMap = new Map(priorBalances.map((b) => [b.accountId, b._sum]));
     const childCount = new Map<string, number>();
     for (const account of accounts) {
@@ -127,10 +132,10 @@ export class FinancialStatementsService {
           ? num(account.openingBalance) * (account.normalBalance.toUpperCase() === "CREDIT" ? -1 : 1)
           : 0;
       const prior = priorMap.get(account.id);
-      const period = periodMap.get(account.id);
+      const period: any = periodMap.get(account.id);
       const openingBalance = round(configuredOpening + num(prior?.debit) - num(prior?.credit));
-      const periodDebit = round(num(period?.debit));
-      const periodCredit = round(num(period?.credit));
+      const periodDebit = round(num(period?._sum?.debit));
+      const periodCredit = round(num(period?._sum?.credit));
       const closingBalance = round(openingBalance + periodDebit - periodCredit);
       const opening = splitBalance(openingBalance);
       const closing = splitBalance(closingBalance);
@@ -151,6 +156,8 @@ export class FinancialStatementsService {
         closingBalance,
         closingDebit: closing.debit,
         closingCredit: closing.credit,
+        transactionCount: Number(period?._count?.journalEntryId || 0),
+        currency: account.currency,
         // Backwards-compatible fields used by the dashboard and balance sheet.
         debit: periodDebit,
         credit: periodCredit,
@@ -162,6 +169,19 @@ export class FinancialStatementsService {
       if (displayMode === "all") return true;
       if (displayMode === "balance") return row.closingBalance !== 0;
       return row.periodDebit !== 0 || row.periodCredit !== 0;
+    }).sort((left, right) => {
+      const key = filters.sortBy || "code";
+      const values: Record<string, [string | number, string | number]> = {
+        code: [left.code, right.code],
+        name: [left.nameAr || left.nameEn, right.nameAr || right.nameEn],
+        opening: [left.openingBalance, right.openingBalance],
+        debit: [left.periodDebit, right.periodDebit],
+        credit: [left.periodCredit, right.periodCredit],
+        closing: [left.closingBalance, right.closingBalance],
+      };
+      const [a, b] = values[key];
+      const result = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
+      return filters.sortDirection === "desc" ? -result : result;
     });
     const totals = {
       openingDebit: round(rows.reduce((sum, row) => sum + row.openingDebit, 0)),
@@ -183,7 +203,30 @@ export class FinancialStatementsService {
       toDate: filters.toDate || "",
     };
   }
-  async ledger(accountId: string, from?: string, to?: string) {
+  async accountStatement(filters: TrialBalanceFilters = {}) {
+    const statement = await this.trialBalance({ ...filters, showZeroBalances: true });
+    const transactionCount = statement.rows.reduce((sum, row) => sum + row.transactionCount, 0);
+    return {
+      ...statement,
+      summary: {
+        accountCount: statement.rows.length,
+        transactionCount,
+        openingDebit: statement.totals.openingDebit,
+        openingCredit: statement.totals.openingCredit,
+        periodDebit: statement.totals.periodDebit,
+        periodCredit: statement.totals.periodCredit,
+        closingDebit: statement.totals.closingDebit,
+        closingCredit: statement.totals.closingCredit,
+      },
+      integrity: {
+        applicable: !filters.accountIds?.length && !filters.accountType,
+        balanced: statement.balanced,
+        difference: round(statement.totalDebit - statement.totalCredit),
+      },
+    };
+  }
+
+  async ledger(accountId: string, from?: string, to?: string, branch?: string) {
     const account = await new AccountsRepository(this.prisma).find(accountId);
     if (!account) throw new Error("Account not found");
 
@@ -193,11 +236,13 @@ export class FinancialStatementsService {
       repository.lines({
         accountId,
         ...dates,
+        branch,
       }),
       dates.from
         ? repository.balances({
             accountId,
             to: new Date(dates.from.getTime() - 1),
+            branch,
           })
         : Promise.resolve([]),
     ]);
@@ -228,6 +273,9 @@ export class FinancialStatementsService {
         postingDate,
         referenceNumber: line.journalEntry.referenceNumber,
         description: line.description || line.journalEntry.description,
+        sourceType: line.journalEntry.sourceType,
+        sourceId: line.journalEntry.sourceId,
+        sourceModule: line.journalEntry.sourceModule,
         debit: num(line.debit),
         credit: num(line.credit),
         balance,
@@ -315,26 +363,16 @@ export class FinancialStatementsService {
       balanceSheet,
       cashFlow,
       accounts,
-      balances,
     ] = await Promise.all([
-      this.trialBalance(from, to),
+      this.trialBalance({ fromDate: from, toDate: to, displayMode: "all" }),
       this.incomeStatement(from, to),
       this.balanceSheet(to),
       this.cashFlow(from, to),
       new AccountsRepository(this.prisma).list(),
-      new LedgerRepository(this.prisma).balances(this.dates(from, to)),
     ]);
     const accountMap = new Map(
       accounts.map((account) => [account.id, account]),
     );
-    const naturalBalance = (
-      account: (typeof accounts)[number],
-      debit: number,
-      credit: number,
-    ) =>
-      account.type === "ASSET" || account.type === "EXPENSE"
-        ? debit - credit
-        : credit - debit;
     const totals = {
       cashBalance: 0,
       bankBalance: 0,
@@ -342,16 +380,10 @@ export class FinancialStatementsService {
       accountsPayable: 0,
       vatPayable: 0,
     };
-    for (const balance of balances) {
-      const account = accountMap.get(balance.accountId);
+    for (const row of trialBalance.rows) {
+      const account = accountMap.get(row.accountId);
       if (!account) continue;
-      const value = round(
-        naturalBalance(
-          account,
-          num(balance._sum.debit),
-          num(balance._sum.credit),
-        ),
-      );
+      const value = round(row.closingBalance);
       if (account.isCashAccount) totals.cashBalance += value;
       if (account.isBankAccount) totals.bankBalance += value;
       if (account.isReceivableAccount) totals.accountsReceivable += value;

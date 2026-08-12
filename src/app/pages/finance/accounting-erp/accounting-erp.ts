@@ -18,6 +18,7 @@ import {
 } from "../../../core/feedback/feedback.service";
 import { AuthService } from "../../../core/auth/auth.service";
 import { ReportExportService, ReportTable } from "../../../core/reports/report-export.service";
+import { formatAccountingBalance } from "../../../core/finance/accounting-balance";
 
 type AccountingTab = "overview" | "accounts" | "journal" | "ledger" | "trial" | "mappings";
 type AccountFormMode = "details" | "create" | "edit";
@@ -1007,6 +1008,10 @@ export class AccountingErp implements OnInit {
 
   money(value: unknown): string {
     return `${Number(value || 0).toLocaleString("en-US")} SAR`;
+  }
+
+  accountingBalance(value: unknown): string {
+    return formatAccountingBalance(value, this.i18n.language());
   }
 
   chartWidth(rows: any[] = [], key = "value", row: any): number {

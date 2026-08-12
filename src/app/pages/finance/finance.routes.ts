@@ -7,6 +7,7 @@ export const financeRoutes: Routes = [
   { path: 'payments', loadComponent: () => import('./payments/payments').then((m) => m.Payments) },
   { path: 'reports', loadComponent: () => import('./reports/reports').then((m) => m.Reports) },
   { path: 'accounting', loadComponent: () => import('./accounting-erp/accounting-erp').then((m) => m.AccountingErp) },
+  { path: 'account-statement', loadComponent: () => import('./account-statement/account-statement').then((m) => m.AccountStatement) },
   { path: 'inventory', loadComponent: () => import('./inventory-erp/inventory-erp').then((m) => m.InventoryErp) },
   { path: 'customers', loadComponent: () => import('./customers/customers').then((m) => m.Customers) },
   { path: 'customers/:id', loadComponent: () => import('./customer-profile/customer-profile').then((m) => m.CustomerProfile) },
